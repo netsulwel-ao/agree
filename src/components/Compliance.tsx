@@ -1,9 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
-import { Button } from './ui/button';
-import { Badge } from './ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { 
   ShieldCheck, 
   Lock, 
@@ -13,72 +9,82 @@ import {
   AlertTriangle,
   UserCheck,
   Key,
-  Eye,
-  Search,
   Download,
-  Filter,
   Activity,
-  CheckCircle2,
-  XCircle
+  CheckCircle2
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { ScrollArea } from './ui/scroll-area';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Compliance() {
+  const { user } = useAuth();
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [currentUserRole, setCurrentUserRole] = useState<string>('user');
+  const [activeTab, setActiveTab] = useState<'audit' | 'permissions' | 'compliance'>('audit');
 
   useEffect(() => {
-    fetchData();
-
-    // Subscribe to logs
-    const logsChannel = supabase
-      .channel('audit_logs_changes')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'audit_logs' }, () => {
-        fetchLogs();
-      })
-      .subscribe();
-
-    // Subscribe to profiles
-    const profilesChannel = supabase
-      .channel('profiles_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
-        fetchProfiles();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(logsChannel);
-      supabase.removeChannel(profilesChannel);
-    };
-  }, []);
-
-  const fetchData = async () => {
-    setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-      if (profile) setCurrentUserRole(profile.role || 'user');
+      const init = async () => {
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', user.id)
+            .single();
+
+          const role = profile?.role || 'user';
+          setCurrentUserRole(role);
+
+          // Logs: admin vê todos, user vê só os seus
+          await fetchLogs(role);
+
+          // Perfis: só admin vê todos os utilizadores
+          if (role === 'admin') {
+            await fetchProfiles();
+          } else {
+            // User normal só vê o seu próprio perfil
+            const { data } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', user.id);
+            setUsers(data || []);
+          }
+        } catch (err) {
+          console.error("Error initializing compliance:", err);
+        }
+      };
+      init();
+
+      const logsChannel = supabase
+        .channel('audit_logs_changes')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'audit_logs' }, () => {
+          fetchLogs(currentUserRole);
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(logsChannel);
+      };
     }
+  }, [user]);
 
-    await Promise.all([fetchLogs(), fetchProfiles()]);
-    setLoading(false);
-  };
-
-  const fetchLogs = async () => {
-    const { data } = await supabase
+  const fetchLogs = async (role: string) => {
+    if (!user) return;
+    let query = supabase
       .from('audit_logs')
       .select('*')
       .order('timestamp', { ascending: false })
       .limit(50);
+
+    // User normal só vê os seus próprios logs
+    if (role !== 'admin') {
+      query = query.eq('user_id', user.id);
+    }
+
+    const { data } = await query;
     setAuditLogs(data || []);
   };
 
@@ -109,245 +115,606 @@ export default function Compliance() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Activity className="animate-spin text-[#0055FF]" size={32} />
-      </div>
-    );
-  }
+
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex justify-between items-start">
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 24,
+      fontFamily: "'Poppins', sans-serif"
+    }}>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 16
+      }}>
         <div>
-          <h1 className="text-[24px] font-bold text-foreground flex items-center gap-3">
-            <ShieldCheck className="text-primary" size={28} />
-            Segurança & Compliance
+          <h1 style={{
+            fontSize: 24,
+            fontWeight: 800,
+            color: '#0d1117',
+            marginBottom: 4,
+            fontFamily: "'Poppins',sans-serif"
+          }}>
+            Compliance & Segurança
           </h1>
-          <p className="text-[14px] text-muted-foreground">Gestão de acessos, auditoria e conformidade legal</p>
+          <p style={{ fontSize: 14, color: '#6b7280', fontFamily: "'Poppins',sans-serif" }}>
+            Gerencie permissões e visualize logs de auditoria
+          </p>
         </div>
-        <Badge variant="outline" className="bg-secondary text-primary border-border px-3 py-1">
-          Nível de Segurança: Elevado
-        </Badge>
       </div>
 
-      <Tabs defaultValue="audit" className="w-full">
-        <TabsList className="w-full justify-start h-12 bg-transparent border-b border-border rounded-none p-0 gap-8">
-          <TabsTrigger value="audit" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full px-0 text-[14px] font-medium text-muted-foreground">
-            <History size={16} className="mr-2" />
-            Logs de Auditoria
-          </TabsTrigger>
-          <TabsTrigger value="permissions" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full px-0 text-[14px] font-medium text-muted-foreground">
-            <Users size={16} className="mr-2" />
-            Perfis e Permissões
-          </TabsTrigger>
-          <TabsTrigger value="compliance" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full px-0 text-[14px] font-medium text-muted-foreground">
-            <FileCheck size={16} className="mr-2" />
-            Conformidade Legal
-          </TabsTrigger>
-        </TabsList>
+      {/* Tabs */}
+      <div style={{
+        display: 'flex',
+        gap: 8,
+        borderBottom: '1px solid #e2e5e9'
+      }}>
+        {[
+          { id: 'audit', label: 'Logs de Auditoria', icon: History },
+          { id: 'permissions', label: 'Permissões', icon: Lock },
+          { id: 'compliance', label: 'Compliance', icon: ShieldCheck }
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as any)}
+            style={{
+              padding: '12px 20px',
+              background: 'transparent',
+              border: 'none',
+              fontSize: 13,
+              fontWeight: 600,
+              color: activeTab === tab.id ? '#0fa88f' : '#6b7280',
+              cursor: 'pointer',
+              borderBottom: activeTab === tab.id ? '2px solid #0fa88f' : '2px solid transparent',
+              transition: 'all .2s',
+              fontFamily: "'Poppins',sans-serif",
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8
+            }}
+          >
+            <tab.icon size={16} />
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-        {/* Audit Logs Content */}
-        <TabsContent value="audit" className="pt-6 m-0">
-          <Card className="border border-border shadow-none bg-card rounded-xl overflow-hidden">
-            <CardHeader className="p-6 border-b border-border flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-[16px] font-bold text-foreground">Rastro de Auditoria</CardTitle>
-                <CardDescription className="text-muted-foreground">Registro imutável de todas as ações críticas no sistema</CardDescription>
-              </div>
-              <Button variant="outline" size="sm" className="gap-2 border-border text-muted-foreground hover:bg-muted">
-                <Download size={14} />
-                Exportar CSV
-              </Button>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-muted border-b border-border">
-                      <th className="px-6 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Data/Hora</th>
-                      <th className="px-6 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Usuário</th>
-                      <th className="px-6 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Ação</th>
-                      <th className="px-6 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Recurso</th>
-                      <th className="px-6 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {auditLogs.length > 0 ? auditLogs.map((log) => (
-                      <tr key={log.id} className="hover:bg-muted transition-colors">
-                        <td className="px-6 py-4 text-[13px] text-muted-foreground">
-                          {log.timestamp ? format(parseISO(log.timestamp), 'dd/MM/yyyy HH:mm:ss') : '-'}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full bg-secondary flex items-center justify-center text-[10px] font-bold text-primary">
-                              {log.user_name?.charAt(0)}
-                            </div>
-                            <span className="text-[13px] font-medium text-foreground">{log.user_name}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <Badge variant="ghost" className="bg-secondary text-primary text-[11px] font-semibold">
-                            {log.action}
-                          </Badge>
-                        </td>
-                        <td className="px-6 py-4 text-[13px] text-muted-foreground">{log.resource}</td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-1.5 text-green-500">
-                            <CheckCircle2 size={14} />
-                            <span className="text-[12px] font-medium">Sucesso</span>
-                          </div>
-                        </td>
-                      </tr>
-                    )) : (
-                      <tr>
-                        <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground text-[14px]">
-                          Nenhum log de auditoria encontrado.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Permissions Content */}
-        <TabsContent value="permissions" className="pt-6 m-0">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2">
-              <Card className="border border-border shadow-none bg-card rounded-xl overflow-hidden">
-                <CardHeader className="p-6 border-b border-border">
-                  <CardTitle className="text-[16px] font-bold text-foreground">Gestão de Usuários e Perfis</CardTitle>
-                  <CardDescription className="text-muted-foreground">Atribua níveis de acesso baseados em funções (RBAC)</CardDescription>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="divide-y divide-border">
-                    {users.map((u) => (
-                      <div key={u.id} className="p-6 flex items-center justify-between hover:bg-muted transition-colors">
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold">
-                            {u.name?.charAt(0)}
-                          </div>
-                          <div>
-                            <p className="text-[14px] font-bold text-foreground">{u.name}</p>
-                            <p className="text-[12px] text-muted-foreground">{u.email}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <select 
-                            value={u.role || 'user'} 
-                            onChange={(e) => updateUserRole(u.id, e.target.value)}
-                            disabled={currentUserRole !== 'admin'}
-                            className="bg-card border border-border rounded-lg px-3 py-1.5 text-[13px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                          >
-                            <option value="user">Usuário Padrão</option>
-                            <option value="manager">Gestor de Contratos</option>
-                            <option value="legal">Jurídico</option>
-                            <option value="admin">Administrador</option>
-                          </select>
-                          {u.role === 'admin' && <ShieldCheck size={16} className="text-primary" />}
-                        </div>
+      {/* Tab Content */}
+      <div style={{ minHeight: 400 }}>
+        {activeTab === 'audit' && (
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.45)',
+          backdropFilter: 'blur(30px)',
+          border: '1px solid rgba(255, 255, 255, 0.35)',
+          borderRadius: 24,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              padding: '20px 24px',
+              borderBottom: '1px solid #e2e5e9',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <h2 style={{
+                fontSize: 16,
+                fontWeight: 700,
+                color: '#0d1117',
+                fontFamily: "'Poppins',sans-serif"
+              }}>
+                Logs de Auditoria
+              </h2>
+              <button style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 16px',
+                fontSize: 13,
+                fontWeight: 600,
+                background: '#fff',
+                border: '1.5px solid #e2e5e9',
+                color: '#6b7280',
+                cursor: 'pointer',
+                transition: 'all .2s',
+                fontFamily: "'Poppins',sans-serif"
+              }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = '#f7f9fb';
+                  e.currentTarget.style.color = '#0d1117';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = '#fff';
+                  e.currentTarget.style.color = '#6b7280';
+                }}
+              >
+                <Download size={16} />
+                Exportar
+              </button>
+            </div>
+            <div style={{ maxHeight: 500, overflowY: 'auto' }}>
+              {auditLogs.map((log, idx) => (
+                <div key={idx} style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 16,
+                  padding: '16px 24px',
+                  borderBottom: '1px solid #e2e5e9'
+                }}>
+                  <div style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 0,
+                    background: log.status === 'success' ? 'rgba(15,168,143,0.1)' : 'rgba(239,68,68,0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
+                  }}>
+                    {log.status === 'success' ? 
+                      <CheckCircle2 size={18} color="#0fa88f" /> : 
+                      <AlertTriangle size={18} color="#ef4444" />
+                    }
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                      <div>
+                        <p style={{
+                          fontSize: 14,
+                          fontWeight: 500,
+                          color: '#0d1117',
+                          marginBottom: 2,
+                          fontFamily: "'Poppins',sans-serif"
+                        }}>
+                          {log.action}
+                        </p>
+                        <p style={{
+                          fontSize: 12,
+                          color: '#6b7280',
+                          fontFamily: "'Poppins',sans-serif"
+                        }}>
+                          {log.resource} • {log.user_name}
+                        </p>
                       </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-            
-            <div className="space-y-6">
-              <Card className="border border-border shadow-none bg-card rounded-xl p-6">
-                <h3 className="text-[14px] font-bold text-foreground mb-4 flex items-center gap-2">
-                  <Lock size={16} className="text-primary" />
-                  Definição de Perfis
-                </h3>
-                <div className="space-y-4">
-                  <div className="p-3 bg-secondary rounded-lg border border-border">
-                    <p className="text-[12px] font-bold text-primary mb-1">Administrador</p>
-                    <p className="text-[11px] text-muted-foreground">Acesso total ao sistema, gestão de usuários e configurações de compliance.</p>
-                  </div>
-                  <div className="p-3 bg-muted rounded-lg border border-border">
-                    <p className="text-[12px] font-bold text-foreground mb-1">Jurídico</p>
-                    <p className="text-[11px] text-muted-foreground">Visualização de todos os contratos, análise de riscos e aprovação legal.</p>
-                  </div>
-                  <div className="p-3 bg-muted rounded-lg border border-border">
-                    <p className="text-[12px] font-bold text-foreground mb-1">Gestor</p>
-                    <p className="text-[11px] text-muted-foreground">Criação, edição e acompanhamento de fluxos de aprovação.</p>
+                      <span style={{
+                        fontSize: 11,
+                        color: '#9ca3af',
+                        flexShrink: 0,
+                        fontFamily: "'Poppins',sans-serif"
+                      }}>
+                        {format(parseISO(log.timestamp), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </Card>
+              ))}
             </div>
           </div>
-        </TabsContent>
+        )}
 
-        {/* Compliance Content */}
-        <TabsContent value="compliance" className="pt-6 m-0">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="border border-border shadow-none bg-card rounded-xl p-6 flex flex-col items-center text-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center text-green-500">
-                <FileCheck size={32} />
-              </div>
-              <div>
-                <h3 className="text-[16px] font-bold text-foreground">LGPD Compliance</h3>
-                <p className="text-[13px] text-muted-foreground mt-2">Proteção de dados pessoais em conformidade com a legislação vigente.</p>
-              </div>
-              <Badge className="bg-green-500 text-white">ATIVO</Badge>
-            </Card>
-
-            <Card className="border border-border shadow-none bg-card rounded-xl p-6 flex flex-col items-center text-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center text-primary">
-                <UserCheck size={32} />
-              </div>
-              <div>
-                <h3 className="text-[16px] font-bold text-foreground">Assinatura Digital</h3>
-                <p className="text-[13px] text-muted-foreground mt-2">Validade jurídica garantida por certificados e trilhas de auditoria.</p>
-              </div>
-              <Badge className="bg-green-500 text-white">ATIVO</Badge>
-            </Card>
-
-            <Card className="border border-border shadow-none bg-card rounded-xl p-6 flex flex-col items-center text-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center text-destructive">
-                <AlertTriangle size={32} />
-              </div>
-              <div>
-                <h3 className="text-[16px] font-bold text-foreground">Análise de Riscos</h3>
-                <p className="text-[13px] text-muted-foreground mt-2">Identificação proativa de cláusulas abusivas ou de alto risco.</p>
-              </div>
-              <Badge className="bg-amber-500 text-white">EM MONITORAMENTO</Badge>
-            </Card>
+        {activeTab === 'permissions' && (
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.45)',
+          backdropFilter: 'blur(30px)',
+          border: '1px solid rgba(255, 255, 255, 0.35)',
+          borderRadius: 24,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              padding: '20px 24px',
+              borderBottom: '1px solid #e2e5e9'
+            }}>
+              <h2 style={{
+                fontSize: 16,
+                fontWeight: 700,
+                color: '#0d1117',
+                fontFamily: "'Poppins',sans-serif"
+              }}>
+                Utilizadores e Permissões
+              </h2>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{
+                width: '100%',
+                borderCollapse: 'collapse',
+                fontFamily: "'Poppins',sans-serif",
+                fontSize: 13
+              }}>
+                <thead>
+                  <tr style={{ background: '#f7f9fb', borderBottom: '1px solid #e2e5e9' }}>
+                    <th style={{ textAlign: 'left', padding: '12px 24px', fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 }}>Utilizador</th>
+                    <th style={{ textAlign: 'left', padding: '12px 24px', fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 }}>Email</th>
+                    <th style={{ textAlign: 'left', padding: '12px 24px', fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 }}>Role</th>
+                    <th style={{ textAlign: 'right', padding: '12px 24px', fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 }}>Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((u) => (
+                    <tr key={u.id} style={{ borderBottom: '1px solid #e2e5e9' }}>
+                      <td style={{ padding: '14px 24px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <div style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: 0,
+                            background: '#0fa88f',
+                            color: '#fff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 13,
+                            fontWeight: 700,
+                            fontFamily: "'Poppins',sans-serif"
+                          }}>
+                            {u.name?.charAt(0).toUpperCase() || u.email?.charAt(0).toUpperCase() || 'U'}
+                          </div>
+                          <span style={{ fontWeight: 500, color: '#0d1117', fontFamily: "'Poppins',sans-serif" }}>
+                            {u.name || u.email?.split('@')[0]}
+                          </span>
+                        </div>
+                      </td>
+                      <td style={{ padding: '14px 24px', color: '#6b7280', fontFamily: "'Poppins',sans-serif" }}>
+                        {u.email}
+                      </td>
+                      <td style={{ padding: '14px 24px' }}>
+                        <span style={{
+                          padding: '4px 12px',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          background: u.role === 'admin' ? 'rgba(15,168,143,0.1)' : '#f7f9fb',
+                          color: u.role === 'admin' ? '#0fa88f' : '#6b7280',
+                          fontFamily: "'Poppins',sans-serif"
+                        }}>
+                          {u.role === 'admin' ? 'Admin' : 'User'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px 24px', textAlign: 'right' }}>
+                        {currentUserRole === 'admin' && u.id !== user?.id && (
+                          <select
+                            value={u.role}
+                            onChange={(e) => updateUserRole(u.id, e.target.value)}
+                            style={{
+                              padding: '6px 12px',
+                              fontSize: 12,
+                              background: '#fff',
+                              border: '1px solid #e2e5e9',
+                              borderRadius: 0,
+                              outline: 'none',
+                              fontFamily: "'Poppins',sans-serif"
+                            }}
+                          >
+                            <option value="user">User</option>
+                            <option value="admin">Admin</option>
+                          </select>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
+        )}
 
-          <Card className="mt-8 border border-border shadow-none bg-card rounded-xl overflow-hidden">
-            <CardHeader className="p-6 border-b border-border">
-              <CardTitle className="text-[16px] font-bold text-foreground">Políticas de Retenção de Dados</CardTitle>
-            </CardHeader>
-            <CardContent className="p-6">
-              <div className="space-y-6">
-                <div className="flex items-start gap-4">
-                  <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center text-muted-foreground shrink-0">
-                    <Key size={18} />
-                  </div>
-                  <div>
-                    <p className="text-[14px] font-bold text-foreground">Criptografia em Repouso</p>
-                    <p className="text-[13px] text-muted-foreground mt-1">Todos os documentos e dados sensíveis são criptografados utilizando o padrão AES-256 nos servidores do Google Cloud.</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-4">
-                  <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center text-muted-foreground shrink-0">
-                    <History size={18} />
-                  </div>
-                  <div>
-                    <p className="text-[14px] font-bold text-foreground">Retenção de Logs</p>
-                    <p className="text-[13px] text-muted-foreground mt-1">Os logs de auditoria são mantidos por um período mínimo de 5 anos para fins de conformidade legal e fiscal.</p>
-                  </div>
-                </div>
+        {activeTab === 'compliance' && (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+            gap: 20
+          }}>
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.45)',
+              backdropFilter: 'blur(30px)',
+              border: '1px solid rgba(255, 255, 255, 0.35)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+              borderRadius: 20,
+              padding: 24
+            }}>
+              <div style={{
+                width: 40,
+                height: 40,
+                borderRadius: 12,
+                background: 'rgba(15,168,143,0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: 16
+              }}>
+                <ShieldCheck size={20} color="#0fa88f" />
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              <h3 style={{
+                fontSize: 16,
+                fontWeight: 700,
+                color: '#0d1117',
+                marginBottom: 8,
+                fontFamily: "'Poppins',sans-serif"
+              }}>
+                LGPD
+              </h3>
+              <p style={{
+                fontSize: 14,
+                color: '#6b7280',
+                marginBottom: 16,
+                fontFamily: "'Poppins',sans-serif"
+              }}>
+                Conforme com a Lei Geral de Proteção de Dados
+              </p>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                color: '#0fa88f',
+                fontSize: 13,
+                fontWeight: 600,
+                fontFamily: "'Poppins',sans-serif"
+              }}>
+                <CheckCircle2 size={16} />
+                Conforme
+              </div>
+            </div>
+
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.45)',
+              backdropFilter: 'blur(30px)',
+              border: '1px solid rgba(255, 255, 255, 0.35)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+              borderRadius: 20,
+              padding: 24
+            }}>
+              <div style={{
+                width: 40,
+                height: 40,
+                borderRadius: 12,
+                background: 'rgba(15,168,143,0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: 16
+              }}>
+                <Key size={20} color="#0fa88f" />
+              </div>
+              <h3 style={{
+                fontSize: 16,
+                fontWeight: 700,
+                color: '#0d1117',
+                marginBottom: 8,
+                fontFamily: "'Poppins',sans-serif"
+              }}>
+                Assinaturas Digitais
+              </h3>
+              <p style={{
+                fontSize: 14,
+                color: '#6b7280',
+                marginBottom: 16,
+                fontFamily: "'Poppins',sans-serif"
+              }}>
+                Assinaturas com validade jurídica
+              </p>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                color: '#0fa88f',
+                fontSize: 13,
+                fontWeight: 600,
+                fontFamily: "'Poppins',sans-serif"
+              }}>
+                <CheckCircle2 size={16} />
+                Conforme
+              </div>
+            </div>
+
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.45)',
+              backdropFilter: 'blur(30px)',
+              border: '1px solid rgba(255, 255, 255, 0.35)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+              borderRadius: 20,
+              padding: 24
+            }}>
+              <div style={{
+                width: 40,
+                height: 40,
+                borderRadius: 12,
+                background: 'rgba(15,168,143,0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: 16
+              }}>
+                <Lock size={20} color="#0fa88f" />
+              </div>
+              <h3 style={{
+                fontSize: 16,
+                fontWeight: 700,
+                color: '#0d1117',
+                marginBottom: 8,
+                fontFamily: "'Poppins',sans-serif"
+              }}>
+                Encriptação de Dados
+              </h3>
+              <p style={{
+                fontSize: 14,
+                color: '#6b7280',
+                marginBottom: 16,
+                fontFamily: "'Poppins',sans-serif"
+              }}>
+                Dados criptografados em trânsito e em repouso
+              </p>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                color: '#0fa88f',
+                fontSize: 13,
+                fontWeight: 600,
+                fontFamily: "'Poppins',sans-serif"
+              }}>
+                <CheckCircle2 size={16} />
+                Conforme
+              </div>
+            </div>
+
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.45)',
+              backdropFilter: 'blur(30px)',
+              border: '1px solid rgba(255, 255, 255, 0.35)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+              borderRadius: 20,
+              padding: 24
+            }}>
+              <div style={{
+                width: 40,
+                height: 40,
+                borderRadius: 12,
+                background: 'rgba(15,168,143,0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: 16
+              }}>
+                <History size={20} color="#0fa88f" />
+              </div>
+              <h3 style={{
+                fontSize: 16,
+                fontWeight: 700,
+                color: '#0d1117',
+                marginBottom: 8,
+                fontFamily: "'Poppins',sans-serif"
+              }}>
+                Retenção Segura
+              </h3>
+              <p style={{
+                fontSize: 14,
+                color: '#6b7280',
+                marginBottom: 16,
+                fontFamily: "'Poppins',sans-serif"
+              }}>
+                Retenção segura de todos os registos
+              </p>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                color: '#0fa88f',
+                fontSize: 13,
+                fontWeight: 600,
+                fontFamily: "'Poppins',sans-serif"
+              }}>
+                <CheckCircle2 size={16} />
+                Conforme
+              </div>
+            </div>
+
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.45)',
+              backdropFilter: 'blur(30px)',
+              border: '1px solid rgba(255, 255, 255, 0.35)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+              borderRadius: 20,
+              padding: 24
+            }}>
+              <div style={{
+                width: 40,
+                height: 40,
+                borderRadius: 12,
+                background: 'rgba(15,168,143,0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: 16
+              }}>
+                <FileCheck size={20} color="#0fa88f" />
+              </div>
+              <h3 style={{
+                fontSize: 16,
+                fontWeight: 700,
+                color: '#0d1117',
+                marginBottom: 8,
+                fontFamily: "'Poppins',sans-serif"
+              }}>
+                Auditoria Contínua
+              </h3>
+              <p style={{
+                fontSize: 14,
+                color: '#6b7280',
+                marginBottom: 16,
+                fontFamily: "'Poppins',sans-serif"
+              }}>
+                Todas as ações são registadas em log de auditoria
+              </p>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                color: '#0fa88f',
+                fontSize: 13,
+                fontWeight: 600,
+                fontFamily: "'Poppins',sans-serif"
+              }}>
+                <CheckCircle2 size={16} />
+                Conforme
+              </div>
+            </div>
+
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.45)',
+              backdropFilter: 'blur(30px)',
+              border: '1px solid rgba(255, 255, 255, 0.35)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+              borderRadius: 20,
+              padding: 24
+            }}>
+              <div style={{
+                width: 40,
+                height: 40,
+                borderRadius: 12,
+                background: 'rgba(15,168,143,0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: 16
+              }}>
+                <UserCheck size={20} color="#0fa88f" />
+              </div>
+              <h3 style={{
+                fontSize: 16,
+                fontWeight: 700,
+                color: '#0d1117',
+                marginBottom: 8,
+                fontFamily: "'Poppins',sans-serif"
+              }}>
+                Controlo de Acessos
+              </h3>
+              <p style={{
+                fontSize: 14,
+                color: '#6b7280',
+                marginBottom: 16,
+                fontFamily: "'Poppins',sans-serif"
+              }}>
+                Sistema de roles e permissões granulares
+              </p>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                color: '#0fa88f',
+                fontSize: 13,
+                fontWeight: 600,
+                fontFamily: "'Poppins',sans-serif"
+              }}>
+                <CheckCircle2 size={16} />
+                Conforme
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

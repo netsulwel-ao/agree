@@ -2,11 +2,7 @@ import { supabase } from '../lib/supabase';
 import { addDays, subDays } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
 
-export async function seedSampleContracts() {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Usuário não autenticado");
-
-  const userId = user.id;
+export async function seedSampleContracts(userId: string) {
   const contracts = [
     {
       title: "Contrato de Manutenção de Elevadores - Edifício Kilamba",

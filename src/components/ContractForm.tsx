@@ -1,10 +1,5 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from './ui/card';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Textarea } from './ui/textarea';
-import { Button } from './ui/button';
 import { 
   Save, 
   X, 
@@ -14,21 +9,22 @@ import {
   DollarSign,
   Paperclip,
   File,
-  Loader2
+  Loader2,
+  Wand2
 } from 'lucide-react';
-import { analyzeContractRisks } from '../services/gemini';
+import { analyzeContractRisks, generateContractSuggestions } from '../services/gemini';
 import { toast } from 'sonner';
-import { Badge } from './ui/badge';
 import { v4 as uuidv4 } from 'uuid';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
-interface ContractFormProps {
-  onComplete: () => void;
-}
-
-export default function ContractForm({ onComplete }: ContractFormProps) {
-  const [loading, setLoading] = useState(false);
+export default function ContractForm() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [analyzing, setAnalyzing] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [risks, setRisks] = useState<any[]>([]);
+  const [saving, setSaving] = useState(false);
   
   const [formData, setFormData] = useState({
     title: '',
@@ -40,7 +36,6 @@ export default function ContractForm({ onComplete }: ContractFormProps) {
   });
 
   const [attachments, setAttachments] = useState<File[]>([]);
-  const [uploading, setUploading] = useState(false);
 
   const handleAnalyze = async () => {
     if (!formData.content) {
@@ -59,6 +54,29 @@ export default function ContractForm({ onComplete }: ContractFormProps) {
     }
   };
 
+  const handleGenerate = async () => {
+    if (!formData.description) {
+      toast.error("Preenche a descrição para gerar o contrato com IA");
+      return;
+    }
+    setGenerating(true);
+    try {
+      const generated = await generateContractSuggestions(
+        `Título: ${formData.title || 'Contrato'}\nDescrição: ${formData.description}`
+      );
+      if (generated) {
+        setFormData(prev => ({ ...prev, content: generated }));
+        toast.success("Contrato gerado com IA! Revê e ajusta conforme necessário.");
+      } else {
+        toast.error("Não foi possível gerar o contrato");
+      }
+    } catch (error) {
+      toast.error("Erro ao gerar contrato");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const newFiles = Array.from(e.target.files);
@@ -72,17 +90,15 @@ export default function ContractForm({ onComplete }: ContractFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    setLoading(true);
+    setSaving(true);
     try {
       const uploadedAttachments = [];
       if (attachments.length > 0) {
-        setUploading(true);
         for (const file of attachments) {
           const filePath = `${user.id}/${Date.now()}_${file.name}`;
-          const { data: uploadData, error: uploadError } = await supabase.storage
+          const { error: uploadError } = await supabase.storage
             .from('contracts')
             .upload(filePath, file);
 
@@ -123,7 +139,6 @@ export default function ContractForm({ onComplete }: ContractFormProps) {
 
       if (contractError) throw contractError;
       
-      // Create initial version
       await supabase.from('contract_versions').insert({
         contract_id: contract.id,
         content: formData.content,
@@ -131,206 +146,543 @@ export default function ContractForm({ onComplete }: ContractFormProps) {
       });
 
       toast.success("Contrato criado com sucesso!");
-      onComplete();
+      navigate('/contracts');
     } catch (error) {
       console.error("Error saving contract:", error);
       toast.error("Erro ao salvar contrato");
     } finally {
-      setLoading(false);
-      setUploading(false);
+      setSaving(false);
     }
   };
 
   return (
-    <div className="max-w-4xl mx-auto animate-in fade-in duration-500">
+    <div style={{
+      maxWidth: 800,
+      margin: '0 auto',
+      fontFamily: "'Poppins', sans-serif"
+    }}>
       <form onSubmit={handleSubmit}>
-        <Card className="border border-border shadow-none bg-card rounded-xl overflow-hidden">
-          <CardHeader className="bg-card border-b border-border p-6">
-            <div className="flex justify-between items-start">
-              <div>
-                <CardTitle className="text-[20px] font-bold text-foreground">Novo Contrato</CardTitle>
-                <CardDescription className="text-muted-foreground text-[14px]">Preencha os detalhes para iniciar a gestão</CardDescription>
-              </div>
-              <Button type="button" variant="ghost" className="text-muted-foreground hover:text-foreground h-8 w-8 p-0" onClick={onComplete}>
-                <X size={20} />
-              </Button>
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.45)',
+          backdropFilter: 'blur(30px)',
+          border: '1px solid rgba(255, 255, 255, 0.35)',
+          borderRadius: 24,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+          overflow: 'hidden'
+        }}>
+          <div style={{
+            borderBottom: '1px solid #e2e5e9',
+            padding: '24px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <div>
+              <h2 style={{
+                fontSize: 20,
+                fontWeight: 700,
+                color: '#0d1117',
+                marginBottom: 4,
+                fontFamily: "'Poppins',sans-serif"
+              }}>
+                Novo Contrato
+              </h2>
+              <p style={{
+                fontSize: 14,
+                color: '#6b7280',
+                fontFamily: "'Poppins',sans-serif"
+              }}>
+                Preencha os dados do contrato abaixo
+              </p>
             </div>
-          </CardHeader>
-          
-          <CardContent className="p-8 space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="title" className="text-[12px] text-muted-foreground uppercase tracking-[0.5px] font-semibold">Título do Contrato</Label>
-                <Input 
-                  id="title" 
-                  required 
-                  placeholder="Ex: Contrato de Prestação de Serviços TI"
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button
+                type="button"
+                onClick={() => navigate('/contracts')}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '10px 20px',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  background: '#fff',
+                  border: '1.5px solid #e2e5e9',
+                  color: '#6b7280',
+                  cursor: 'pointer',
+                  transition: 'all .2s',
+                  fontFamily: "'Poppins',sans-serif"
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = '#f7f9fb';
+                  e.currentTarget.style.color = '#0d1117';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = '#fff';
+                  e.currentTarget.style.color = '#6b7280';
+                }}
+              >
+                <X size={16} />
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '10px 20px',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  background: '#0fa88f',
+                  border: 'none',
+                  color: '#fff',
+                  cursor: saving ? 'not-allowed' : 'pointer',
+                  transition: 'all .2s',
+                  fontFamily: "'Poppins',sans-serif",
+                  opacity: saving ? 0.7 : 1
+                }}
+                onMouseEnter={e => {
+                  if (!saving) e.currentTarget.style.background = '#0d8a76';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = '#0fa88f';
+                }}
+              >
+                {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                {saving ? 'Salvando...' : 'Salvar Contrato'}
+              </button>
+            </div>
+          </div>
+
+          <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 24
+            }}>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#374151',
+                  marginBottom: 8,
+                  fontFamily: "'Poppins',sans-serif"
+                }}>
+                  Título do Contrato
+                </label>
+                <input
+                  type="text"
+                  required
                   value={formData.title}
-                  onChange={(e) => setFormData({...formData, title: e.target.value})}
-                  className="rounded-lg border-border bg-card h-10 text-[14px] text-foreground"
+                  onChange={e => setFormData({ ...formData, title: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    fontSize: 14,
+                    fontFamily: "'Poppins',sans-serif",
+                    background: '#fff',
+                    border: '1.5px solid #e2e5e9',
+                    color: '#0d1117',
+                    outline: 'none',
+                    transition: 'all .2s'
+                  }}
+                  onFocus={e => e.currentTarget.style.borderColor = '#0fa88f'}
+                  onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
+                  placeholder="Digite o título do contrato"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="value" className="text-[12px] text-muted-foreground uppercase tracking-[0.5px] font-semibold">Valor (AOA)</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-semibold">Kz</span>
-                  <Input 
-                    id="value" 
-                    type="number" 
-                    placeholder="0,00"
+
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#374151',
+                  marginBottom: 8,
+                  fontFamily: "'Poppins',sans-serif"
+                }}>
+                  Descrição
+                </label>
+                <textarea
+                  value={formData.description}
+                  onChange={e => setFormData({ ...formData, description: e.target.value })}
+                  rows={3}
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    fontSize: 14,
+                    fontFamily: "'Poppins',sans-serif",
+                    background: '#fff',
+                    border: '1.5px solid #e2e5e9',
+                    color: '#0d1117',
+                    outline: 'none',
+                    resize: 'vertical',
+                    transition: 'all .2s'
+                  }}
+                  onFocus={e => e.currentTarget.style.borderColor = '#0fa88f'}
+                  onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
+                  placeholder="Breve descrição do contrato"
+                />
+              </div>
+
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#374151',
+                  marginBottom: 8,
+                  fontFamily: "'Poppins',sans-serif"
+                }}>
+                  Valor
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <DollarSign style={{
+                    position: 'absolute',
+                    left: 14,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: '#6b7280'
+                  }} size={18} />
+                  <input
+                    type="number"
+                    step="0.01"
                     value={formData.value}
-                    onChange={(e) => setFormData({...formData, value: e.target.value})}
-                    className="pl-10 rounded-lg border-border bg-card h-10 text-[14px] text-foreground"
+                    onChange={e => setFormData({ ...formData, value: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px 10px 42px',
+                      fontSize: 14,
+                      fontFamily: "'Poppins',sans-serif",
+                      background: '#fff',
+                      border: '1.5px solid #e2e5e9',
+                      color: '#0d1117',
+                      outline: 'none',
+                      transition: 'all .2s'
+                    }}
+                    onFocus={e => e.currentTarget.style.borderColor = '#0fa88f'}
+                    onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
+                    placeholder="0,00"
                   />
+                </div>
+              </div>
+
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 16
+              }}>
+                <div>
+                  <label style={{
+                    display: 'block',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: '#374151',
+                    marginBottom: 8,
+                    fontFamily: "'Poppins',sans-serif"
+                  }}>
+                    Data de Início
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <CalendarIcon style={{
+                      position: 'absolute',
+                      left: 14,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: '#6b7280'
+                    }} size={18} />
+                    <input
+                      type="date"
+                      value={formData.startDate}
+                      onChange={e => setFormData({ ...formData, startDate: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px 10px 42px',
+                        fontSize: 14,
+                        fontFamily: "'Poppins',sans-serif",
+                        background: '#fff',
+                        border: '1.5px solid #e2e5e9',
+                        color: '#0d1117',
+                        outline: 'none',
+                        transition: 'all .2s'
+                      }}
+                      onFocus={e => e.currentTarget.style.borderColor = '#0fa88f'}
+                      onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label style={{
+                    display: 'block',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: '#374151',
+                    marginBottom: 8,
+                    fontFamily: "'Poppins',sans-serif"
+                  }}>
+                    Data de Término
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <CalendarIcon style={{
+                      position: 'absolute',
+                      left: 14,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: '#6b7280'
+                    }} size={18} />
+                    <input
+                      type="date"
+                      value={formData.endDate}
+                      onChange={e => setFormData({ ...formData, endDate: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px 10px 42px',
+                        fontSize: 14,
+                        fontFamily: "'Poppins',sans-serif",
+                        background: '#fff',
+                        border: '1.5px solid #e2e5e9',
+                        color: '#0d1117',
+                        outline: 'none',
+                        transition: 'all .2s'
+                      }}
+                      onFocus={e => e.currentTarget.style.borderColor = '#0fa88f'}
+                      onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="description" className="text-[12px] text-muted-foreground uppercase tracking-[0.5px] font-semibold">Breve Descrição</Label>
-              <Input 
-                id="description" 
-                placeholder="Resumo do objetivo do contrato"
-                value={formData.description}
-                onChange={(e) => setFormData({...formData, description: e.target.value})}
-                className="rounded-lg border-border bg-card h-10 text-[14px] text-foreground"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="startDate" className="text-[12px] text-muted-foreground uppercase tracking-[0.5px] font-semibold">Data de Início</Label>
-                <div className="relative">
-                  <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-                  <Input 
-                    id="startDate" 
-                    type="date"
-                    value={formData.startDate}
-                    onChange={(e) => setFormData({...formData, startDate: e.target.value})}
-                    className="pl-10 rounded-lg border-border bg-card h-10 text-[14px] text-foreground"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="endDate" className="text-[12px] text-muted-foreground uppercase tracking-[0.5px] font-semibold">Data de Término</Label>
-                <div className="relative">
-                  <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-                  <Input 
-                    id="endDate" 
-                    type="date"
-                    value={formData.endDate}
-                    onChange={(e) => setFormData({...formData, endDate: e.target.value})}
-                    className="pl-10 rounded-lg border-border bg-card h-10 text-[14px] text-foreground"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <Label className="text-[12px] text-muted-foreground uppercase tracking-[0.5px] font-semibold">Anexos (PDF Assinado, Documentos)</Label>
-                <div className="relative">
-                  <input 
-                    type="file" 
-                    multiple 
-                    onChange={handleFileChange} 
-                    className="hidden" 
-                    id="file-upload"
-                  />
-                  <Label 
-                    htmlFor="file-upload" 
-                    className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-lg text-[12px] font-semibold text-muted-foreground hover:bg-muted"
+            <div>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 8
+              }}>
+                <label style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#374151',
+                  fontFamily: "'Poppins',sans-serif"
+                }}>
+                  Conteúdo do Contrato
+                </label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={handleGenerate}
+                    disabled={generating}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      padding: '6px 12px', fontSize: 12, fontWeight: 600,
+                      background: generating ? '#e6f7f4' : 'linear-gradient(135deg, #0fa88f, #1d8c78)',
+                      border: 'none', color: generating ? '#0fa88f' : '#fff',
+                      cursor: generating ? 'not-allowed' : 'pointer',
+                      transition: 'all .2s', fontFamily: "'Poppins',sans-serif",
+                      borderRadius: 8, opacity: generating ? 0.8 : 1
+                    }}
                   >
-                    <Paperclip size={14} />
-                    Adicionar Arquivos
-                  </Label>
+                    {generating ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
+                    {generating ? 'Gerando...' : 'Gerar com IA'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAnalyze}
+                    disabled={analyzing}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      padding: '6px 12px', fontSize: 12, fontWeight: 600,
+                      background: '#fff', border: '1px solid #e2e5e9',
+                      color: analyzing ? '#0fa88f' : '#6b7280',
+                      cursor: analyzing ? 'not-allowed' : 'pointer',
+                      transition: 'all .2s', fontFamily: "'Poppins',sans-serif"
+                    }}
+                    onMouseEnter={e => { if (!analyzing) { e.currentTarget.style.background = '#f7f9fb'; e.currentTarget.style.color = '#0d1117'; } }}
+                    onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = analyzing ? '#0fa88f' : '#6b7280'; }}
+                  >
+                    {analyzing ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                    {analyzing ? 'Analisando...' : 'Analisar Riscos'}
+                  </button>
                 </div>
               </div>
-
-              {attachments.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {attachments.map((file, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-3 bg-muted rounded-lg border border-border">
-                      <div className="flex items-center gap-3 overflow-hidden">
-                        <File size={18} className="text-primary shrink-0" />
-                        <div className="truncate">
-                          <p className="text-[13px] font-medium text-foreground truncate">{file.name}</p>
-                          <p className="text-[11px] text-muted-foreground">{(file.size / 1024).toFixed(1)} KB</p>
-                        </div>
-                      </div>
-                      <Button 
-                        type="button" 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                        onClick={() => removeAttachment(idx)}
-                      >
-                        <X size={14} />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <Label htmlFor="content" className="text-[12px] text-muted-foreground uppercase tracking-[0.5px] font-semibold">Conteúdo do Contrato</Label>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  size="sm" 
-                  className="gap-2 text-primary border-border hover:bg-secondary rounded-lg text-[12px] font-semibold"
-                  onClick={handleAnalyze}
-                  disabled={analyzing || !formData.content}
-                >
-                  <Sparkles size={14} className={analyzing ? 'animate-pulse' : ''} />
-                  {analyzing ? 'Analisando...' : 'Identificar Riscos com IA'}
-                </Button>
-              </div>
-              <Textarea 
-                id="content" 
-                placeholder="Cole aqui o texto completo do contrato..."
-                className="min-h-[300px] rounded-xl border-border bg-card resize-none font-mono text-[13px] p-4 focus:ring-1 focus:ring-primary text-foreground"
+              <textarea
+                required
                 value={formData.content}
-                onChange={(e) => setFormData({...formData, content: e.target.value})}
+                onChange={e => setFormData({ ...formData, content: e.target.value })}
+                rows={10}
+                style={{
+                  width: '100%',
+                  padding: '12px 14px',
+                  fontSize: 14,
+                  fontFamily: "'Poppins',sans-serif",
+                  background: '#fff',
+                  border: '1.5px solid #e2e5e9',
+                  color: '#0d1117',
+                  outline: 'none',
+                  resize: 'vertical',
+                  transition: 'all .2s'
+                }}
+                onFocus={e => e.currentTarget.style.borderColor = '#0fa88f'}
+                onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
+                placeholder="Cole o conteúdo completo do contrato aqui..."
               />
             </div>
 
             {risks.length > 0 && (
-              <div className="space-y-4 p-6 bg-muted rounded-xl border border-border">
-                <h3 className="text-[14px] font-semibold flex items-center gap-2 text-foreground">
-                  <AlertCircle className="text-amber-500" size={18} />
-                  Riscos Identificados pela IA
+              <div>
+                <h3 style={{
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: '#374151',
+                  marginBottom: 12,
+                  fontFamily: "'Poppins',sans-serif"
+                }}>
+                  Riscos Identificados
                 </h3>
-                <div className="grid grid-cols-1 gap-3">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {risks.map((risk, idx) => (
-                    <div key={idx} className="flex items-start gap-3 p-3 bg-card rounded-lg border border-border">
-                      <span className={`px-2 py-0.5 rounded-[4px] text-[10px] font-bold shrink-0 ${
-                        risk.severity === 'high' ? 'bg-destructive text-white' :
-                        risk.severity === 'medium' ? 'bg-amber-500 text-white' :
-                        'bg-green-500 text-white'
-                      }`}>
-                        {risk.severity.toUpperCase()}
-                      </span>
-                      <p className="text-[13px] text-muted-foreground">{risk.description}</p>
+                    <div key={idx} style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 12,
+                      padding: '12px',
+                      background: risk.severity === 'high' ? 'rgba(239, 68, 68, 0.05)' : 
+                                  risk.severity === 'medium' ? 'rgba(245, 158, 11, 0.05)' : 
+                                  'rgba(15, 168, 143, 0.05)',
+                      borderLeft: '3px solid ' + (risk.severity === 'high' ? '#ef4444' : 
+                                                  risk.severity === 'medium' ? '#f59e0b' : '#0fa88f')
+                    }}>
+                      <AlertCircle size={18} color={risk.severity === 'high' ? '#ef4444' : 
+                                                         risk.severity === 'medium' ? '#f59e0b' : '#0fa88f'} />
+                      <div>
+                        <p style={{
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: '#0d1117',
+                          textTransform: 'capitalize',
+                          marginBottom: 2,
+                          fontFamily: "'Poppins',sans-serif"
+                        }}>
+                          Risco {risk.severity}
+                        </p>
+                        <p style={{
+                          fontSize: 13,
+                          color: '#374151',
+                          fontFamily: "'Poppins',sans-serif"
+                        }}>
+                          {risk.description}
+                        </p>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
             )}
-          </CardContent>
 
-          <CardFooter className="p-6 bg-muted border-t border-border flex justify-end gap-3">
-            <Button type="button" variant="ghost" onClick={onComplete} className="rounded-lg px-6 text-[13px] font-semibold text-muted-foreground">
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={loading || uploading} className="bg-primary hover:bg-primary/90 text-white rounded-lg px-8 gap-2 text-[13px] font-semibold h-10">
-              {uploading ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-              {uploading ? 'Enviando Arquivos...' : loading ? 'Salvando...' : 'Salvar Contrato'}
-            </Button>
-          </CardFooter>
-        </Card>
+            <div>
+              <label style={{
+                display: 'block',
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#374151',
+                marginBottom: 8,
+                fontFamily: "'Poppins',sans-serif"
+              }}>
+                Anexos
+              </label>
+              <div style={{
+                border: '2px dashed #e2e5e9',
+                padding: '24px',
+                textAlign: 'center',
+                transition: 'all .2s',
+                cursor: 'pointer'
+              }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.borderColor = '#0fa88f';
+                  e.currentTarget.style.background = '#f6fffd';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.borderColor = '#e2e5e9';
+                  e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                <input
+                  type="file"
+                  multiple
+                  onChange={handleFileChange}
+                  style={{ display: 'none' }}
+                  id="file-upload"
+                />
+                <label htmlFor="file-upload" style={{ cursor: 'pointer' }}>
+                  <Paperclip size={32} color="#9ca3af" style={{ margin: '0 auto 8px' }} />
+                  <p style={{
+                    fontSize: 14,
+                    color: '#6b7280',
+                    fontFamily: "'Poppins',sans-serif"
+                  }}>
+                    Clique para fazer upload ou arraste os arquivos aqui
+                  </p>
+                </label>
+              </div>
+              
+              {attachments.length > 0 && (
+                <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {attachments.map((file, idx) => (
+                    <div key={idx} style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 14px',
+                      background: '#f7f9fb',
+                      border: '1px solid #e2e5e9'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <File size={18} color="#6b7280" />
+                        <div>
+                          <p style={{
+                            fontSize: 13,
+                            fontWeight: 500,
+                            color: '#0d1117',
+                            fontFamily: "'Poppins',sans-serif"
+                          }}>
+                            {file.name}
+                          </p>
+                          <p style={{
+                            fontSize: 11,
+                            color: '#6b7280',
+                            fontFamily: "'Poppins',sans-serif"
+                          }}>
+                            {(file.size / 1024).toFixed(1)} KB
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(idx)}
+                        style={{
+                          padding: '6px 10px',
+                          fontSize: 12,
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#ef4444',
+                          cursor: 'pointer',
+                          fontWeight: 600,
+                          fontFamily: "'Poppins',sans-serif"
+                        }}
+                      >
+                        Remover
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </form>
     </div>
   );

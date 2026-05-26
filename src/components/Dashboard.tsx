@@ -1,287 +1,305 @@
-import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
-import { Button } from './ui/button';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { useContracts } from '../hooks/useContracts';
 import { 
+  Plus, 
   FileText, 
+  TrendingUp, 
   AlertTriangle, 
   Clock, 
-  TrendingUp, 
-  DollarSign,
+  CheckCircle2, 
   ArrowUpRight,
-  ArrowDownRight,
-  Database,
-  Loader2
+  Bell,
+  XCircle
 } from 'lucide-react';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  Cell,
-  AreaChart,
-  Area
-} from 'recharts';
-import { format, isAfter, isBefore, addDays, startOfMonth, endOfMonth, parseISO } from 'date-fns';
+import { format, parseISO, addDays, startOfMonth, endOfMonth, isBefore, isAfter } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { seedSampleContracts } from '../services/seedData';
-import { toast } from 'sonner';
 
-interface DashboardProps {
-  onSelectContract: (id: string) => void;
-}
+export default function Dashboard() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { data: contracts = [], isLoading } = useContracts();
 
-export default function Dashboard({ onSelectContract }: DashboardProps) {
-  const [contracts, setContracts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [seeding, setSeeding] = useState(false);
+  const today = new Date();
 
-  useEffect(() => {
-    fetchContracts();
+  // Contratos a expirar nos próximos 30 dias
+  const expiringContracts = contracts.filter(c => {
+    if (!c.end_date) return false;
+    const end = parseISO(c.end_date);
+    return isAfter(end, today) && isBefore(end, addDays(today, 30));
+  });
 
-    // Subscribe to changes
-    const channel = supabase
-      .channel('contracts_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'contracts' }, () => {
-        fetchContracts();
-      })
-      .subscribe();
+  // Contratos já expirados mas ainda ativos
+  const expiredContracts = contracts.filter(c => {
+    if (!c.end_date) return false;
+    return isBefore(parseISO(c.end_date), today) && c.status !== 'rejected';
+  });
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  const fetchContracts = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data, error } = await supabase
-      .from('contracts')
-      .select('*')
-      .eq('owner_id', user.id)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error("Error fetching contracts:", error);
-    } else {
-      setContracts(data || []);
-    }
-    setLoading(false);
-  };
+  // Obrigações financeiras do mês atual
+  const monthStart = startOfMonth(today);
+  const monthEnd = endOfMonth(today);
+  const monthlyObligations = contracts
+    .filter(c => {
+      if (!c.start_date || !c.end_date) return false;
+      const start = parseISO(c.start_date);
+      const end = parseISO(c.end_date);
+      return isBefore(start, monthEnd) && isAfter(end, monthStart);
+    })
+    .reduce((acc, c) => acc + (Number(c.value) || 0), 0);
 
   const stats = {
     total: contracts.length,
     pending: contracts.filter(c => c.status === 'pending').length,
-    expiringSoon: contracts.filter(c => {
-      if (!c.end_date) return false;
-      const end = parseISO(c.end_date);
-      return isAfter(end, new Date()) && isBefore(end, addDays(new Date(), 30));
-    }).length,
-    totalValue: contracts.reduce((acc, c) => acc + (Number(c.value) || 0), 0)
+    approved: contracts.filter(c => c.status === 'approved').length,
+    highRisk: contracts.filter(c => c.risk_level === 'high').length,
+    monthlyObligations,
+    expiring: expiringContracts.length,
+    expired: expiredContracts.length,
+    criticalAlerts: expiringContracts.length + expiredContracts.length + contracts.filter(c => c.risk_level === 'high').length
   };
-
-  // Prepare data for financial chart (monthly obligations)
-  const monthlyData = Array.from({ length: 6 }).map((_, i) => {
-    const date = addDays(startOfMonth(new Date()), -i * 30);
-    const monthName = format(date, 'MMM', { locale: ptBR });
-    const value = contracts
-      .filter(c => {
-        if (!c.start_date) return false;
-        const start = parseISO(c.start_date);
-        return start.getMonth() === date.getMonth() && start.getFullYear() === date.getFullYear();
-      })
-      .reduce((acc, c) => acc + (Number(c.value) || 0), 0);
-    
-    return { name: monthName, value };
-  }).reverse();
 
   const recentContracts = contracts.slice(0, 5);
 
-  const handleSeedData = async () => {
-    setSeeding(true);
-    try {
-      await seedSampleContracts();
-      fetchContracts();
-      toast.success("Dados de exemplo gerados com sucesso!");
-    } catch (error) {
-      console.error("Error seeding data:", error);
-      toast.error("Erro ao gerar dados de exemplo");
-    } finally {
-      setSeeding(false);
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'approved': return <CheckCircle2 size={16} className="text-teal-500" />;
+      case 'pending': return <Clock size={16} className="text-amber-500" />;
+      case 'rejected': return <AlertTriangle size={16} className="text-red-500" />;
+      default: return <FileText size={16} className="text-slate-500" />;
     }
   };
 
-  return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      {/* Header with Seed Button */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-[24px] font-bold text-foreground">Dashboard</h1>
-          <p className="text-[14px] text-muted-foreground">Visão geral da sua gestão contratual</p>
+  const getStatusBadgeClass = (status: string) => {
+    switch (status) {
+      case 'approved': return "bg-teal-500/10 text-teal-600";
+      case 'pending': return "bg-amber-500/10 text-amber-600";
+      case 'rejected': return "bg-red-500/10 text-red-600";
+      default: return "bg-slate-100 text-slate-500";
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-6 font-[Poppins]">
+        <div className="h-40 rounded-3xl bg-slate-200 animate-pulse" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          {[1,2,3,4].map(i => <div key={i} className="h-32 rounded-2xl bg-slate-200 animate-pulse" />)}
         </div>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="gap-2 border-border text-muted-foreground hover:bg-muted rounded-lg text-[12px] font-semibold"
-          onClick={handleSeedData}
-          disabled={seeding}
-        >
-          {seeding ? <Loader2 size={14} className="animate-spin" /> : <Database size={14} />}
-          {seeding ? 'Gerando...' : 'Gerar Dados de Exemplo'}
-        </Button>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="h-80 rounded-3xl bg-slate-200 animate-pulse" />
+          <div className="h-80 rounded-3xl bg-slate-200 animate-pulse" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-6 font-[Poppins]">
+
+      {/* Alertas críticos */}
+      {stats.criticalAlerts > 0 && (
+        <div className="bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200 rounded-2xl p-4 flex flex-col gap-2">
+          <div className="flex items-center gap-2.5 mb-1">
+            <Bell size={18} className="text-amber-500" />
+            <span className="text-sm font-bold text-orange-900">
+              {stats.criticalAlerts} alerta{stats.criticalAlerts > 1 ? 's' : ''} que requer{stats.criticalAlerts === 1 ? '' : 'em'} atenção
+            </span>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            {expiredContracts.length > 0 && (
+              <div className="flex items-center gap-2">
+                <XCircle size={14} className="text-red-500" />
+                <span className="text-[13px] text-red-900">
+                  <strong>{expiredContracts.length}</strong> contrato{expiredContracts.length > 1 ? 's' : ''} expirado{expiredContracts.length > 1 ? 's' : ''}: {expiredContracts.slice(0, 2).map(c => c.title).join(', ')}{expiredContracts.length > 2 ? '...' : ''}
+                </span>
+              </div>
+            )}
+            {expiringContracts.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Clock size={14} className="text-amber-500" />
+                <span className="text-[13px] text-orange-900">
+                  <strong>{expiringContracts.length}</strong> contrato{expiringContracts.length > 1 ? 's' : ''} a expirar nos próximos 30 dias
+                </span>
+              </div>
+            )}
+            {stats.highRisk > 0 && (
+              <div className="flex items-center gap-2">
+                <AlertTriangle size={14} className="text-red-500" />
+                <span className="text-[13px] text-red-900">
+                  <strong>{stats.highRisk}</strong> contrato{stats.highRisk > 1 ? 's' : ''} com risco alto identificado
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Welcome Section */}
+      <div className="bg-gradient-to-br from-teal-500 to-teal-700 rounded-3xl p-8 text-white relative overflow-hidden">
+        <div className="absolute -right-8 -top-8 w-48 h-48 bg-white/10 rounded-full blur-3xl" />
+        <div className="absolute left-48 -bottom-16 w-44 h-44 bg-black/10 rounded-full blur-2xl" />
+
+        <div className="relative z-10">
+          <h1 className="text-3xl font-extrabold mb-2">
+            Olá, {user?.user_metadata?.name?.split(' ')[0] || 'Usuário'}! 👋
+          </h1>
+          <p className="text-[15px] opacity-90 mb-6">
+            Gerencie os seus contratos com total segurança e inteligência.
+          </p>
+          <button
+            onClick={() => navigate('/contracts/new')}
+            className="inline-flex items-center gap-2.5 px-6 py-3 bg-white text-teal-600 border-none rounded-2xl text-sm font-bold cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-lg shadow-black/10"
+          >
+            <Plus size={18} />
+            Novo Contrato
+          </button>
+        </div>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <Card className="border border-border shadow-none bg-card rounded-xl p-5 flex flex-col gap-2">
-            <CardDescription className="text-muted-foreground uppercase tracking-[0.5px] font-semibold">Obrigações Financeiras (Mês)</CardDescription>
-            <CardTitle className="text-[24px] font-bold text-foreground">
-              {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(stats.totalValue)}
-            </CardTitle>
-          <div className="flex items-center gap-1 text-[11px] text-[#00B031] font-medium">
-            <TrendingUp size={14} />
-            <span>↑ 12% vs mês anterior</span>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        {[
+          { 
+            icon: <FileText size={22} className="text-teal-600" />, 
+            bg: 'bg-teal-500/10',
+            value: stats.total, 
+            label: 'Total de contratos' 
+          },
+          { 
+            icon: <Clock size={22} className="text-amber-500" />, 
+            bg: 'bg-amber-500/10',
+            value: stats.pending, 
+            label: 'Pendentes de assinatura' 
+          },
+          { 
+            icon: <TrendingUp size={22} className="text-teal-600" />, 
+            bg: 'bg-teal-500/10',
+            value: new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA', maximumSignificantDigits: 3 }).format(stats.monthlyObligations), 
+            label: 'Obrigações este mês' 
+          },
+          { 
+            icon: <AlertTriangle size={22} className={stats.criticalAlerts > 0 ? 'text-red-500' : 'text-teal-600'} />, 
+            bg: stats.criticalAlerts > 0 ? 'bg-red-500/10' : 'bg-teal-500/10',
+            value: stats.criticalAlerts, 
+            label: stats.criticalAlerts === 0 ? 'Sem alertas críticos' : 'Alertas críticos',
+            valueColor: stats.criticalAlerts > 0 ? 'text-red-500' : 'text-slate-900'
+          }
+        ].map((stat, i) => (
+          <div key={i} className="bg-white/40 backdrop-blur-xl border border-white/40 shadow-[0_8px_32px_rgba(0,0,0,0.04)] rounded-3xl p-6 transition-all hover:-translate-y-1 hover:shadow-[0_12px_24px_rgba(0,0,0,0.06)]">
+            <div className={`w-11 h-11 rounded-2xl ${stat.bg} flex items-center justify-center mb-4`}>
+              {stat.icon}
+            </div>
+            <div className={`text-3xl font-extrabold mb-1 ${stat.valueColor || 'text-slate-900'}`}>
+              {stat.value}
+            </div>
+            <div className="text-[13px] text-slate-500 flex items-center gap-1.5">
+              {stat.label}
+            </div>
           </div>
-        </Card>
-
-        <Card className="border border-border shadow-none bg-card rounded-xl p-5 flex flex-col gap-2">
-          <span className="text-[12px] text-muted-foreground uppercase tracking-[0.5px] font-semibold">Contratos a Vencer (30 dias)</span>
-          <span className="text-[24px] font-bold text-foreground">{stats.expiringSoon.toString().padStart(2, '0')}</span>
-          <div className="flex items-center gap-1 text-[11px] text-[#FF3B30] font-medium">
-            <AlertTriangle size={14} />
-            <span>Ação requerida em {stats.expiringSoon} contratos</span>
-          </div>
-        </Card>
-
-        <Card className="border border-border shadow-none bg-card rounded-xl p-5 flex flex-col gap-2">
-          <span className="text-[12px] text-muted-foreground uppercase tracking-[0.5px] font-semibold">Assinaturas Pendentes</span>
-          <span className="text-[24px] font-bold text-foreground">{stats.pending.toString().padStart(2, '0')}</span>
-          <div className="flex items-center gap-1 text-[11px] text-muted-foreground font-medium">
-            <Clock size={14} />
-            <span>Média de conclusão: 2.4 dias</span>
-          </div>
-        </Card>
+        ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Financial Obligations Chart */}
-        <Card className="lg:col-span-2 border border-border shadow-none bg-card rounded-xl overflow-hidden">
-          <div className="p-5 border-b border-border flex justify-between items-center">
-            <h2 className="text-[16px] font-semibold text-foreground">Obrigações Financeiras Mensais</h2>
-            <div className="text-[12px] text-primary cursor-pointer font-medium">Ver histórico completo</div>
+      {/* Recent Contracts & Quick Actions */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        {/* Recent Contracts */}
+        <div className="bg-white/40 backdrop-blur-xl border border-white/40 shadow-[0_8px_32px_rgba(0,0,0,0.04)] rounded-3xl overflow-hidden flex flex-col">
+          <div className="p-6 pb-4 flex justify-between items-center">
+            <h2 className="text-lg font-bold text-slate-900">Contratos Recentes</h2>
           </div>
-          <CardContent className="h-[300px] p-5">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={monthlyData}>
-                <defs>
-                  <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="var(--chart-1)" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--chart-grid)" />
-                <XAxis 
-                  dataKey="name" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
-                  dy={10}
-                />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
-                  tickFormatter={(value) => `Kz ${value / 1000}k`}
-                />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'var(--card)', 
-                    borderRadius: '8px', 
-                    border: '1px solid var(--border)', 
-                    boxShadow: 'none',
-                    color: 'var(--foreground)'
-                  }}
-                  itemStyle={{ color: 'var(--foreground)' }}
-                  labelStyle={{ color: 'var(--muted-foreground)' }}
-                  formatter={(value: number) => [new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(value), 'Valor']}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="value" 
-                  stroke="var(--chart-1)" 
-                  strokeWidth={2}
-                  fillOpacity={1} 
-                  fill="url(#colorValue)" 
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Recent Activity */}
-        <Card className="border border-border shadow-none bg-card rounded-xl overflow-hidden">
-          <div className="p-5 border-b border-border">
-            <h2 className="text-[16px] font-semibold text-foreground">Atividade Recente</h2>
-          </div>
-          <CardContent className="p-5">
-            <div className="space-y-5">
-              {recentContracts.length > 0 ? (
-                recentContracts.map((contract) => {
-                  const isExpiringSoon = contract.end_date && 
-                    isAfter(parseISO(contract.end_date), new Date()) && 
-                    isBefore(parseISO(contract.end_date), addDays(new Date(), 7));
-
-                  return (
-                    <div 
-                      key={contract.id} 
-                      className={`flex items-start gap-4 group cursor-pointer p-2 -mx-2 rounded-lg transition-colors ${isExpiringSoon ? 'bg-red-500/10' : 'hover:bg-muted'}`}
-                      onClick={() => onSelectContract(contract.id)}
-                    >
-                      <div className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${
-                        contract.status === 'approved' ? 'bg-[#00B031]' :
-                        contract.status === 'pending' ? 'bg-[#FF9500]' :
-                        contract.status === 'rejected' ? 'bg-[#FF3B30]' : 'bg-slate-300'
-                      }`} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-[13px] font-medium text-foreground truncate group-hover:text-primary transition-colors">
-                            {contract.title}
-                          </p>
-                          {isExpiringSoon && (
-                            <span className="shrink-0 px-1.5 py-0.5 bg-[#FF3B30] text-white text-[9px] font-bold rounded-[4px] animate-pulse">
-                              URGENTE
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[11px] text-muted-foreground">
-                          {contract.status.charAt(0).toUpperCase() + contract.status.slice(1)} • {format(parseISO(contract.updated_at || contract.created_at), 'dd/MM/yyyy')}
-                          {isExpiringSoon && ` • Vence em ${format(parseISO(contract.end_date), 'dd/MM')}`}
-                        </p>
-                      </div>
-                      <ArrowUpRight size={14} className="text-muted-foreground group-hover:text-foreground transition-colors" />
+          <div className="px-6 pb-6 flex-1">
+            {recentContracts.length > 0 ? (
+              <div className="flex flex-col gap-3">
+                {recentContracts.map((contract) => (
+                  <div 
+                    key={contract.id} 
+                    onClick={() => navigate(`/contracts/${contract.id}`)} 
+                    className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl cursor-pointer transition-colors hover:bg-teal-50/50 group"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                      {getStatusIcon(contract.status)}
                     </div>
-                  );
-                })
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <FileText size={32} className="mx-auto mb-2 opacity-20" />
-                  <p className="text-sm">Nenhum contrato recente</p>
-                </div>
-              )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-slate-900 mb-0.5 truncate group-hover:text-teal-700 transition-colors">
+                        {contract.title}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {contract.created_at ? format(parseISO(contract.created_at), 'dd MMM yyyy', { locale: ptBR }) : ''}
+                      </p>
+                    </div>
+                    <span className={`px-2.5 py-1 text-[11px] font-bold rounded-lg shrink-0 ${getStatusBadgeClass(contract.status)}`}>
+                      {contract.status === 'approved' ? 'Assinado' : contract.status === 'pending' ? 'Pendente' : contract.status === 'rejected' ? 'Rejeitado' : 'Rascunho'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-10 text-slate-400 flex flex-col items-center">
+                <FileText size={40} className="mb-3 opacity-30" />
+                <p className="text-sm font-medium">Nenhum contrato ainda</p>
+                <p className="text-xs mt-1">Crie o seu primeiro contrato</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Quick Actions / Expiring */}
+        <div className="flex flex-col gap-5">
+          
+          <div className="bg-white/70 backdrop-blur-lg border border-slate-200/60 rounded-3xl p-6">
+            <div className="flex items-center gap-3 mb-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${stats.expiring > 0 ? 'bg-red-500/10' : 'bg-teal-500/10'}`}>
+                <AlertTriangle size={20} className={stats.expiring > 0 ? 'text-red-500' : 'text-teal-600'} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">A expirar</h3>
+                <p className="text-xs text-slate-500">Nos próximos 30 dias</p>
+              </div>
+              <div className="ml-auto">
+                <span className={`text-2xl font-extrabold ${stats.expiring > 0 ? 'text-red-500' : 'text-teal-600'}`}>
+                  {stats.expiring}
+                </span>
+              </div>
             </div>
-            <Button 
-              variant="outline" 
-              className="w-full mt-6 border-border text-muted-foreground hover:bg-muted rounded-md text-[13px] font-semibold h-10"
-              onClick={() => onSelectContract('all')}
-            >
-              Ver todos os contratos
-            </Button>
-          </CardContent>
-        </Card>
+            {expiringContracts.length > 0 && (
+              <div className="flex flex-col gap-2 mt-2">
+                {expiringContracts.slice(0, 3).map(c => (
+                  <div
+                    key={c.id}
+                    onClick={() => navigate(`/contracts/${c.id}`)}
+                    className="flex justify-between items-center px-3 py-2 bg-red-500/5 rounded-xl cursor-pointer transition-colors hover:bg-red-500/10"
+                  >
+                    <span className="text-xs font-semibold text-slate-900 truncate max-w-[140px]">
+                      {c.title}
+                    </span>
+                    <span className="text-[11px] text-red-500 font-bold shrink-0">
+                      {format(parseISO(c.end_date!), 'dd/MM/yyyy', { locale: ptBR })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-7 text-white relative overflow-hidden flex-1 flex flex-col justify-center">
+            <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-white/5 rounded-full" />
+            <div className="relative z-10">
+              <h3 className="text-base font-bold mb-2">Precisa de ajuda?</h3>
+              <p className="text-[13px] opacity-80 mb-5 leading-relaxed max-w-[250px]">
+                A nossa IA ajuda-te a analisar riscos e cláusulas complexas em segundos.
+              </p>
+              <button
+                onClick={() => navigate('/contracts/new')}
+                className="w-full py-3 bg-teal-500 hover:bg-teal-600 text-white border-none rounded-2xl text-sm font-bold cursor-pointer transition-all flex items-center justify-center gap-2"
+              >
+                Experimentar Agora
+                <ArrowUpRight size={16} />
+              </button>
+            </div>
+          </div>
+
+        </div>
       </div>
     </div>
   );

@@ -1,17 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
-import { Button } from './ui/button';
-import { Badge } from './ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { 
-  ArrowLeft, 
-  History, 
-  CheckCircle2, 
-  XCircle, 
-  Clock, 
-  FileText, 
-  PenTool,
+import {
+  ArrowLeft,
+  History,
+  CheckCircle2,
+  Clock,
+  FileText,
   Download,
   Share2,
   AlertCircle,
@@ -19,38 +13,24 @@ import {
   File,
   Loader2,
   ExternalLink,
-  Eye,
-  X,
-  ZoomIn,
-  ZoomOut,
-  Maximize2,
-  RotateCw,
-  Users,
-  Calendar,
-  MessageSquare,
-  Plus
+  Plus,
+  Eye
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { ScrollArea } from './ui/scroll-area';
-import { Separator } from './ui/separator';
 import { v4 as uuidv4 } from 'uuid';
-import { Label } from './ui/label';
-import { Input } from './ui/input';
-import { Textarea } from './ui/textarea';
+import { exportContractToPdf } from '../services/exportPdf';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
-interface ContractDetailProps {
-  contractId: string;
-  onBack: () => void;
-}
-
-export default function ContractDetail({ contractId, onBack }: ContractDetailProps) {
+export default function ContractDetail() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { id: contractId } = useParams<{ id: string }>();
   const [contract, setContract] = useState<any>(null);
   const [versions, setVersions] = useState<any[]>([]);
   const [meetingNotes, setMeetingNotes] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
   const [isAddingNote, setIsAddingNote] = useState(false);
   const [newNote, setNewNote] = useState({
     date: format(new Date(), 'yyyy-MM-dd'),
@@ -58,914 +38,1060 @@ export default function ContractDetail({ contractId, onBack }: ContractDetailPro
     content: ''
   });
   const [savingNote, setSavingNote] = useState(false);
-  const [viewingFile, setViewingFile] = useState<any>(null);
-  const [textContent, setTextContent] = useState<string | null>(null);
-  const [loadingText, setLoadingText] = useState(false);
-  const [imageZoom, setImageZoom] = useState(1);
+  const [activeTab, setActiveTab] = useState<'details' | 'versions' | 'notes' | 'files'>('details');
 
   useEffect(() => {
-    if (viewingFile && (
-      viewingFile.type?.includes('text') || 
-      viewingFile.name?.endsWith('.json') || 
-      viewingFile.name?.endsWith('.csv') ||
-      viewingFile.name?.endsWith('.md')
-    )) {
-      setLoadingText(true);
-      fetch(viewingFile.url)
-        .then(res => res.text())
-        .then(text => {
-          setTextContent(text);
-          setLoadingText(false);
+    if (user) {
+      const init = async () => {
+        try {
+          const [contractRes, versionsRes, notesRes] = await Promise.all([
+            supabase.from('contracts').select('*').eq('id', contractId).eq('owner_id', user.id).single(),
+            supabase.from('contract_versions').select('*').eq('contract_id', contractId).order('version_number', { ascending: false }),
+            supabase.from('meeting_notes').select('*').eq('contract_id', contractId).order('date', { ascending: false })
+          ]);
+
+          if (contractRes.error) {
+            console.error("Error fetching contract:", contractRes.error);
+            setContract(null);
+          } else if (contractRes.data) {
+            setContract(contractRes.data);
+          }
+          if (versionsRes.error) {
+            console.error("Error fetching versions:", versionsRes.error);
+            setVersions([]);
+          } else if (versionsRes.data) {
+            setVersions(versionsRes.data);
+          }
+          if (notesRes.error) {
+            console.error("Error fetching notes:", notesRes.error);
+            setMeetingNotes([]);
+          } else if (notesRes.data) {
+            setMeetingNotes(notesRes.data);
+          }
+        } catch (err) {
+          console.error("Error initializing contract detail:", err);
+        }
+      };
+      init();
+
+      const contractChannel = supabase
+        .channel(`contract_${contractId}`)
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'contracts', filter: `id=eq.${contractId}` }, (payload: any) => {
+          setContract(payload.new);
         })
-        .catch(err => {
-          console.error("Error fetching text content:", err);
-          setTextContent("Erro ao carregar o conteúdo do arquivo.");
-          setLoadingText(false);
-        });
-    } else {
-      setTextContent(null);
-      setImageZoom(1);
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(contractChannel);
+      };
     }
-  }, [viewingFile]);
-
-  useEffect(() => {
-    fetchContractData();
-
-    // Subscribe to contract changes
-    const contractChannel = supabase
-      .channel(`contract_${contractId}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'contracts', filter: `id=eq.${contractId}` }, (payload: any) => {
-        setContract(payload.new);
-      })
-      .subscribe();
-
-    // Subscribe to notes changes
-    const notesChannel = supabase
-      .channel(`notes_${contractId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'meeting_notes', filter: `contract_id=eq.${contractId}` }, () => {
-        fetchNotes();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(contractChannel);
-      supabase.removeChannel(notesChannel);
-    };
-  }, [contractId]);
+  }, [contractId, user]);
 
   const fetchContractData = async () => {
-    setLoading(true);
-    const { data: contractData } = await supabase
-      .from('contracts')
-      .select('*')
-      .eq('id', contractId)
-      .single();
-    
-    if (contractData) {
-      setContract(contractData);
-    }
-
-    const { data: versionsData } = await supabase
-      .from('contract_versions')
-      .select('*')
-      .eq('contract_id', contractId)
-      .order('created_at', { ascending: false });
-    
-    setVersions(versionsData || []);
-
-    fetchNotes();
-    setLoading(false);
-  };
-
-  const fetchNotes = async () => {
-    const { data: notesData } = await supabase
-      .from('meeting_notes')
-      .select('*')
-      .eq('contract_id', contractId)
-      .order('created_at', { ascending: false });
-    
-    setMeetingNotes(notesData || []);
-  };
-
-  const updateStatus = async (newStatus: string) => {
-    try {
-      const { error } = await supabase
-        .from('contracts')
-        .update({
-          status: newStatus,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', contractId);
-
-      if (error) throw error;
-      
-      let statusLabel = '';
-      switch(newStatus) {
-        case 'draft': statusLabel = 'Rascunho'; break;
-        case 'pending': statusLabel = 'Pendente de Aprovação'; break;
-        case 'approved': statusLabel = 'Aprovado'; break;
-        case 'rejected': statusLabel = 'Rejeitado'; break;
-      }
-      
-      toast.success(`Status atualizado para: ${statusLabel}`);
-    } catch (error) {
-      toast.error("Erro ao atualizar status");
-    }
-  };
-
-  const WorkflowIndicator = () => {
-    const steps = [
-      { id: 'draft', label: 'Rascunho', icon: FileText },
-      { id: 'pending', label: 'Aprovação', icon: Clock },
-      { id: 'final', label: 'Finalizado', icon: CheckCircle2 },
-    ];
-
-    const getCurrentStep = () => {
-      if (contract.status === 'draft') return 0;
-      if (contract.status === 'pending') return 1;
-      if (contract.status === 'approved' || contract.status === 'rejected') return 2;
-      return 0;
-    };
-
-    const currentStep = getCurrentStep();
-
-    return (
-      <div className="flex items-center justify-between w-full mb-8 px-4">
-        {steps.map((step, idx) => {
-          const isCompleted = idx < currentStep;
-          const isActive = idx === currentStep;
-          const isLast = idx === steps.length - 1;
-          const Icon = step.icon;
-
-          return (
-            <React.Fragment key={step.id}>
-              <div className="flex flex-col items-center gap-2 relative z-10">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${
-                  isCompleted ? 'bg-green-500 border-green-500 text-white' :
-                  isActive ? 'bg-card border-primary text-primary shadow-lg shadow-primary/20' :
-                  'bg-card border-border text-muted-foreground'
-                }`}>
-                  {isCompleted ? <CheckCircle2 size={20} /> : <Icon size={20} />}
-                </div>
-                <span className={`text-[11px] font-bold uppercase tracking-wider ${
-                  isActive ? 'text-primary' : 'text-muted-foreground'
-                }`}>
-                  {step.id === 'final' && contract.status === 'rejected' ? 'Rejeitado' : step.label}
-                </span>
-              </div>
-              {!isLast && (
-                <div className="flex-1 h-[2px] mx-4 bg-border relative -mt-6">
-                  <div 
-                    className="absolute inset-0 bg-green-500 transition-all duration-500" 
-                    style={{ width: isCompleted ? '100%' : '0%' }}
-                  />
-                </div>
-              )}
-            </React.Fragment>
-          );
-        })}
-      </div>
-    );
-  };
-
-  const handleSign = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    
-    const signature = {
-      userId: user.id,
-      userName: user.user_metadata?.full_name || user.email,
-      signedAt: new Date().toISOString()
-    };
-
-    const currentSignatures = contract.signatures || [];
-    if (currentSignatures.some((s: any) => s.userId === user.id)) {
-      toast.error("Você já assinou este contrato");
-      return;
-    }
-
     try {
-      const { error } = await supabase
-        .from('contracts')
-        .update({
-          signatures: [...currentSignatures, signature],
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', contractId);
+      const [contractRes, versionsRes, notesRes] = await Promise.all([
+        supabase.from('contracts').select('*').eq('id', contractId).eq('owner_id', user.id).single(),
+        supabase.from('contract_versions').select('*').eq('contract_id', contractId).order('version_number', { ascending: false }),
+        supabase.from('meeting_notes').select('*').eq('contract_id', contractId).order('date', { ascending: false })
+      ]);
 
-      if (error) throw error;
-      toast.success("Contrato assinado digitalmente!");
-    } catch (error) {
-      toast.error("Erro ao assinar contrato");
+      if (contractRes.error) {
+        console.error("Error fetching contract:", contractRes.error);
+        setContract(null);
+      } else if (contractRes.data) {
+        setContract(contractRes.data);
+      }
+      if (versionsRes.error) {
+        console.error("Error fetching versions:", versionsRes.error);
+        setVersions([]);
+      } else if (versionsRes.data) {
+        setVersions(versionsRes.data);
+      }
+      if (notesRes.error) {
+        console.error("Error fetching notes:", notesRes.error);
+        setMeetingNotes([]);
+      } else if (notesRes.data) {
+        setMeetingNotes(notesRes.data);
+      }
+    } catch (err) {
+      console.error("Error fetching contract data:", err);
     }
   };
 
-  const handleAddNote = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user || !newNote.content) return;
-
+  const handleSaveNote = async () => {
+    if (!user || !contract) return;
     setSavingNote(true);
     try {
-      const { error } = await supabase
-        .from('meeting_notes')
-        .insert({
-          contract_id: contractId,
-          date: newNote.date,
-          participants: newNote.participants,
-          content: newNote.content,
-          author_id: user.id,
-          author_name: user.user_metadata?.full_name || user.email
-        });
-
-      if (error) throw error;
-      
-      setNewNote({
-        date: format(new Date(), 'yyyy-MM-dd'),
-        participants: '',
-        content: ''
+      await supabase.from('meeting_notes').insert({
+        contract_id: contract.id,
+        date: newNote.date,
+        participants: newNote.participants,
+        content: newNote.content,
+        author_id: user.id,
+        author_name: user.user_metadata?.name || user.email
       });
+      
       setIsAddingNote(false);
-      toast.success("Nota de reunião adicionada!");
-    } catch (error) {
-      toast.error("Erro ao salvar nota");
+      setNewNote({ date: format(new Date(), 'yyyy-MM-dd'), participants: '', content: '' });
+      fetchContractData();
+      toast.success('Nota de reunião adicionada!');
+    } catch (err) {
+      toast.error('Erro ao salvar nota');
     } finally {
       setSavingNote(false);
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files) return;
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    
-    setUploading(true);
-    try {
-      const file = e.target.files[0];
-      const filePath = `${user.id}/${Date.now()}_${file.name}`;
-      
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('contracts')
-        .upload(filePath, file);
+  if (!contract) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: 300,
+        fontFamily: "'Poppins', sans-serif"
+      }}>
+        <AlertCircle size={48} color="#9ca3af" style={{ marginBottom: 16 }} />
+        <p style={{ fontSize: 14, color: '#6b7280', fontFamily: "'Poppins',sans-serif" }}>
+          Contrato não encontrado
+        </p>
+        <button
+          onClick={() => navigate('/contracts')}
+          style={{
+            marginTop: 16,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '10px 16px',
+            fontSize: 14,
+            fontWeight: 600,
+            background: '#fff',
+            border: '1.5px solid #e2e5e9',
+            borderRadius: 0,
+            cursor: 'pointer',
+            color: '#0d1117',
+            fontFamily: "'Poppins',sans-serif"
+          }}
+        >
+          <ArrowLeft size={16} />
+          Voltar
+        </button>
+      </div>
+    );
+  }
 
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('contracts')
-        .getPublicUrl(filePath);
-      
-      const newAttachment = {
-        id: uuidv4(),
-        name: file.name,
-        url: publicUrl,
-        type: file.type,
-        size: file.size,
-        uploadedAt: new Date().toISOString(),
-        uploadedBy: user.id
-      };
-
-      const currentAttachments = contract.attachments || [];
-      const { error: updateError } = await supabase
-        .from('contracts')
-        .update({
-          attachments: [...currentAttachments, newAttachment],
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', contractId);
-
-      if (updateError) throw updateError;
-      
-      toast.success("Arquivo enviado com sucesso!");
-    } catch (error) {
-      console.error("Error uploading file:", error);
-      toast.error("Erro ao enviar arquivo");
-    } finally {
-      setUploading(false);
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'approved': return { bg: 'rgba(15,168,143,0.1)', text: '#0fa88f' };
+      case 'pending': return { bg: 'rgba(245,158,11,0.1)', text: '#f59e0b' };
+      case 'rejected': return { bg: 'rgba(239,68,68,0.1)', text: '#ef4444' };
+      default: return { bg: '#f7f9fb', text: '#6b7280' };
     }
   };
 
-  if (loading) return <div className="flex justify-center p-12"><Clock className="animate-spin text-blue-500" /></div>;
-  if (!contract) return <div>Contrato não encontrado</div>;
+  const statusStyle = getStatusColor(contract.status);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-500">
-      <div className="flex items-center justify-between">
-        <Button variant="ghost" onClick={onBack} className="gap-2 text-muted-foreground hover:text-foreground text-[14px] font-medium">
-          <ArrowLeft size={18} />
-          Voltar
-        </Button>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="gap-2 rounded-md border-border text-muted-foreground hover:bg-muted text-[13px] font-semibold">
-            <Download size={14} />
-            PDF
-          </Button>
-          <Button variant="outline" size="sm" className="gap-2 rounded-md border-border text-muted-foreground hover:bg-muted text-[13px] font-semibold">
-            <Share2 size={14} />
-            Compartilhar
-          </Button>
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 24,
+      fontFamily: "'Poppins', sans-serif"
+    }}>
+      {/* Header */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        flexWrap: 'wrap',
+        gap: 16
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <button
+            onClick={() => navigate('/contracts')}
+            style={{
+              width: 40,
+              height: 40,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: '#fff',
+              border: '1px solid #e2e5e9',
+              borderRadius: 0,
+              cursor: 'pointer',
+              transition: 'all .2s'
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = '#f7f9fb';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = '#fff';
+            }}
+          >
+            <ArrowLeft size={18} color="#0d1117" />
+          </button>
+          <div>
+            <h1 style={{
+              fontSize: 24,
+              fontWeight: 800,
+              color: '#0d1117',
+              marginBottom: 4,
+              fontFamily: "'Poppins',sans-serif"
+            }}>
+              {contract.title}
+            </h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{
+                padding: '4px 12px',
+                fontSize: 12,
+                fontWeight: 600,
+                background: statusStyle.bg,
+                color: statusStyle.text,
+                fontFamily: "'Poppins',sans-serif"
+              }}>
+                {contract.status === 'approved' ? 'Assinado' : 
+                 contract.status === 'pending' ? 'Aprovação' : 
+                 contract.status === 'rejected' ? 'Rejeitado' : 'Rascunho'}
+              </span>
+              <span style={{ fontSize: 13, color: '#6b7280', fontFamily: "'Poppins',sans-serif" }}>
+                Criado em {format(parseISO(contract.created_at), 'dd/MM/yyyy', { locale: ptBR })}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '10px 18px',
+            fontSize: 13,
+            fontWeight: 600,
+            background: '#fff',
+            border: '1.5px solid #e2e5e9',
+            color: '#6b7280',
+            cursor: 'pointer',
+            fontFamily: "'Poppins',sans-serif"
+          }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = '#f7f9fb';
+              e.currentTarget.style.color = '#0d1117';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = '#fff';
+              e.currentTarget.style.color = '#6b7280';
+            }}
+          >
+            <Share2 size={16} />
+            Partilhar
+          </button>
+          <button
+            onClick={() => exportContractToPdf(contract)}
+            style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '10px 18px',
+            fontSize: 13,
+            fontWeight: 600,
+            background: '#0fa88f',
+            border: 'none',
+            color: '#fff',
+            cursor: 'pointer',
+            fontFamily: "'Poppins',sans-serif"
+          }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = '#0d8a76';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = '#0fa88f';
+            }}
+          >
+            <Download size={16} />
+            Exportar PDF
+          </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Content */}
-        <div className="lg:col-span-2 space-y-6">
-          <Card className="border border-border shadow-none bg-card rounded-xl overflow-hidden">
-            <div className="border-b border-border p-8">
-              <div className="flex justify-between items-start mb-6">
-                <span className={`px-2 py-1 rounded-[4px] text-[11px] font-semibold ${
-                  contract.status === 'approved' ? 'bg-green-500/10 text-green-500' :
-                  contract.status === 'pending' ? 'bg-amber-500/10 text-amber-500' :
-                  contract.status === 'rejected' ? 'bg-destructive/10 text-destructive' :
-                  'bg-muted text-muted-foreground'
-                }`}>
-                  {contract.status === 'approved' ? 'ASSINADO' : 
-                   contract.status === 'pending' ? 'APROVAÇÃO' : 
-                   contract.status === 'rejected' ? 'REJEITADO' : 'RASCUNHO'}
-                </span>
-                <div className="text-right">
-                  <p className="text-[11px] text-muted-foreground uppercase font-semibold tracking-[0.5px]">Valor do Contrato</p>
-                  <p className="text-[24px] font-bold text-foreground">
-                    {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(contract.value || 0)}
-                  </p>
-                </div>
-              </div>
-              <h1 className="text-[28px] font-bold text-foreground tracking-[-0.5px]">{contract.title}</h1>
-              <p className="text-[15px] text-muted-foreground mt-2 leading-relaxed">{contract.description}</p>
-            </div>
-            <CardContent className="p-0">
-              <Tabs defaultValue="content" className="w-full">
-                <TabsList className="w-full justify-start h-14 bg-muted/50 rounded-none border-b border-border px-8 gap-8">
-                  <TabsTrigger value="content" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full px-0 text-[14px] font-medium text-muted-foreground">
-                    Conteúdo
-                  </TabsTrigger>
-                  <TabsTrigger value="history" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full px-0 text-[14px] font-medium text-muted-foreground">
-                    Histórico de Versões
-                  </TabsTrigger>
-                  <TabsTrigger value="signatures" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full px-0 text-[14px] font-medium text-muted-foreground">
-                    Assinaturas ({contract.signatures?.length || 0})
-                  </TabsTrigger>
-                  <TabsTrigger value="notes" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full px-0 text-[14px] font-medium text-muted-foreground">
-                    Notas de Reunião ({meetingNotes.length})
-                  </TabsTrigger>
-                  <TabsTrigger value="attachments" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full px-0 text-[14px] font-medium text-muted-foreground">
-                    Anexos ({contract.attachments?.length || 0})
-                  </TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="content" className="p-8 m-0">
-                  <ScrollArea className="h-[500px] w-full rounded-lg border border-border bg-muted/30 p-6">
-                    <pre className="whitespace-pre-wrap font-sans text-[14px] text-foreground leading-[1.6]">
-                      {contract.content}
-                    </pre>
-                  </ScrollArea>
-                </TabsContent>
-
-                <TabsContent value="history" className="p-8 m-0">
-                  <div className="space-y-4">
-                    {versions.map((v, idx) => (
-                      <div key={v.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border border-border">
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-full bg-card border border-border flex items-center justify-center text-primary">
-                            <History size={18} />
-                          </div>
-                          <div>
-                            <p className="text-[14px] font-semibold text-foreground">Versão {v.version_number}</p>
-                            <p className="text-[11px] text-muted-foreground">
-                              {format(parseISO(v.created_at), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}
-                            </p>
-                          </div>
-                        </div>
-                        <Button variant="ghost" size="sm" className="text-primary hover:bg-secondary text-[13px] font-semibold">Visualizar</Button>
-                      </div>
-                    ))}
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="signatures" className="p-8 m-0">
-                  <div className="space-y-4">
-                    {contract.signatures?.length > 0 ? (
-                      contract.signatures.map((s: any, idx: number) => (
-                        <div key={idx} className="flex items-center justify-between p-4 bg-green-500/10 rounded-lg border border-green-500/20">
-                          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-full bg-card flex items-center justify-center text-green-500">
-                              <CheckCircle2 size={18} />
-                            </div>
-                            <div>
-                              <p className="text-[14px] font-semibold text-foreground">{s.userName}</p>
-                              <p className="text-[11px] text-green-500">
-                                Assinado em {format(new Date(s.signedAt), "dd/MM/yyyy 'às' HH:mm")}
-                              </p>
-                            </div>
-                          </div>
-                          <span className="px-2 py-0.5 bg-green-500 text-white text-[10px] font-bold rounded-[4px]">VALIDADO</span>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-12 text-muted-foreground">
-                        <PenTool size={48} className="mx-auto mb-4 opacity-10" />
-                        <p className="text-[14px]">Nenhuma assinatura registrada ainda.</p>
-                      </div>
-                    )}
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="notes" className="p-8 m-0">
-                  <div className="space-y-6">
-                    <div className="flex justify-between items-center">
-                      <h3 className="text-[14px] font-semibold text-foreground">Notas de Reunião</h3>
-                      {!isAddingNote && (
-                        <Button 
-                          onClick={() => setIsAddingNote(true)}
-                          className="bg-primary hover:bg-primary/90 text-white rounded-lg gap-2 text-[12px] font-semibold h-9"
-                        >
-                          <Plus size={14} />
-                          Nova Nota
-                        </Button>
-                      )}
-                    </div>
-
-                    {isAddingNote && (
-                      <Card className="border border-primary/20 bg-primary/5 shadow-none rounded-xl overflow-hidden animate-in slide-in-from-top-2 duration-300">
-                        <form onSubmit={handleAddNote}>
-                          <CardContent className="p-6 space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label className="text-[11px] text-muted-foreground uppercase font-bold">Data da Reunião</Label>
-                                <Input 
-                                  type="date" 
-                                  required
-                                  value={newNote.date}
-                                  onChange={(e) => setNewNote({...newNote, date: e.target.value})}
-                                  className="bg-card border-border h-10 text-[13px] text-foreground"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label className="text-[11px] text-muted-foreground uppercase font-bold">Participantes</Label>
-                                <Input 
-                                  placeholder="Ex: João, Maria, Fornecedor X"
-                                  value={newNote.participants}
-                                  onChange={(e) => setNewNote({...newNote, participants: e.target.value})}
-                                  className="bg-card border-border h-10 text-[13px] text-foreground"
-                                />
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="text-[11px] text-muted-foreground uppercase font-bold">Conteúdo da Nota</Label>
-                              <Textarea 
-                                placeholder="Descreva o que foi discutido e decidido..."
-                                required
-                                value={newNote.content}
-                                onChange={(e) => setNewNote({...newNote, content: e.target.value})}
-                                className="bg-card border-border min-h-[120px] text-[13px] resize-none text-foreground"
-                              />
-                            </div>
-                          </CardContent>
-                          <div className="p-4 bg-muted border-t border-border flex justify-end gap-3">
-                            <Button 
-                              type="button" 
-                              variant="ghost" 
-                              onClick={() => setIsAddingNote(false)}
-                              className="text-[12px] font-semibold text-muted-foreground"
-                            >
-                              Cancelar
-                            </Button>
-                            <Button 
-                              type="submit" 
-                              disabled={savingNote}
-                              className="bg-primary hover:bg-primary/90 text-white rounded-lg px-6 text-[12px] font-semibold h-9"
-                            >
-                              {savingNote ? <Loader2 size={14} className="animate-spin" /> : 'Salvar Nota'}
-                            </Button>
-                          </div>
-                        </form>
-                      </Card>
-                    )}
-
-                    <div className="space-y-4">
-                      {meetingNotes.length > 0 ? (
-                        meetingNotes.map((note) => (
-                          <div key={note.id} className="p-6 bg-card rounded-xl border border-border hover:border-primary/30 transition-all shadow-sm">
-                            <div className="flex justify-between items-start mb-4">
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-primary">
-                                  <MessageSquare size={18} />
-                                </div>
-                                <div>
-                                  <p className="text-[14px] font-bold text-foreground">Reunião de Alinhamento</p>
-                                  <div className="flex items-center gap-3 mt-1">
-                                    <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                                      <Calendar size={12} />
-                                      {format(new Date(note.date + 'T12:00:00'), "dd 'de' MMMM, yyyy", { locale: ptBR })}
-                                    </span>
-                                    <span className="w-1 h-1 rounded-full bg-border"></span>
-                                    <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                                      <Users size={12} />
-                                      {note.participants || 'Sem participantes listados'}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                              <span className="text-[11px] text-muted-foreground font-medium">
-                                Por {note.authorName}
-                              </span>
-                            </div>
-                            <div className="pl-[52px]">
-                              <p className="text-[13px] text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                                {note.content}
-                              </p>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-center py-12 text-muted-foreground">
-                          <MessageSquare size={48} className="mx-auto mb-4 opacity-10" />
-                          <p className="text-[14px]">Nenhuma nota de reunião registrada.</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="attachments" className="p-8 m-0">
-                  <div className="space-y-6">
-                    <div className="flex justify-between items-center">
-                      <h3 className="text-[14px] font-semibold text-foreground">Documentos Anexados</h3>
-                      <div className="relative">
-                        <input 
-                          type="file" 
-                          onChange={handleFileUpload} 
-                          className="hidden" 
-                          id="detail-file-upload"
-                          disabled={uploading}
-                        />
-                        <Label 
-                          htmlFor="detail-file-upload" 
-                          className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-[12px] font-semibold hover:bg-primary/90 transition-colors"
-                        >
-                          {uploading ? <Loader2 size={14} className="animate-spin" /> : <Paperclip size={14} />}
-                          {uploading ? 'Enviando...' : 'Anexar Arquivo'}
-                        </Label>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-3">
-                      {contract.attachments?.length > 0 ? (
-                        contract.attachments.map((file: any) => (
-                          <div key={file.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border border-border group hover:border-primary transition-colors">
-                            <div className="flex items-center gap-4">
-                              <div className="w-10 h-10 rounded-full bg-card border border-border flex items-center justify-center text-primary">
-                                <File size={18} />
-                              </div>
-                              <div>
-                                <p className="text-[14px] font-semibold text-foreground">{file.name}</p>
-                                <p className="text-[11px] text-muted-foreground">
-                                  {(file.size / 1024).toFixed(1)} KB • {format(new Date(file.uploadedAt), "dd/MM/yyyy")}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="flex items-center gap-2 text-muted-foreground hover:text-primary text-[13px] font-semibold"
-                                onClick={() => setViewingFile(file)}
-                              >
-                                <Eye size={14} />
-                                Visualizar
-                              </Button>
-                              <a 
-                                href={file.url} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 text-primary hover:underline text-[13px] font-semibold"
-                              >
-                                <ExternalLink size={14} />
-                                Abrir
-                              </a>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-center py-12 text-muted-foreground">
-                          <Paperclip size={48} className="mx-auto mb-4 opacity-10" />
-                          <p className="text-[14px]">Nenhum anexo encontrado.</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Sidebar Info */}
-        <div className="space-y-6">
-          <Card className="border border-border shadow-none bg-card rounded-xl overflow-hidden">
-            <div className="p-5 border-b border-border">
-              <h2 className="text-[16px] font-semibold text-foreground">Fluxo de Aprovação</h2>
-            </div>
-            <CardContent className="p-5 space-y-6">
-              <WorkflowIndicator />
-              
-              <div className="flex flex-col gap-3">
-                {contract.status === 'draft' && (
-                  <Button 
-                    className="w-full bg-primary hover:bg-primary/90 text-white rounded-lg gap-2 text-[13px] font-semibold h-11"
-                    onClick={() => updateStatus('pending')}
-                  >
-                    <Share2 size={16} />
-                    Enviar para Aprovação
-                  </Button>
-                )}
-
-                {contract.status === 'pending' && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <Button 
-                      className="bg-green-500 hover:bg-green-600 text-white rounded-lg gap-2 text-[13px] font-semibold h-11"
-                      onClick={() => updateStatus('approved')}
-                    >
-                      <CheckCircle2 size={16} />
-                      Aprovar
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      className="border-border text-destructive hover:bg-destructive/10 rounded-lg gap-2 text-[13px] font-semibold h-11"
-                      onClick={() => updateStatus('rejected')}
-                    >
-                      <XCircle size={16} />
-                      Rejeitar
-                    </Button>
-                  </div>
-                )}
-
-                {(contract.status === 'approved' || contract.status === 'rejected') && (
-                  <div className={`p-4 rounded-lg border flex items-center gap-3 ${
-                    contract.status === 'approved' ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-destructive/10 border-destructive/20 text-destructive'
-                  }`}>
-                    {contract.status === 'approved' ? <CheckCircle2 size={20} /> : <XCircle size={20} />}
-                    <div className="flex flex-col">
-                      <span className="text-[13px] font-bold">Fluxo Encerrado</span>
-                      <span className="text-[11px] opacity-80">
-                        Contrato {contract.status === 'approved' ? 'aprovado com sucesso' : 'rejeitado pela gestão'}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {contract.status !== 'approved' && contract.status !== 'rejected' && (
-                  <Button 
-                    variant="ghost"
-                    className="w-full text-muted-foreground hover:text-foreground text-[12px] h-9"
-                    onClick={() => updateStatus('draft')}
-                  >
-                    Voltar para Rascunho
-                  </Button>
-                )}
-              </div>
-
-              <Separator className="bg-border" />
-              
-              <div className="space-y-3">
-                <p className="text-[11px] text-muted-foreground uppercase font-bold tracking-wider">Ações Adicionais</p>
-                <Button 
-                  className="w-full bg-card border border-border text-foreground hover:bg-muted rounded-lg gap-2 text-[13px] font-semibold h-10"
-                  onClick={handleSign}
-                  disabled={contract.status === 'rejected'}
-                >
-                  <PenTool size={16} />
-                  Assinar Digitalmente
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Risks */}
-          <Card className="border border-border shadow-none bg-card rounded-xl overflow-hidden">
-            <div className="p-5 border-b border-border bg-amber-500/10">
-              <h2 className="text-[16px] font-semibold flex items-center gap-2 text-amber-600">
-                <AlertCircle size={18} />
-                Riscos Identificados
-              </h2>
-            </div>
-            <CardContent className="p-4 space-y-3">
-              {contract.risks?.length > 0 ? (
-                contract.risks.map((risk: any, idx: number) => (
-                  <div key={idx} className="p-3 bg-muted/50 rounded-lg border border-border">
-                    <span className={`px-2 py-0.5 rounded-[4px] text-[10px] font-bold mb-2 inline-block ${
-                      risk.severity === 'high' ? 'bg-destructive text-white' :
-                      risk.severity === 'medium' ? 'bg-amber-500 text-white' :
-                      'bg-green-500 text-white'
-                    }`}>
-                      {risk.severity.toUpperCase()}
-                    </span>
-                    <p className="text-[12px] text-muted-foreground leading-relaxed">{risk.description}</p>
-                  </div>
-                ))
-              ) : (
-                <p className="text-[13px] text-muted-foreground text-center py-4">Nenhum risco identificado.</p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Dates */}
-          <Card className="border border-border shadow-none bg-card rounded-xl overflow-hidden">
-            <div className="p-5 border-b border-border">
-              <h2 className="text-[16px] font-semibold text-foreground">Prazos e Datas</h2>
-            </div>
-            <CardContent className="p-5 space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-[13px] text-muted-foreground">Início</span>
-                <span className="text-[13px] font-semibold text-foreground">
-                  {contract.start_date ? format(parseISO(contract.start_date), 'dd/MM/yyyy') : '-'}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-[13px] text-muted-foreground">Vencimento</span>
-                <span className="text-[13px] font-semibold text-foreground">
-                  {contract.end_date ? format(parseISO(contract.end_date), 'dd/MM/yyyy') : 'Indeterminado'}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-[13px] text-muted-foreground">Última Atualização</span>
-                <span className="text-[13px] font-semibold text-foreground">
-                  {contract.updated_at ? format(parseISO(contract.updated_at), 'dd/MM/yyyy') : '-'}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+      {/* Tabs */}
+      <div style={{
+        display: 'flex',
+        gap: 4,
+        background: 'rgba(255, 255, 255, 0.45)',
+        backdropFilter: 'blur(30px)',
+        border: '1px solid rgba(255, 255, 255, 0.35)',
+        borderRadius: 20,
+        padding: 4,
+        boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
+      }}>
+        {[
+          { id: 'details', label: 'Detalhes', icon: FileText },
+          { id: 'versions', label: 'Versões', icon: History },
+          { id: 'notes', label: 'Notas de Reunião', icon: FileText },
+          { id: 'files', label: 'Anexos', icon: Paperclip }
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as any)}
+            style={{
+              flex: 1,
+              padding: '10px 16px',
+              background: activeTab === tab.id ? '#fff' : 'transparent',
+              border: activeTab === tab.id ? '1px solid #e2e5e9' : 'none',
+              color: activeTab === tab.id ? '#0fa88f' : '#6b7280',
+              fontSize: 13,
+              fontWeight: activeTab === tab.id ? 600 : 500,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              fontFamily: "'Poppins',sans-serif"
+            }}
+          >
+            <tab.icon size={16} />
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      {/* Document Viewer Modal */}
-      {viewingFile && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
-          <div 
-            onClick={() => setViewingFile(null)}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-          />
-          <div className="relative w-full max-w-5xl h-[90vh] bg-card rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-border">
-            <div className="p-4 border-b border-border bg-card flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center text-primary">
-                  {viewingFile.type?.includes('image') ? <Eye size={16} /> : 
-                   viewingFile.type?.includes('pdf') ? <FileText size={16} /> :
-                   viewingFile.type?.includes('video') ? <Maximize2 size={16} /> : <File size={16} />}
-                </div>
+      {/* Tab Content */}
+      {activeTab === 'details' && (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 24
+        }}>
+          {/* Left Column */}
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 20
+          }}>
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.45)',
+              backdropFilter: 'blur(30px)',
+              border: '1px solid rgba(255, 255, 255, 0.35)',
+              borderRadius: 20,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+              padding: 24
+            }}>
+              <h3 style={{
+                fontSize: 14,
+                fontWeight: 700,
+                color: '#6b7280',
+                textTransform: 'uppercase',
+                letterSpacing: 1,
+                marginBottom: 16,
+                fontFamily: "'Poppins',sans-serif"
+              }}>
+                Informações Básicas
+              </h3>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div>
-                  <h3 className="text-[15px] font-bold text-foreground truncate max-w-[200px] sm:max-w-md">{viewingFile.name}</h3>
-                  <p className="text-[11px] text-muted-foreground">
-                    {(viewingFile.size / 1024).toFixed(1)} KB • Visualização interna
+                  <div style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: '#6b7280',
+                    marginBottom: 4,
+                    fontFamily: "'Poppins',sans-serif"
+                  }}>
+                    Descrição
+                  </div>
+                  <p style={{
+                    fontSize: 14,
+                    color: '#0d1117',
+                    lineHeight: 1.6,
+                    fontFamily: "'Poppins',sans-serif"
+                  }}>
+                    {contract.description || 'Sem descrição'}
                   </p>
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {viewingFile.type?.includes('image') && (
-                  <div className="flex items-center bg-muted rounded-lg p-1 mr-2">
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-7 w-7" 
-                      onClick={() => setImageZoom(prev => Math.max(0.5, prev - 0.25))}
-                    >
-                      <ZoomOut size={14} />
-                    </Button>
-                    <span className="text-[10px] font-bold w-10 text-center text-foreground">{Math.round(imageZoom * 100)}%</span>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-7 w-7" 
-                      onClick={() => setImageZoom(prev => Math.min(3, prev + 0.25))}
-                    >
-                      <ZoomIn size={14} />
-                    </Button>
-                  </div>
-                )}
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  asChild
-                  className="h-8 gap-2 border-border text-primary hover:bg-secondary text-[12px] font-semibold"
-                >
-                  <a href={viewingFile.url} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink size={14} />
-                    Abrir em Nova Aba
-                  </a>
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  asChild
-                  className="hidden sm:flex h-8 gap-2 border-border text-muted-foreground text-[12px]"
-                >
-                  <a href={viewingFile.url} download={viewingFile.name}>
-                    <Download size={14} />
-                    Baixar
-                  </a>
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  onClick={() => setViewingFile(null)}
-                  className="rounded-full hover:bg-muted h-8 w-8"
-                >
-                  <X size={18} />
-                </Button>
-              </div>
-            </div>
-            
-            <div className="flex-1 bg-muted/20 relative overflow-hidden flex flex-col">
-              {viewingFile.type?.includes('pdf') ? (
-                <div className="w-full h-full flex flex-col">
-                  <iframe 
-                    src={`https://docs.google.com/viewer?url=${encodeURIComponent(viewingFile.url)}&embedded=true`} 
-                    className="w-full h-full border-none"
-                    title={viewingFile.name}
-                  />
-                  <div className="absolute bottom-4 right-4 flex gap-2">
-                    <Button 
-                      size="sm" 
-                      variant="secondary" 
-                      className="bg-card/90 backdrop-blur shadow-sm text-[11px] h-8"
-                      asChild
-                    >
-                      <a href={viewingFile.url} target="_blank" rel="noopener noreferrer">
-                        Problemas na visualização? Clique aqui
-                      </a>
-                    </Button>
-                  </div>
-                </div>
-              ) : viewingFile.type?.includes('image') ? (
-                <ScrollArea className="w-full h-full">
-                  <div className="min-h-full w-full flex items-center justify-center p-8">
-                    <img 
-                      src={viewingFile.url} 
-                      alt={viewingFile.name} 
-                      style={{ transform: `scale(${imageZoom})`, transition: 'transform 0.2s' }}
-                      className="max-w-full shadow-lg rounded-lg origin-center"
-                      referrerPolicy="no-referrer"
-                    />
-                  </div>
-                </ScrollArea>
-              ) : viewingFile.type?.includes('video') ? (
-                <div className="w-full h-full flex items-center justify-center bg-black">
-                  <video 
-                    src={viewingFile.url} 
-                    controls 
-                    className="max-w-full max-h-full"
-                    autoPlay
-                  />
-                </div>
-              ) : viewingFile.type?.includes('audio') ? (
-                <div className="w-full h-full flex flex-col items-center justify-center gap-6 p-8">
-                  <div className="w-32 h-32 rounded-full bg-card flex items-center justify-center text-primary shadow-xl animate-pulse">
-                    <RotateCw size={48} />
-                  </div>
-                  <audio 
-                    src={viewingFile.url} 
-                    controls 
-                    className="w-full max-w-md"
-                    autoPlay
-                  />
-                  <p className="text-[14px] font-medium text-foreground">{viewingFile.name}</p>
-                </div>
-              ) : (viewingFile.type?.includes('text') || textContent !== null) ? (
-                <div className="w-full h-full flex flex-col">
-                  {loadingText ? (
-                    <div className="flex-1 flex items-center justify-center">
-                      <Loader2 className="animate-spin text-primary" size={32} />
-                    </div>
-                  ) : (
-                    <ScrollArea className="flex-1 p-6">
-                      <pre className="p-6 bg-card rounded-xl border border-border font-mono text-[13px] text-foreground leading-relaxed whitespace-pre-wrap shadow-sm">
-                        {textContent}
-                      </pre>
-                    </ScrollArea>
-                  )}
-                </div>
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center gap-4 text-center p-8">
-                  <div className="w-20 h-20 rounded-full bg-card flex items-center justify-center text-muted-foreground shadow-sm">
-                    <FileText size={40} />
-                  </div>
+                
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: 16
+                }}>
                   <div>
-                    <h3 className="text-[18px] font-bold text-foreground">Visualização não disponível</h3>
-                    <p className="text-[14px] text-muted-foreground max-w-xs mx-auto mt-2">
-                      Este tipo de arquivo ({viewingFile.type || 'desconhecido'}) não pode ser visualizado diretamente.
+                    <div style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: '#6b7280',
+                      marginBottom: 4,
+                      fontFamily: "'Poppins',sans-serif"
+                    }}>
+                      Valor
+                    </div>
+                    <p style={{
+                      fontSize: 18,
+                      fontWeight: 700,
+                      color: '#0d1117',
+                      fontFamily: "'Poppins',sans-serif"
+                    }}>
+                      {contract.value ? new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(contract.value) : 'Kz 0,00'}
                     </p>
                   </div>
-                  <Button 
-                    asChild
-                    className="bg-primary hover:bg-primary/90 text-white rounded-lg gap-2 mt-4"
-                  >
-                    <a href={viewingFile.url} target="_blank" rel="noopener noreferrer">
-                      <Download size={16} />
-                      Baixar Arquivo
-                    </a>
-                  </Button>
+                  
+                  <div>
+                    <div style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: '#6b7280',
+                      marginBottom: 4,
+                      fontFamily: "'Poppins',sans-serif"
+                    }}>
+                      Nível de Risco
+                    </div>
+                    <p style={{
+                      fontSize: 18,
+                      fontWeight: 700,
+                      color: contract.risk_level === 'high' ? '#ef4444' : 
+                             contract.risk_level === 'medium' ? '#f59e0b' : '#0fa88f',
+                      fontFamily: "'Poppins',sans-serif"
+                    }}>
+                      {contract.risk_level === 'high' ? 'Alto' : 
+                       contract.risk_level === 'medium' ? 'Médio' : 'Baixo'}
+                    </p>
+                  </div>
                 </div>
+                
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: 16
+                }}>
+                  <div>
+                    <div style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: '#6b7280',
+                      marginBottom: 4,
+                      fontFamily: "'Poppins',sans-serif"
+                    }}>
+                      Data de Início
+                    </div>
+                    <p style={{
+                      fontSize: 14,
+                      color: '#0d1117',
+                      fontFamily: "'Poppins',sans-serif"
+                    }}>
+                      {contract.start_date ? format(parseISO(contract.start_date), 'dd/MM/yyyy', { locale: ptBR }) : 'N/A'}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <div style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: '#6b7280',
+                      marginBottom: 4,
+                      fontFamily: "'Poppins',sans-serif"
+                    }}>
+                      Data de Término
+                    </div>
+                    <p style={{
+                      fontSize: 14,
+                      color: '#0d1117',
+                      fontFamily: "'Poppins',sans-serif"
+                    }}>
+                      {contract.end_date ? format(parseISO(contract.end_date), 'dd/MM/yyyy', { locale: ptBR }) : 'N/A'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column */}
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 20
+          }}>
+            <div style={{
+              background: '#fff',
+              border: '1px solid #e2e5e9',
+              borderRadius: 0,
+              padding: 24,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16
+            }}>
+              <h3 style={{
+                fontSize: 14,
+                fontWeight: 700,
+                color: '#6b7280',
+                textTransform: 'uppercase',
+                letterSpacing: 1,
+                fontFamily: "'Poppins',sans-serif"
+              }}>
+                Conteúdo do Contrato
+              </h3>
+              
+              {contract.content ? (
+                <div style={{
+                  maxHeight: 400,
+                  overflowY: 'auto',
+                  padding: 16,
+                  background: '#f7f9fb',
+                  border: '1px solid #e2e5e9',
+                  fontFamily: "'Poppins',sans-serif",
+                  fontSize: 13,
+                  lineHeight: 1.8,
+                  color: '#374151',
+                  whiteSpace: 'pre-wrap'
+                }}>
+                  {contract.content}
+                </div>
+              ) : (
+                <p style={{
+                  fontSize: 14,
+                  color: '#9ca3af',
+                  textAlign: 'center',
+                  padding: 24,
+                  fontFamily: "'Poppins',sans-serif"
+                }}>
+                  Sem conteúdo
+                </p>
               )}
             </div>
+
+            {contract.risks && contract.risks.length > 0 && (
+              <div style={{
+                background: '#fff',
+                border: '1px solid #e2e5e9',
+                borderRadius: 0,
+                padding: 24
+              }}>
+                <h3 style={{
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: '#6b7280',
+                  textTransform: 'uppercase',
+                  letterSpacing: 1,
+                  marginBottom: 16,
+                  fontFamily: "'Poppins',sans-serif"
+                }}>
+                  Riscos Identificados
+                </h3>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {contract.risks.map((risk: any, idx: number) => (
+                    <div key={idx} style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 12,
+                      padding: 12,
+                      background: risk.severity === 'high' ? 'rgba(239,68,68,0.05)' : 
+                                  risk.severity === 'medium' ? 'rgba(245,158,11,0.05)' : 
+                                  'rgba(15,168,143,0.05)',
+                      borderLeft: '3px solid ' + (risk.severity === 'high' ? '#ef4444' : 
+                                                          risk.severity === 'medium' ? '#f59e0b' : '#0fa88f')
+                    }}>
+                      <AlertCircle size={18} color={risk.severity === 'high' ? '#ef4444' : 
+                                                         risk.severity === 'medium' ? '#f59e0b' : '#0fa88f'} />
+                      <div>
+                        <p style={{
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: '#0d1117',
+                          textTransform: 'capitalize',
+                          marginBottom: 2,
+                          fontFamily: "'Poppins',sans-serif"
+                        }}>
+                          Risco {risk.severity}
+                        </p>
+                        <p style={{
+                          fontSize: 13,
+                          color: '#374151',
+                          fontFamily: "'Poppins',sans-serif"
+                        }}>
+                          {risk.description}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'versions' && (
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.45)',
+          backdropFilter: 'blur(30px)',
+          border: '1px solid rgba(255, 255, 255, 0.35)',
+          borderRadius: 24,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+          overflow: 'hidden'
+        }}>
+          <div style={{
+            padding: '20px 24px',
+            borderBottom: '1px solid #e2e5e9'
+          }}>
+            <h3 style={{
+              fontSize: 16,
+              fontWeight: 700,
+              color: '#0d1117',
+              fontFamily: "'Poppins',sans-serif"
+            }}>
+              Histórico de Versões
+            </h3>
+          </div>
+          <div style={{ maxHeight: 500, overflowY: 'auto' }}>
+            {versions.length > 0 ? (
+              versions.map((version, idx) => (
+                <div key={version.id} style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  padding: '16px 24px',
+                  borderBottom: '1px solid #e2e5e9'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 16
+                  }}>
+                    <div style={{
+                      width: 36,
+                      height: 36,
+                      background: '#e6f7f4',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: '#0fa88f',
+                      fontFamily: "'Poppins',sans-serif"
+                    }}>
+                      v{version.version_number}
+                    </div>
+                    <div>
+                      <p style={{
+                        fontSize: 14,
+                        fontWeight: 600,
+                        color: '#0d1117',
+                        marginBottom: 4,
+                        fontFamily: "'Poppins',sans-serif"
+                      }}>
+                        Versão {version.version_number}
+                      </p>
+                      <p style={{
+                        fontSize: 12,
+                        color: '#6b7280',
+                        fontFamily: "'Poppins',sans-serif"
+                      }}>
+                        {format(parseISO(version.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                      </p>
+                    </div>
+                  </div>
+                  <button style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '6px 12px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    background: '#fff',
+                    border: '1px solid #e2e5e9',
+                    color: '#6b7280',
+                    cursor: 'pointer',
+                    fontFamily: "'Poppins',sans-serif"
+                  }}>
+                    <Eye size={14} />
+                    Ver
+                  </button>
+                </div>
+              ))
+            ) : (
+              <div style={{
+                textAlign: 'center',
+                padding: 48,
+                color: '#9ca3af'
+              }}>
+                <History size={40} style={{ marginBottom: 12, opacity: 0.3 }} />
+                <p style={{ fontSize: 14, fontFamily: "'Poppins',sans-serif" }}>
+                  Sem versões anteriores
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'notes' && (
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 20
+        }}>
+          {!isAddingNote ? (
+            <button
+              onClick={() => setIsAddingNote(true)}
+              style={{
+                width: 'fit-content',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '10px 20px',
+                fontSize: 14,
+                fontWeight: 600,
+                background: '#0fa88f',
+                border: 'none',
+                color: '#fff',
+                cursor: 'pointer',
+                fontFamily: "'Poppins',sans-serif"
+              }}
+            >
+              <Plus size={16} />
+              Adicionar Nota
+            </button>
+          ) : (
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.45)',
+              backdropFilter: 'blur(30px)',
+              border: '1px solid rgba(255, 255, 255, 0.35)',
+              borderRadius: 20,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+              padding: 24
+            }}>
+              <h3 style={{
+                fontSize: 16,
+                fontWeight: 700,
+                color: '#0d1117',
+                marginBottom: 16,
+                fontFamily: "'Poppins',sans-serif"
+              }}>
+                Nova Nota de Reunião
+              </h3>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: 16
+                }}>
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: '#6b7280',
+                      marginBottom: 6,
+                      fontFamily: "'Poppins',sans-serif"
+                    }}>
+                      DATA
+                    </label>
+                    <input
+                      type="date"
+                      value={newNote.date}
+                      onChange={e => setNewNote({ ...newNote, date: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        fontSize: 14,
+                        background: '#fff',
+                        border: '1.5px solid #e2e5e9',
+                        outline: 'none',
+                        fontFamily: "'Poppins',sans-serif"
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: '#6b7280',
+                      marginBottom: 6,
+                      fontFamily: "'Poppins',sans-serif"
+                    }}>
+                      PARTICIPANTES
+                    </label>
+                    <input
+                      type="text"
+                      value={newNote.participants}
+                      onChange={e => setNewNote({ ...newNote, participants: e.target.value })}
+                      placeholder="Nome dos participantes"
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        fontSize: 14,
+                        background: '#fff',
+                        border: '1.5px solid #e2e5e9',
+                        outline: 'none',
+                        fontFamily: "'Poppins',sans-serif"
+                      }}
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <label style={{
+                    display: 'block',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: '#6b7280',
+                    marginBottom: 6,
+                    fontFamily: "'Poppins',sans-serif"
+                  }}>
+                    CONTEÚDO
+                  </label>
+                  <textarea
+                    value={newNote.content}
+                    onChange={e => setNewNote({ ...newNote, content: e.target.value })}
+                    placeholder="Descreva o que foi discutido na reunião..."
+                    rows={6}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      fontSize: 14,
+                      background: '#fff',
+                      border: '1.5px solid #e2e5e9',
+                      outline: 'none',
+                      resize: 'vertical',
+                      fontFamily: "'Poppins',sans-serif"
+                    }}
+                  />
+                </div>
+                
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: 12
+                }}>
+                  <button
+                    onClick={() => setIsAddingNote(false)}
+                    style={{
+                      padding: '10px 20px',
+                      fontSize: 14,
+                      fontWeight: 600,
+                      background: '#fff',
+                      border: '1.5px solid #e2e5e9',
+                      color: '#6b7280',
+                      cursor: 'pointer',
+                      fontFamily: "'Poppins',sans-serif"
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleSaveNote}
+                    disabled={savingNote}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '10px 20px',
+                      fontSize: 14,
+                      fontWeight: 600,
+                      background: '#0fa88f',
+                      border: 'none',
+                      color: '#fff',
+                      cursor: savingNote ? 'not-allowed' : 'pointer',
+                      opacity: savingNote ? 0.7 : 1,
+                      fontFamily: "'Poppins',sans-serif"
+                    }}
+                  >
+                    {savingNote ? <Loader2 size={16} className="animate-spin" /> : null}
+                    {savingNote ? 'Salvando...' : 'Salvar'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16
+          }}>
+            {meetingNotes.length > 0 ? (
+              meetingNotes.map(note => (
+                <div key={note.id} style={{
+                  background: '#fff',
+                  border: '1px solid #e2e5e9',
+                  borderRadius: 0,
+                  padding: 24
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    marginBottom: 12
+                  }}>
+                    <div>
+                      <div style={{
+                        fontSize: 14,
+                        fontWeight: 700,
+                        color: '#0d1117',
+                        marginBottom: 4,
+                        fontFamily: "'Poppins',sans-serif"
+                      }}>
+                        Reunião de {format(parseISO(note.date), 'dd/MM/yyyy', { locale: ptBR })}
+                      </div>
+                      {note.participants && (
+                        <p style={{
+                          fontSize: 12,
+                          color: '#6b7280',
+                          marginBottom: 8,
+                          fontFamily: "'Poppins',sans-serif"
+                        }}>
+                          Participantes: {note.participants}
+                        </p>
+                      )}
+                    </div>
+                    {note.author_name && (
+                      <span style={{
+                        fontSize: 12,
+                        color: '#9ca3af',
+                        fontFamily: "'Poppins',sans-serif"
+                      }}>
+                        Por {note.author_name}
+                      </span>
+                    )}
+                  </div>
+                  <p style={{
+                    fontSize: 14,
+                    color: '#374151',
+                    lineHeight: 1.7,
+                    fontFamily: "'Poppins',sans-serif"
+                  }}>
+                    {note.content}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <div style={{
+                background: '#fff',
+                border: '1px solid #e2e5e9',
+                borderRadius: 0,
+                padding: 48,
+                textAlign: 'center',
+                color: '#9ca3af'
+              }}>
+                <FileText size={40} style={{ marginBottom: 12, opacity: 0.3 }} />
+                <p style={{ fontSize: 14, fontFamily: "'Poppins',sans-serif" }}>
+                  Sem notas de reunião
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'files' && (
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.45)',
+          backdropFilter: 'blur(30px)',
+          border: '1px solid rgba(255, 255, 255, 0.35)',
+          borderRadius: 24,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+          overflow: 'hidden'
+        }}>
+          <div style={{
+            padding: '20px 24px',
+            borderBottom: '1px solid #e2e5e9'
+          }}>
+            <h3 style={{
+              fontSize: 16,
+              fontWeight: 700,
+              color: '#0d1117',
+              fontFamily: "'Poppins',sans-serif"
+            }}>
+              Anexos
+            </h3>
+          </div>
+          <div style={{ maxHeight: 500, overflowY: 'auto' }}>
+            {contract.attachments && contract.attachments.length > 0 ? (
+              contract.attachments.map((attachment: any, idx: number) => (
+                <div key={attachment.id || idx} style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '16px 24px',
+                  borderBottom: '1px solid #e2e5e9'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12
+                  }}>
+                    <div style={{
+                      width: 40,
+                      height: 40,
+                      background: '#e6f7f4',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}>
+                      <File size={20} color="#0fa88f" />
+                    </div>
+                    <div>
+                      <p style={{
+                        fontSize: 14,
+                        fontWeight: 600,
+                        color: '#0d1117',
+                        marginBottom: 2,
+                        fontFamily: "'Poppins',sans-serif"
+                      }}>
+                        {attachment.name}
+                      </p>
+                      <p style={{
+                        fontSize: 12,
+                        color: '#6b7280',
+                        fontFamily: "'Poppins',sans-serif"
+                      }}>
+                        {attachment.size ? `${(attachment.size / 1024).toFixed(1)} KB` : ''}
+                        {attachment.uploadedAt ? ` • ${format(parseISO(attachment.uploadedAt), 'dd/MM/yyyy', { locale: ptBR })}` : ''}
+                      </p>
+                    </div>
+                  </div>
+                  <a
+                    href={attachment.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '6px 12px',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      background: '#fff',
+                      border: '1px solid #e2e5e9',
+                      color: '#6b7280',
+                      cursor: 'pointer',
+                      textDecoration: 'none',
+                      fontFamily: "'Poppins',sans-serif"
+                    }}
+                  >
+                    <ExternalLink size={14} />
+                    Abrir
+                  </a>
+                </div>
+              ))
+            ) : (
+              <div style={{
+                textAlign: 'center',
+                padding: 48,
+                color: '#9ca3af'
+              }}>
+                <Paperclip size={40} style={{ marginBottom: 12, opacity: 0.3 }} />
+                <p style={{ fontSize: 14, fontFamily: "'Poppins',sans-serif" }}>
+                  Sem anexos
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}

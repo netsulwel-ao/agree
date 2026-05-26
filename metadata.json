@@ -1,5 +1,5 @@
 {
-  "name": "SGC - Sistema de Gestão de Contratos",
+  "name": "Agree - Sistema de Gestão de Contratos",
   "description": "Sistema completo para criação, gestão, versionamento e análise de riscos de contratos com dashboard financeiro.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

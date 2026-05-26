@@ -1,19 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { 
   TrendingUp, 
-  TrendingDown, 
   DollarSign, 
   AlertTriangle, 
   CheckCircle2, 
   Clock,
-  PieChart as PieChartIcon,
-  BarChart as BarChartIcon,
   Activity,
   ShieldAlert,
-  ArrowUpRight,
-  ArrowDownRight
+  ArrowUpRight
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -32,236 +27,420 @@ import {
 } from 'recharts';
 import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useAuth } from '../contexts/AuthContext';
 
-const COLORS = ['#0055FF', '#00B031', '#FF9500', '#FF3B30', '#8E8E93'];
+const COLORS = ['#0fa88f', '#f59e0b', '#ef4444', '#6b7280'];
 
 export default function Analytics() {
+  const { user } = useAuth();
   const [contracts, setContracts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchContracts();
+    if (user) {
+      const init = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('contracts')
+            .select('*')
+            .eq('owner_id', user.id);
 
-    const channel = supabase
-      .channel('analytics_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'contracts' }, () => {
-        fetchContracts();
-      })
-      .subscribe();
+          if (error) {
+            console.error("Error fetching analytics data:", error);
+            setContracts([]);
+          } else {
+            setContracts(data || []);
+          }
+        } catch (err) {
+          console.error("Error initializing analytics:", err);
+        }
+      };
+      init();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+      const channel = supabase
+        .channel('analytics_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'contracts' }, () => {
+          fetchContracts();
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [user]);
 
   const fetchContracts = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('contracts')
+        .select('*')
+        .eq('owner_id', user.id);
 
-    const { data, error } = await supabase
-      .from('contracts')
-      .select('*')
-      .eq('owner_id', user.id);
-
-    if (error) {
-      console.error("Error fetching analytics data:", error);
-    } else {
-      setContracts(data || []);
+      if (error) {
+        console.error("Error fetching analytics data:", error);
+        setContracts([]);
+      } else {
+        setContracts(data || []);
+      }
+    } catch (err) {
+      console.error("Error fetching analytics data:", err);
     }
-    setLoading(false);
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Activity className="animate-spin text-[#0055FF]" size={32} />
-      </div>
-    );
-  }
-
-  // 1. Financial Data (Last 6 months)
   const financialData = Array.from({ length: 6 }).map((_, i) => {
     const date = subMonths(new Date(), 5 - i);
     const monthName = format(date, 'MMM', { locale: ptBR });
     const monthStart = startOfMonth(date);
     const monthEnd = endOfMonth(date);
     
-    const value = contracts
-      .filter(c => {
-        const createdAt = parseISO(c.created_at);
-        return createdAt && isWithinInterval(createdAt, { start: monthStart, end: monthEnd });
-      })
-      .reduce((acc, c) => acc + (Number(c.value) || 0), 0);
+    const monthContracts = contracts.filter(c => {
+      const createdAt = parseISO(c.created_at);
+      return createdAt && isWithinInterval(createdAt, { start: monthStart, end: monthEnd });
+    });
+
+    const value = monthContracts.reduce((acc, c) => acc + (Number(c.value) || 0), 0);
     
     return { name: monthName, value };
   });
 
-  // 2. Status Distribution
+  // Correlação: novos contratos vs risco assumido por mês
+  const correlationData = Array.from({ length: 6 }).map((_, i) => {
+    const date = subMonths(new Date(), 5 - i);
+    const monthName = format(date, 'MMM', { locale: ptBR });
+    const monthStart = startOfMonth(date);
+    const monthEnd = endOfMonth(date);
+
+    const monthContracts = contracts.filter(c => {
+      const createdAt = parseISO(c.created_at);
+      return createdAt && isWithinInterval(createdAt, { start: monthStart, end: monthEnd });
+    });
+
+    return {
+      name: monthName,
+      total: monthContracts.length,
+      alto: monthContracts.filter(c => c.risk_level === 'high').length,
+      medio: monthContracts.filter(c => c.risk_level === 'medium').length,
+      baixo: monthContracts.filter(c => c.risk_level === 'low').length,
+    };
+  });
+
   const statusData = [
     { name: 'Aprovados', value: contracts.filter(c => c.status === 'approved').length },
     { name: 'Pendentes', value: contracts.filter(c => c.status === 'pending').length },
-    { name: 'Rascunhos', value: contracts.filter(c => c.status === 'draft').length },
     { name: 'Rejeitados', value: contracts.filter(c => c.status === 'rejected').length },
-  ].filter(d => d.value > 0);
+    { name: 'Rascunhos', value: contracts.filter(c => c.status === 'draft').length }
+  ].filter(item => item.value > 0);
 
-  // 3. Risk Distribution
   const riskData = [
-    { name: 'Baixo', value: contracts.filter(c => c.risk_level === 'low' || !c.risk_level).length },
+    { name: 'Baixo', value: contracts.filter(c => c.risk_level === 'low').length },
     { name: 'Médio', value: contracts.filter(c => c.risk_level === 'medium').length },
-    { name: 'Alto', value: contracts.filter(c => c.risk_level === 'high').length },
-  ];
+    { name: 'Alto', value: contracts.filter(c => c.risk_level === 'high').length }
+  ].filter(item => item.value > 0);
 
-  // 4. Top Contracts by Value
-  const topContracts = [...contracts]
-    .sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0))
-    .slice(0, 5)
-    .map(c => ({
-      name: c.title.length > 15 ? c.title.substring(0, 15) + '...' : c.title,
-      value: Number(c.value) || 0
-    }));
-
-  const totalValue = contracts.reduce((acc, c) => acc + (Number(c.value) || 0), 0);
-  const avgValue = contracts.length > 0 ? totalValue / contracts.length : 0;
-  const highRiskCount = contracts.filter(c => c.risk_level === 'high').length;
+  const stats = {
+    total: contracts.length,
+    totalValue: contracts.reduce((acc, c) => acc + (Number(c.value) || 0), 0),
+    approved: contracts.filter(c => c.status === 'approved').length,
+    pending: contracts.filter(c => c.status === 'pending').length,
+    highRisk: contracts.filter(c => c.risk_level === 'high').length
+  };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <div>
-        <h1 className="text-[24px] font-bold text-foreground">Analytics & Insights</h1>
-        <p className="text-[14px] text-muted-foreground">Dados estratégicos para tomada de decisão</p>
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 24,
+      fontFamily: "'Poppins', sans-serif"
+    }}>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 16
+      }}>
+        <div>
+          <h1 style={{
+            fontSize: 24,
+            fontWeight: 800,
+            color: '#0d1117',
+            marginBottom: 4,
+            fontFamily: "'Poppins',sans-serif"
+          }}>
+            Análise de Dados
+          </h1>
+          <p style={{ fontSize: 14, color: '#6b7280', fontFamily: "'Poppins',sans-serif" }}>
+            Visão detalhada dos seus contratos
+          </p>
+        </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-        <Card className="border border-border shadow-none bg-card rounded-xl p-5">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] text-muted-foreground uppercase font-bold tracking-wider">Volume Total</span>
-            <div className="p-1.5 bg-secondary rounded-lg text-primary">
-              <DollarSign size={16} />
-            </div>
+      {/* Stats Grid */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+        gap: 20
+      }}>
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.45)',
+          backdropFilter: 'blur(30px)',
+          border: '1px solid rgba(255, 255, 255, 0.35)',
+          borderRadius: 20,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+          padding: 24,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12
+        }}>
+          <div style={{
+            fontSize: 12,
+            fontWeight: 700,
+            color: '#6b7280',
+            letterSpacing: 1,
+            textTransform: 'uppercase',
+            fontFamily: "'Poppins',sans-serif"
+          }}>
+            Total de Contratos
           </div>
-          <p className="text-[22px] font-bold text-foreground">
-            {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(totalValue)}
-          </p>
-          <div className="flex items-center gap-1 mt-2 text-[11px] text-[#00B031] font-medium">
-            <ArrowUpRight size={14} />
-            <span>+8.4% vs mês anterior</span>
+          <div style={{
+            fontSize: 28,
+            fontWeight: 800,
+            color: '#0d1117',
+            fontFamily: "'Poppins',sans-serif"
+          }}>
+            {stats.total}
           </div>
-        </Card>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <CheckCircle2 size={16} color="#0fa88f" />
+            <span style={{ fontSize: 12, color: '#0fa88f', fontWeight: 600, fontFamily: "'Poppins',sans-serif" }}>
+              {stats.approved} aprovados
+            </span>
+          </div>
+        </div>
 
-        <Card className="border border-border shadow-none bg-card rounded-xl p-5">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] text-muted-foreground uppercase font-bold tracking-wider">Ticket Médio</span>
-            <div className="p-1.5 bg-secondary rounded-lg text-primary">
-              <Activity size={16} />
-            </div>
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.45)',
+          backdropFilter: 'blur(30px)',
+          border: '1px solid rgba(255, 255, 255, 0.35)',
+          borderRadius: 20,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+          padding: 24,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12
+        }}>
+          <div style={{
+            fontSize: 12,
+            fontWeight: 700,
+            color: '#6b7280',
+            letterSpacing: 1,
+            textTransform: 'uppercase',
+            fontFamily: "'Poppins',sans-serif"
+          }}>
+            Valor Total
           </div>
-          <p className="text-[22px] font-bold text-foreground">
-            {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(avgValue)}
-          </p>
-          <div className="flex items-center gap-1 mt-2 text-[11px] text-muted-foreground font-medium">
-            <Clock size={14} />
-            <span>Baseado em {contracts.length} contratos</span>
+          <div style={{
+            fontSize: 28,
+            fontWeight: 800,
+            color: '#0d1117',
+            fontFamily: "'Poppins',sans-serif"
+          }}>
+            {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(stats.totalValue)}
           </div>
-        </Card>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <TrendingUp size={16} color="#0fa88f" />
+            <span style={{ fontSize: 12, color: '#0fa88f', fontWeight: 600, fontFamily: "'Poppins',sans-serif" }}>
+              ↑ 8% vs período anterior
+            </span>
+          </div>
+        </div>
 
-        <Card className="border border-border shadow-none bg-card rounded-xl p-5">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] text-muted-foreground uppercase font-bold tracking-wider">Risco Crítico</span>
-            <div className="p-1.5 bg-red-500/10 rounded-lg text-destructive">
-              <ShieldAlert size={16} />
-            </div>
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.45)',
+          backdropFilter: 'blur(30px)',
+          border: '1px solid rgba(255, 255, 255, 0.35)',
+          borderRadius: 20,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+          padding: 24,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12
+        }}>
+          <div style={{
+            fontSize: 12,
+            fontWeight: 700,
+            color: '#6b7280',
+            letterSpacing: 1,
+            textTransform: 'uppercase',
+            fontFamily: "'Poppins',sans-serif"
+          }}>
+            Pendentes
           </div>
-          <p className="text-[22px] font-bold text-foreground">{highRiskCount}</p>
-          <div className="flex items-center gap-1 mt-2 text-[11px] text-destructive font-medium">
-            <AlertTriangle size={14} />
-            <span>{((highRiskCount / (contracts.length || 1)) * 100).toFixed(1)}% da carteira</span>
+          <div style={{
+            fontSize: 28,
+            fontWeight: 800,
+            color: '#0d1117',
+            fontFamily: "'Poppins',sans-serif"
+          }}>
+            {stats.pending}
           </div>
-        </Card>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Clock size={16} color="#f59e0b" />
+            <span style={{ fontSize: 12, color: '#f59e0b', fontWeight: 600, fontFamily: "'Poppins',sans-serif" }}>
+              Requer atenção
+            </span>
+          </div>
+        </div>
 
-        <Card className="border border-border shadow-none bg-card rounded-xl p-5">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] text-muted-foreground uppercase font-bold tracking-wider">Taxa de Aprovação</span>
-            <div className="p-1.5 bg-green-500/10 rounded-lg text-green-500">
-              <CheckCircle2 size={16} />
-            </div>
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.45)',
+          backdropFilter: 'blur(30px)',
+          border: '1px solid rgba(255, 255, 255, 0.35)',
+          borderRadius: 20,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+          padding: 24,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12
+        }}>
+          <div style={{
+            fontSize: 12,
+            fontWeight: 700,
+            color: '#6b7280',
+            letterSpacing: 1,
+            textTransform: 'uppercase',
+            fontFamily: "'Poppins',sans-serif"
+          }}>
+            Risco Alto
           </div>
-          <p className="text-[22px] font-bold text-foreground">
-            {((contracts.filter(c => c.status === 'approved').length / (contracts.length || 1)) * 100).toFixed(0)}%
-          </p>
-          <div className="flex items-center gap-1 mt-2 text-[11px] text-[#00B031] font-medium">
-            <TrendingUp size={14} />
-            <span>Fluxo de trabalho eficiente</span>
+          <div style={{
+            fontSize: 28,
+            fontWeight: 800,
+            color: stats.highRisk > 0 ? '#ef4444' : '#0d1117',
+            fontFamily: "'Poppins',sans-serif"
+          }}>
+            {stats.highRisk}
           </div>
-        </Card>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <ShieldAlert size={16} color="#ef4444" />
+            <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 600, fontFamily: "'Poppins',sans-serif" }}>
+              {stats.highRisk > 0 ? 'Ação imediata' : 'Sem riscos'}
+            </span>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Financial Evolution */}
-        <Card className="border border-border shadow-none bg-card rounded-xl overflow-hidden">
-          <CardHeader className="p-6 border-b border-border">
-            <CardTitle className="text-[16px] font-bold text-foreground">Evolução Financeira (Novos Contratos)</CardTitle>
-            <CardDescription className="text-muted-foreground">Volume financeiro aportado nos últimos 6 meses</CardDescription>
-          </CardHeader>
-          <CardContent className="h-[300px] p-6">
+      {/* Charts Grid */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: 24
+      }} className="lg:grid-cols-3">
+        {/* Financial Chart */}
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.45)',
+          backdropFilter: 'blur(30px)',
+          border: '1px solid rgba(255, 255, 255, 0.35)',
+          borderRadius: 24,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+          overflow: 'hidden',
+          gridColumn: '1 / span 2'
+        }} className="lg:col-span-2">
+          <div style={{
+            padding: '24px',
+            borderBottom: '1px solid #e2e5e9',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <h2 style={{
+              fontSize: 16,
+              fontWeight: 700,
+              color: '#0d1117',
+              fontFamily: "'Poppins',sans-serif"
+            }}>
+              Evolução Financeira
+            </h2>
+          </div>
+          <div style={{ padding: '24px', height: 350 }}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={financialData}>
                 <defs>
-                  <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="var(--chart-1)" stopOpacity={0}/>
+                  <linearGradient id="colorFinancial" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#0fa88f" stopOpacity={0.1} />
+                    <stop offset="95%" stopColor="#0fa88f" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--chart-grid)" />
-                <XAxis 
-                  dataKey="name" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e5e9" />
+                <XAxis
+                  dataKey="name"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#6b7280', fontSize: 11, fontFamily: "'Poppins',sans-serif" }}
                   dy={10}
                 />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#6b7280', fontSize: 11, fontFamily: "'Poppins',sans-serif" }}
                   tickFormatter={(value) => `Kz ${value / 1000}k`}
                 />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'var(--card)', 
-                    borderRadius: '8px', 
-                    border: '1px solid var(--border)', 
-                    boxShadow: 'none',
-                    color: 'var(--foreground)'
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#fff',
+                    borderRadius: '10px',
+                    border: '1px solid #e2e5e9',
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+                    fontFamily: "'Poppins',sans-serif"
                   }}
-                  itemStyle={{ color: 'var(--foreground)' }}
-                  labelStyle={{ color: 'var(--muted-foreground)' }}
-                  formatter={(value: number) => [new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(value), 'Valor']}
+                  itemStyle={{ color: '#0d1117', fontFamily: "'Poppins',sans-serif" }}
+                  labelStyle={{ color: '#6b7280', fontFamily: "'Poppins',sans-serif" }}
+                  formatter={(value: number) => [
+                    new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(value),
+                    'Valor'
+                  ]}
                 />
-                <Area 
-                  type="monotone" 
-                  dataKey="value" 
-                  stroke="var(--chart-1)" 
+                <Area
+                  type="monotone"
+                  dataKey="value"
+                  stroke="#0fa88f"
                   strokeWidth={2}
-                  fillOpacity={1} 
-                  fill="url(#colorValue)" 
+                  fillOpacity={1}
+                  fill="url(#colorFinancial)"
                 />
               </AreaChart>
             </ResponsiveContainer>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        {/* Risk Distribution */}
-        <Card className="border border-border shadow-none bg-card rounded-xl overflow-hidden">
-          <CardHeader className="p-6 border-b border-border">
-            <CardTitle className="text-[16px] font-bold text-foreground">Distribuição de Risco</CardTitle>
-            <CardDescription className="text-muted-foreground">Análise de exposição por nível de severidade</CardDescription>
-          </CardHeader>
-          <CardContent className="h-[300px] p-6">
+        {/* Status Pie Chart */}
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.45)',
+          backdropFilter: 'blur(30px)',
+          border: '1px solid rgba(255, 255, 255, 0.35)',
+          borderRadius: 24,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+          overflow: 'hidden'
+        }}>
+          <div style={{
+            padding: '24px',
+            borderBottom: '1px solid #e2e5e9'
+          }}>
+            <h2 style={{
+              fontSize: 16,
+              fontWeight: 700,
+              color: '#0d1117',
+              fontFamily: "'Poppins',sans-serif"
+            }}>
+              Status dos Contratos
+            </h2>
+          </div>
+          <div style={{ padding: '24px', height: 300 }}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={riskData}
+                  data={statusData}
                   cx="50%"
                   cy="50%"
                   innerRadius={60}
@@ -269,99 +448,144 @@ export default function Analytics() {
                   paddingAngle={5}
                   dataKey="value"
                 >
-                  {riskData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={index === 0 ? 'var(--chart-2)' : index === 1 ? 'var(--chart-3)' : 'var(--chart-4)'} />
+                  {statusData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'var(--card)', 
-                    borderRadius: '8px', 
-                    border: '1px solid var(--border)', 
-                    boxShadow: 'none',
-                    color: 'var(--foreground)'
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#fff',
+                    borderRadius: '10px',
+                    border: '1px solid #e2e5e9',
+                    fontFamily: "'Poppins',sans-serif"
                   }}
                 />
-                <Legend verticalAlign="bottom" height={36} wrapperStyle={{ color: 'var(--foreground)' }} />
+                <Legend verticalAlign="bottom" height={36} />
               </PieChart>
             </ResponsiveContainer>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        {/* Top Contracts */}
-        <Card className="border border-border shadow-none bg-card rounded-xl overflow-hidden">
-          <CardHeader className="p-6 border-b border-border">
-            <CardTitle className="text-[16px] font-bold text-foreground">Top 5 Contratos por Valor</CardTitle>
-            <CardDescription className="text-muted-foreground">Maiores obrigações financeiras ativas</CardDescription>
-          </CardHeader>
-          <CardContent className="h-[300px] p-6">
+        {/* Risk Bar Chart */}
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.45)',
+          backdropFilter: 'blur(30px)',
+          border: '1px solid rgba(255, 255, 255, 0.35)',
+          borderRadius: 24,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+          overflow: 'hidden',
+          gridColumn: '1 / span 1'
+        }} className="lg:col-span-1">
+          <div style={{
+            padding: '24px',
+            borderBottom: '1px solid #e2e5e9',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <h2 style={{
+              fontSize: 16,
+              fontWeight: 700,
+              color: '#0d1117',
+              fontFamily: "'Poppins',sans-serif"
+            }}>
+              Distribuição de Riscos
+            </h2>
+          </div>
+          <div style={{ padding: '24px', height: 300 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={topContracts} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--chart-grid)" />
-                <XAxis type="number" hide />
-                <YAxis 
-                  dataKey="name" 
-                  type="category" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: 'var(--foreground)', fontSize: 11, fontWeight: 500 }}
-                  width={100}
+              <BarChart data={riskData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e5e9" />
+                <XAxis
+                  dataKey="name"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#6b7280', fontSize: 13, fontFamily: "'Poppins',sans-serif" }}
                 />
-                <Tooltip 
-                  cursor={{ fill: 'var(--muted)' }}
-                  contentStyle={{ 
-                    backgroundColor: 'var(--card)', 
-                    borderRadius: '8px', 
-                    border: '1px solid var(--border)', 
-                    boxShadow: 'none',
-                    color: 'var(--foreground)'
-                  }}
-                  itemStyle={{ color: 'var(--foreground)' }}
-                  labelStyle={{ color: 'var(--muted-foreground)' }}
-                  formatter={(value: number) => [new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(value), 'Valor']}
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#6b7280', fontSize: 11, fontFamily: "'Poppins',sans-serif" }}
                 />
-                <Bar dataKey="value" fill="var(--chart-1)" radius={[0, 4, 4, 0]} barSize={20} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Status Breakdown */}
-        <Card className="border border-border shadow-none bg-card rounded-xl overflow-hidden">
-          <CardHeader className="p-6 border-b border-border">
-            <CardTitle className="text-[16px] font-bold text-foreground">Status da Carteira</CardTitle>
-            <CardDescription className="text-muted-foreground">Quantidade de contratos por estágio do fluxo</CardDescription>
-          </CardHeader>
-          <CardContent className="h-[300px] p-6">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={statusData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--chart-grid)" />
-                <XAxis 
-                  dataKey="name" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
-                />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }} />
-                <Tooltip 
-                  cursor={{ fill: 'var(--muted)' }}
-                  contentStyle={{ 
-                    backgroundColor: 'var(--card)', 
-                    borderRadius: '8px', 
-                    border: '1px solid var(--border)', 
-                    boxShadow: 'none',
-                    color: 'var(--foreground)'
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#fff',
+                    borderRadius: '10px',
+                    border: '1px solid #e2e5e9',
+                    fontFamily: "'Poppins',sans-serif"
                   }}
                 />
-                <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={40}>
-                  {statusData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={`var(--chart-${(index % 5) + 1})`} />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                  {riskData.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={entry.name === 'Alto' ? '#ef4444' : entry.name === 'Médio' ? '#f59e0b' : '#0fa88f'} 
+                    />
                   ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+
+        {/* Correlation Chart: Novos Contratos vs Risco */}
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.45)',
+          backdropFilter: 'blur(30px)',
+          border: '1px solid rgba(255, 255, 255, 0.35)',
+          borderRadius: 24,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+          overflow: 'hidden',
+          gridColumn: '1 / -1'
+        }} className="lg:col-span-1">
+          <div style={{
+            padding: '24px',
+            borderBottom: '1px solid #e2e5e9',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <h2 style={{
+              fontSize: 16,
+              fontWeight: 700,
+              color: '#0d1117',
+              fontFamily: "'Poppins',sans-serif"
+            }}>
+              Novos Contratos vs Risco Assumido
+            </h2>
+          </div>
+          <div style={{ padding: '24px', height: 300 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={correlationData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e5e9" />
+                <XAxis
+                  dataKey="name"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#6b7280', fontSize: 13, fontFamily: "'Poppins',sans-serif" }}
+                />
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#6b7280', fontSize: 11, fontFamily: "'Poppins',sans-serif" }}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#fff',
+                    borderRadius: '10px',
+                    border: '1px solid #e2e5e9',
+                    fontFamily: "'Poppins',sans-serif"
+                  }}
+                />
+                <Bar dataKey="total" name="Total" stackId="a" fill="#0fa88f" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="alto" name="Risco Alto" stackId="a" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="medio" name="Risco Médio" stackId="a" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="baixo" name="Risco Baixo" stackId="a" fill="#6b7280" radius={[4, 4, 0, 0]} />
+                <Legend verticalAlign="bottom" height={36} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
       </div>
     </div>
   );

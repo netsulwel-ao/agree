@@ -1,202 +1,229 @@
 import React, { useState, useEffect } from 'react';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { 
-  LayoutDashboard, 
-  FileText, 
-  PlusCircle, 
-  LogOut, 
-  Bell, 
-  Search,
-  Menu,
-  X,
-  ShieldAlert,
-  BarChart3,
-  ShieldCheck,
-  Moon,
-  Sun
+import { useAuth } from '../contexts/AuthContext';
+import {
+  LayoutDashboard, FileText, PlusCircle, LogOut,
+  Bell, Menu, X, BarChart3, ShieldCheck, FileSignature,
+  AlertTriangle
 } from 'lucide-react';
-import { Button } from './ui/button';
-import { Toaster } from 'sonner';
-import { toast } from 'sonner';
+import { addDays, isBefore, isAfter, parseISO } from 'date-fns';
 
-interface LayoutProps {
-  children: React.ReactNode;
-  activeTab: string;
-  setActiveTab: (tab: string) => void;
-  user: any;
-}
+export default function Layout() {
+  const [alertCount, setAlertCount] = useState(0);
+  const { user, signOut } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
 
-export default function Layout({ children, activeTab, setActiveTab, user }: LayoutProps) {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('theme') === 'dark' || 
-        (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    }
-    return false;
-  });
-
+  // Buscar alertas críticos para o badge
   useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
-  }, [isDarkMode]);
+    if (!user) return;
+    const fetchAlerts = async () => {
+      const { data } = await supabase
+        .from('contracts')
+        .select('end_date, risk_level, status')
+        .eq('owner_id', user.id);
 
-  const toggleDarkMode = () => setIsDarkMode(!isDarkMode);
+      if (!data) return;
+      const today = new Date();
+      const in30 = addDays(today, 30);
 
-  const handleLogout = async () => {
-    try {
-      await supabase.auth.signOut();
-      toast.success("Logged out successfully");
-    } catch (error) {
-      toast.error("Error logging out");
-    }
-  };
+      const count = data.filter(c => {
+        const expiring = c.end_date && isAfter(parseISO(c.end_date), today) && isBefore(parseISO(c.end_date), in30);
+        const expired = c.end_date && isBefore(parseISO(c.end_date), today) && c.status !== 'rejected';
+        const highRisk = c.risk_level === 'high';
+        return expiring || expired || highRisk;
+      }).length;
+
+      setAlertCount(count);
+    };
+    fetchAlerts();
+  }, [user]);
 
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'contracts', label: 'Meus Contratos', icon: FileText },
-    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-    { id: 'compliance', label: 'Segurança', icon: ShieldCheck },
-    { id: 'create', label: 'Novo Contrato', icon: PlusCircle },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
+    { id: 'contracts', label: 'Meus Contratos', icon: FileText, path: '/contracts' },
+    { id: 'analytics', label: 'Analytics', icon: BarChart3, path: '/analytics' },
+    { id: 'compliance', label: 'Segurança', icon: ShieldCheck, path: '/compliance' },
+    { id: 'create', label: 'Novo Contrato', icon: PlusCircle, path: '/contracts/new' },
   ];
 
+  const displayName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'Usuário';
+  const avatarLetter = displayName.charAt(0).toUpperCase();
+  
+  const currentNav = navItems.find(i => location.pathname.startsWith(i.path));
+
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col md:flex-row font-sans transition-colors duration-300">
-      {/* Sidebar Desktop */}
-      <aside className="hidden md:flex w-[220px] bg-card border-r border-border flex-col p-6 gap-8 fixed inset-y-0 left-0 z-40 overflow-y-auto">
-        <div className="logo font-bold text-[18px] tracking-[-0.5px] text-muted-foreground flex items-center gap-2">
-          <div className="w-6 h-6 bg-primary rounded-[4px]"></div>
-          SGC Pro
+    <div style={{
+      fontFamily: "'Poppins', sans-serif",
+      background: 'linear-gradient(135deg, #fafafa 0%, #f3f4f6 100%)',
+      color: '#0d1117',
+      height: '100vh',
+      display: 'flex',
+      flexDirection: 'row',
+      position: 'relative',
+      overflow: 'hidden'
+    }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,500&display=swap');
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+          --teal: #0fa88f; --teal-dark: #0d8a76; --teal-light: #e6f7f4;
+          --border: rgba(226, 229, 233, 0.6);
+        }
+        .nav-link {
+          display: flex; align-items: center; gap: 12px;
+          padding: 12px 16px; font-size: 14px; font-weight: 500;
+          color: #6b7280; border-radius: 12px; transition: all .2s;
+          width: 100%; cursor: pointer; border: none; text-decoration: none;
+          background: transparent; font-family: 'Poppins', sans-serif;
+          position: relative;
+        }
+        .nav-link:hover { background: rgba(255,255,255,0.5); color: #0d1117; }
+        .nav-link.active {
+          background: rgba(230,247,244,0.9); color: var(--teal);
+          font-weight: 600; box-shadow: 0 2px 8px rgba(15,168,143,0.1);
+        }
+      `}</style>
+
+      {/* Background blobs */}
+      <div style={{ position: 'absolute', top: -150, left: -150, width: 600, height: 600, background: 'radial-gradient(circle, rgba(15,168,143,0.15) 0%, transparent 70%)', borderRadius: '50%', filter: 'blur(80px)', pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', bottom: -200, right: -150, width: 700, height: 700, background: 'radial-gradient(circle, rgba(15,168,143,0.1) 0%, transparent 70%)', borderRadius: '50%', filter: 'blur(100px)', pointerEvents: 'none' }} />
+
+      {/* Sidebar */}
+      <aside style={{
+        width: 260, background: 'rgba(255,255,255,0.45)', backdropFilter: 'blur(30px)',
+        borderRight: '1px solid rgba(255,255,255,0.3)', boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+        display: 'flex', flexDirection: 'column', padding: '24px', gap: 32,
+        position: 'fixed', left: 0, zIndex: 40, overflowY: 'auto',
+        height: '100%', borderRadius: '0 24px 24px 0'
+      }}>
+        {/* Logo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg,#1d8c78,#0fa88f)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(15,168,143,0.3)' }}>
+            <FileSignature size={20} color="#fff" />
+          </div>
+          <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: 20, color: '#0d1117' }}>Agree</span>
         </div>
-        
-        <nav className="flex-1 space-y-3">
+
+        {/* Nav */}
+        <nav style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
           {navItems.map((item) => (
-            <button
+            <Link
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-[14px] font-medium transition-colors ${
-                activeTab === item.id 
-                  ? 'bg-secondary text-secondary-foreground' 
-                  : 'text-muted-foreground hover:bg-muted'
-              }`}
+              to={item.path}
+              className={`nav-link ${(location.pathname === item.path || (item.path !== '/dashboard' && location.pathname.startsWith(item.path))) ? 'active' : ''}`}
             >
               <item.icon size={18} />
               {item.label}
-            </button>
+              {/* Badge de alertas no Dashboard */}
+              {item.id === 'dashboard' && alertCount > 0 && (
+                <span style={{
+                  marginLeft: 'auto',
+                  background: '#ef4444',
+                  color: '#fff',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: '2px 7px',
+                  borderRadius: 20,
+                  fontFamily: "'Poppins',sans-serif",
+                  minWidth: 20,
+                  textAlign: 'center'
+                }}>
+                  {alertCount}
+                </span>
+              )}
+            </Link>
           ))}
         </nav>
 
-        <div className="pt-4 border-t border-border">
-          <Button 
-            variant="ghost" 
-            className="w-full justify-start text-muted-foreground hover:text-foreground hover:bg-muted text-[13px] h-9 mb-4"
-            onClick={toggleDarkMode}
-          >
-            {isDarkMode ? <Sun size={16} className="mr-2" /> : <Moon size={16} className="mr-2" />}
-            {isDarkMode ? 'Modo Claro' : 'Modo Escuro'}
-          </Button>
-
-          <div className="flex items-center gap-3 px-3 py-2 mb-2">
-            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-primary-foreground">
-              {user?.displayName?.charAt(0) || user?.email?.charAt(0)}
+        {/* User + Logout */}
+        <div style={{
+          background: 'rgba(255,255,255,0.4)', borderRadius: 16,
+          padding: 16, marginLeft: -4, marginRight: -4
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+            <div style={{
+              width: 44, height: 44, borderRadius: 12,
+              background: 'linear-gradient(135deg,#1d8c78,#0fa88f)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 15, fontWeight: 800, color: '#fff',
+              boxShadow: '0 4px 12px rgba(15,168,143,0.3)'
+            }}>
+              {avatarLetter}
             </div>
-            <div className="flex-1 overflow-hidden">
-              <p className="text-[13px] font-semibold truncate">{user?.displayName || 'Usuário'}</p>
-              <p className="text-[11px] text-muted-foreground truncate">{user?.email}</p>
+            <div style={{ flex: 1, overflow: 'hidden' }}>
+              <p style={{ fontSize: 14, fontWeight: 600, color: '#0d1117', fontFamily: "'Poppins',sans-serif", marginBottom: 2 }}>
+                {displayName}
+              </p>
+              <p style={{ fontSize: 12, color: '#6b7280', fontFamily: "'Poppins',sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {user?.email}
+              </p>
             </div>
           </div>
-          <Button 
-            variant="ghost" 
-            className="w-full justify-start text-muted-foreground hover:text-foreground hover:bg-muted text-[13px] h-9"
-            onClick={handleLogout}
+          <button
+            onClick={() => signOut()}
+            className="nav-link"
+            style={{ color: '#ef4444', background: 'rgba(239,68,68,0.05)', borderRadius: 10 }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(239,68,68,0.05)'}
           >
-            <LogOut size={16} className="mr-2" />
+            <LogOut size={18} />
             Sair
-          </Button>
+          </button>
         </div>
       </aside>
 
-      {/* Mobile Header */}
-      <header className="md:hidden bg-card border-b border-border p-4 flex items-center justify-between">
-        <h1 className="text-lg font-bold flex items-center gap-2 text-muted-foreground">
-          <div className="w-5 h-5 bg-primary rounded-[4px]"></div>
-          SGC Pro
-        </h1>
-        <div className="flex items-center gap-2">
-          <button onClick={toggleDarkMode} className="p-2 text-muted-foreground">
-            {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
-          </button>
-          <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-muted-foreground">
-            {isMobileMenuOpen ? <X /> : <Menu />}
-          </button>
-        </div>
-      </header>
-
-      {/* Mobile Menu Overlay */}
-      {isMobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-50 bg-background p-6 flex flex-col">
-          <div className="flex justify-end mb-8">
-            <button onClick={() => setIsMobileMenuOpen(false)} className="text-muted-foreground"><X size={32} /></button>
-          </div>
-          <nav className="space-y-4">
-            {navItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => {
-                  setActiveTab(item.id);
-                  setIsMobileMenuOpen(false);
-                }}
-                className={`w-full flex items-center gap-4 text-xl py-4 font-medium ${
-                  activeTab === item.id ? 'text-primary' : 'text-muted-foreground'
-                }`}
-              >
-                <item.icon size={24} />
-                {item.label}
-              </button>
-            ))}
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center gap-4 text-xl py-4 text-destructive font-medium"
-            >
-              <LogOut size={24} />
-              Sair
-            </button>
-          </nav>
-        </div>
-      )}
-
       {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-hidden md:ml-[220px]">
-        <header className="hidden md:flex bg-transparent h-20 items-center justify-between px-8">
-          <h2 className="text-[16px] font-bold text-foreground">
-            {navItems.find(i => i.id === activeTab)?.label || 'Detalhes'}
-          </h2>
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-              <input 
-                type="text" 
-                placeholder="Pesquisa inteligente..." 
-                className="pl-10 pr-4 py-2 bg-card border border-border rounded-lg text-[14px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary transition-all w-[400px]"
-              />
-            </div>
-            <button className="p-2 text-muted-foreground hover:text-primary transition-colors relative">
-              <Bell size={20} />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-destructive rounded-full border-2 border-card"></span>
+      <main style={{
+        flex: 1, marginLeft: 260, display: 'flex',
+        flexDirection: 'column', height: '100vh', padding: 24
+      }}>
+        {/* Top Header */}
+        <header style={{
+          background: 'rgba(255,255,255,0.45)', backdropFilter: 'blur(30px)',
+          border: '1px solid rgba(255,255,255,0.35)', borderRadius: 20,
+          padding: '20px 28px', display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between', position: 'sticky', top: 24,
+          zIndex: 30, marginBottom: 24, boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
+        }}>
+          <div>
+            <h2 style={{ fontFamily: "'Poppins',sans-serif", fontSize: 20, fontWeight: 700, color: '#0d1117', marginBottom: 4 }}>
+              {currentNav?.label || 'Detalhes'}
+            </h2>
+            <p style={{ fontSize: 13, color: '#6b7280', fontFamily: "'Poppins',sans-serif" }}>
+              Gerencie os seus contratos com total controlo
+            </p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button
+              onClick={() => navigate('/dashboard')}
+              style={{
+                background: alertCount > 0 ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.5)',
+                border: `1px solid ${alertCount > 0 ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`,
+                cursor: 'pointer', padding: 10,
+                color: alertCount > 0 ? '#ef4444' : '#6b7280',
+                position: 'relative', borderRadius: 12, transition: 'all .2s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = alertCount > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.8)'}
+              onMouseLeave={e => e.currentTarget.style.background = alertCount > 0 ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.5)'}
+            >
+              {alertCount > 0 ? <AlertTriangle size={20} /> : <Bell size={20} />}
+              {alertCount > 0 && (
+                <span style={{
+                  position: 'absolute', top: 6, right: 6,
+                  width: 8, height: 8, background: '#ef4444',
+                  borderRadius: '50%', border: '2px solid rgba(255,255,255,0.9)'
+                }} />
+              )}
             </button>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-8">
-          {children}
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          <Outlet />
         </div>
       </main>
-      <Toaster />
     </div>
   );
 }

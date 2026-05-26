@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   ArrowRight, ArrowUpRight, X, Menu, LogIn,
@@ -6,7 +6,7 @@ import {
   Bell, Users, BarChart3, Zap, CheckCircle,
   FileSignature, TrendingUp, Clock, FileText
 } from 'lucide-react';
-
+import AgreeLogo from '../Agree-logo.svg';
 import { useNavigate } from 'react-router-dom';
 
 const LandingPage = () => {
@@ -46,7 +46,7 @@ const LandingPage = () => {
     <div style={{ width: 300, background: '#fff', borderRadius: 0, padding: '22px', boxShadow: '0 4px 32px rgba(0,0,0,0.10)', border: '1px solid #e8eaed' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 0, background: 'linear-gradient(135deg,#1d8c78,#0fa88f)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 36, height: 36, borderRadius: 0, background: 'linear-gradient(135deg,#000000,#0d1117)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <FileSignature size={16} color="#fff" />
           </div>
           <div>
@@ -54,12 +54,12 @@ const LandingPage = () => {
             <div style={{ fontSize: 10, color: '#8a919e', fontWeight: 500 }}>#2026-047 · Prestação</div>
           </div>
         </div>
-        <div style={{ padding: '3px 10px', borderRadius: 0, background: '#e6f7f4', color: '#0fa88f', fontSize: 10, fontWeight: 700, fontFamily: "'Poppins',sans-serif" }}>✓ Assinado</div>
+        <div style={{ padding: '3px 10px', borderRadius: 0, background: '#f0f0f0', color: '#0d1117', fontSize: 10, fontWeight: 700, fontFamily: "'Poppins',sans-serif" }}>✓ Assinado</div>
       </div>
       <div style={{ padding: '14px', background: '#f7f9fb', borderRadius: 0, marginBottom: 14 }}>
         <div style={{ fontSize: 10, color: '#8a919e', marginBottom: 4, fontWeight: 600, letterSpacing: 0.5 }}>VALOR DO CONTRATO</div>
         <div style={{ fontSize: 28, fontWeight: 800, color: '#0d1117', fontFamily: "'Poppins',sans-serif", letterSpacing: -1 }}>Kz 480.000</div>
-        <div style={{ fontSize: 11, color: '#0fa88f', fontWeight: 600, marginTop: 4 }}>↑ Activo até 31 dez 2026</div>
+        <div style={{ fontSize: 11, color: '#0d1117', fontWeight: 600, marginTop: 4 }}>↑ Activo até 31 dez 2026</div>
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
         <div style={{ flex: 1, padding: '10px', background: '#f7f9fb', borderRadius: 0 }}>
@@ -75,14 +75,66 @@ const LandingPage = () => {
       <div style={{ marginTop: 14 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
           <span style={{ fontSize: 10, color: '#8a919e', fontWeight: 600 }}>Progresso do ciclo</span>
-          <span style={{ fontSize: 10, color: '#0fa88f', fontWeight: 700 }}>73%</span>
+          <span style={{ fontSize: 10, color: '#0d1117', fontWeight: 700 }}>73%</span>
         </div>
         <div style={{ height: 6, background: '#e8eaed', borderRadius: 0, overflow: 'hidden' }}>
-          <div style={{ width: '73%', height: '100%', background: 'linear-gradient(90deg,#1d8c78,#0fa88f)', borderRadius: 0 }} />
+          <div style={{ width: '73%', height: '100%', background: 'linear-gradient(90deg,#000000,#0d1117)', borderRadius: 0 }} />
         </div>
       </div>
     </div>
   );
+
+  const BrandMark = ({ size = 'md' }: { size?: 'md' | 'sm' }) => {
+    const logoH = size === 'sm' ? 34 : 40;
+    const fontSize = size === 'sm' ? 21 : 25;
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }} aria-label="Agree">
+        <img src={AgreeLogo} alt="" style={{ height: logoH, display: 'block' }} />
+        <span style={{
+          fontFamily: "'Poppins', sans-serif",
+          fontSize,
+          fontWeight: 800,
+          color: '#0d1117',
+          letterSpacing: -0.5,
+          lineHeight: 1,
+          marginLeft: -2,
+        }}>Agree</span>
+      </div>
+    );
+  };
+
+  const footerSections = [
+    {
+      title: 'Empresa',
+      links: [
+        { label: 'Sobre nós', href: '#sobre' },
+        { label: 'A nossa missão', href: '#depoimentos' },
+        { label: 'Blog', href: '#sobre' },
+        { label: 'Carreiras', href: 'mailto:carreiras@agree.ao' },
+        { label: 'Contacto', href: '#faq' },
+      ],
+    },
+    {
+      title: 'Plataforma',
+      links: [
+        { label: 'Funcionalidades', href: '#funcionalidades' },
+        { label: 'Assinatura Digital', href: '#sobre' },
+        { label: 'Analytics', href: '#funcionalidades' },
+        { label: 'Integrações', href: '#faq' },
+        { label: 'API', href: '#faq' },
+      ],
+    },
+    {
+      title: 'Legal',
+      links: [
+        { label: 'Privacidade', href: '#faq' },
+        { label: 'Termos de Uso', href: '#faq' },
+        { label: 'Cookies', href: '#faq' },
+        { label: 'Compliance', href: '#funcionalidades' },
+        { label: 'Segurança', href: '#faq' },
+      ],
+    },
+  ];
 
   /* ── Alert pill ── */
   const AlertPill = ({ icon, text, color }: { icon: React.ReactNode, text: string, color: string }) => (
@@ -97,14 +149,14 @@ const LandingPage = () => {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,500&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html { scroll-behavior: smooth; }
+        html { scroll-behavior: smooth; scroll-padding-top: 80px; }
         a { text-decoration: none; }
 
         :root {
-          --teal: #0fa88f;
-          --teal-dark: #0d8a76;
-          --teal-light: #e6f7f4;
-          --navy: #0d2b3e;
+          --accent: #0d1117;
+          --accent-dark: #000000;
+          --accent-light: #f0f0f0;
+          --navy: #0d1117;
           --text: #0d1117;
           --muted: #6b7280;
           --border: #e2e5e9;
@@ -112,8 +164,24 @@ const LandingPage = () => {
           --bg: #f5f7f9;
         }
 
+        .nav-bar {
+          position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+          background: rgba(255, 255, 255, 0.65);
+          border-bottom: 1px solid rgba(226, 229, 233, 0.7);
+          backdrop-filter: blur(20px) saturate(180%);
+          -webkit-backdrop-filter: blur(20px) saturate(180%);
+        }
+        .nav-menu-mobile {
+          background: rgba(255, 255, 255, 0.75);
+          backdrop-filter: blur(20px) saturate(180%);
+          -webkit-backdrop-filter: blur(20px) saturate(180%);
+        }
+
         .nav-link { font-size: 14px; font-weight: 500; color: #6b7280; transition: color .2s; font-family: 'Poppins', sans-serif; }
         .nav-link:hover { color: #0d1117; }
+
+        .footer-link { font-size: 13px; color: #9ca3af; transition: color .2s; font-weight: 400; }
+        .footer-link:hover { color: #0d1117; }
 
         @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
         .marquee-track { display: flex; animation: marquee 28s linear infinite; }
@@ -125,12 +193,12 @@ const LandingPage = () => {
 
         .btn-primary {
           display: inline-flex; align-items: center; gap: 8px;
-          background: var(--teal); color: #fff; border: none; border-radius: 0;
+          background: var(--accent); color: #fff; border: none; border-radius: 0;
           padding: 12px 24px; font-size: 14px; font-weight: 700;
           cursor: pointer; font-family: 'Poppins', sans-serif;
           transition: all .2s; white-space: nowrap;
         }
-        .btn-primary:hover { background: var(--teal-dark); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(15,168,143,0.3); }
+        .btn-primary:hover { background: var(--accent-dark); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(13,17,23,0.3); }
 
         .btn-outline {
           display: inline-flex; align-items: center; gap: 8px;
@@ -144,13 +212,13 @@ const LandingPage = () => {
 
         .btn-outline-teal {
           display: inline-flex; align-items: center; gap: 8px;
-          background: transparent; color: var(--teal);
-          border: 1.5px solid var(--teal); border-radius: 0;
+          background: transparent; color: var(--accent);
+          border: 1.5px solid var(--accent); border-radius: 0;
           padding: 11px 22px; font-size: 14px; font-weight: 700;
           cursor: pointer; font-family: 'Poppins', sans-serif;
           transition: all .2s; white-space: nowrap;
         }
-        .btn-outline-teal:hover { background: var(--teal-light); }
+        .btn-outline-teal:hover { background: var(--accent-light); }
 
         .card {
           background: var(--surface); border: 1px solid var(--border);
@@ -165,7 +233,7 @@ const LandingPage = () => {
           align-items:center; cursor:pointer; font-family:'Poppins',sans-serif;
           font-size:15px; font-weight:600; text-align:left; gap:14px;
         }
-        .faq-btn:hover { color: var(--teal); }
+        .faq-btn:hover { color: var(--accent); }
 
         .input-f {
           width:100%; padding:12px 14px; font-size:14px;
@@ -174,9 +242,9 @@ const LandingPage = () => {
           font-family:'Poppins',sans-serif; transition:all .2s;
         }
         .input-f::placeholder { color:#b0b8c1; }
-        .input-f:focus { border-color: var(--teal); background:#fff; }
+        .input-f:focus { border-color: var(--accent); background:#fff; }
 
-        .tag { font-size:11px; font-weight:700; letter-spacing:2px; color:var(--teal); text-transform:uppercase; }
+        .tag { font-size:11px; font-weight:700; letter-spacing:2px; color:var(--accent); text-transform:uppercase; }
 
         .hero-h {
           font-family:'Poppins',sans-serif; font-size:clamp(38px,5vw,72px);
@@ -222,15 +290,9 @@ const LandingPage = () => {
       `}</style>
 
       {/* ── NAV ── */}
-      <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100, background: 'rgba(245,247,249,0.95)', borderBottom: '1px solid #e2e5e9', backdropFilter: 'blur(16px)' }}>
+      <nav className="nav-bar">
         <div style={{ maxWidth: 1140, margin: '0 auto', padding: '0 24px', height: 62, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          {/* Logo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 0, background: 'linear-gradient(135deg,#1d8c78,#0fa88f)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <FileSignature size={16} color="#fff" />
-            </div>
-            <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: 18, color: '#0d1117' }}>Agree</span>
-          </div>
+          <BrandMark />
 
           {/* Links */}
           <div className="nav-links" style={{ display: 'flex', alignItems: 'center', gap: 28 }}>
@@ -249,7 +311,7 @@ const LandingPage = () => {
           </div>
         </div>
         {menuOpen && (
-          <div style={{ padding: '14px 24px 22px', borderTop: '1px solid var(--border)', background: '#f5f7f9', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="nav-menu-mobile" style={{ padding: '14px 24px 22px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 14 }}>
             {['Sobre', 'Funcionalidades', 'Depoimentos', 'FAQ'].map(l => (
               <a key={l} href={`#${l.toLowerCase()}`} className="nav-link" onClick={() => setMenuOpen(false)} style={{ fontSize: 16, fontWeight: 600 }}>{l}</a>
             ))}
@@ -260,21 +322,21 @@ const LandingPage = () => {
       {/* ── HERO ── */}
       <section style={{ paddingTop: 100, paddingBottom: 80, background: '#fff', position: 'relative', overflow: 'hidden' }}>
         {/* Subtle bg teal blob */}
-        <div style={{ position: 'absolute', top: -120, right: -120, width: 480, height: 480, borderRadius: '50%', background: 'radial-gradient(circle, rgba(15,168,143,0.07) 0%, transparent 70%)', pointerEvents: 'none' }} />
-        <div style={{ position: 'absolute', bottom: -60, left: -60, width: 320, height: 320, borderRadius: '50%', background: 'radial-gradient(circle, rgba(15,168,143,0.05) 0%, transparent 70%)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', top: -120, right: -120, width: 480, height: 480, borderRadius: '50%', background: 'radial-gradient(circle, rgba(13,17,23,0.07) 0%, transparent 70%)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', bottom: -60, left: -60, width: 320, height: 320, borderRadius: '50%', background: 'radial-gradient(circle, rgba(13,17,23,0.05) 0%, transparent 70%)', pointerEvents: 'none' }} />
 
         <div style={{ maxWidth: 1140, margin: '0 auto', padding: '0 24px' }}>
           <div className="hero-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, alignItems: 'center', minHeight: '76vh' }}>
             {/* Left */}
             <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: '#e6f7f4', borderRadius: 0, padding: '5px 14px', fontSize: 12, fontWeight: 700, color: '#0fa88f', marginBottom: 28, fontFamily: "'Poppins',sans-serif" }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#0fa88f' }} />
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: '#f0f0f0', borderRadius: 0, padding: '5px 14px', fontSize: 12, fontWeight: 700, color: '#0d1117', marginBottom: 28, fontFamily: "'Poppins',sans-serif" }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#0d1117' }} />
                 Gestão de Contratos · Angola
               </div>
 
               <h1 className="hero-h" style={{ marginBottom: 22 }}>
                 Gere contratos<br />
-                <span style={{ color: '#0fa88f' }}>com total</span><br />
+                <span style={{ color: '#0d1117' }}>com total</span><br />
                 controlo.
               </h1>
 
@@ -313,7 +375,7 @@ const LandingPage = () => {
                 <AlertPill icon={<Bell size={13} />} text="3 contratos a vencer em 30 dias" color="#f59e0b" />
               </div>
               <div className="hero-pills" style={{ position: 'absolute', bottom: '14%', left: '-8%', zIndex: 3 }}>
-                <AlertPill icon={<CheckCircle size={13} />} text="98% conformidade · Auditado" color="#0fa88f" />
+                <AlertPill icon={<CheckCircle size={13} />} text="98% conformidade · Auditado" color="#0d1117" />
               </div>
               <div className="hero-pills" style={{ position: 'absolute', top: '38%', right: '-10%', zIndex: 3 }}>
                 <AlertPill icon={<TrendingUp size={13} />} text="↑ 12 contratos esta semana" color="#6366f1" />
@@ -337,7 +399,7 @@ const LandingPage = () => {
           {[...marqueeItems, ...marqueeItems].map((item, i) => (
             <div key={i} style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
               <span style={{ padding: '0 24px', fontSize: 12, fontWeight: 600, color: '#9ca3af', letterSpacing: 1.8, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{item}</span>
-              <span style={{ color: '#0fa88f', fontSize: 14, opacity: 0.6 }}>·</span>
+              <span style={{ color: '#0d1117', fontSize: 14, opacity: 0.6 }}>·</span>
             </div>
           ))}
         </div>
@@ -369,7 +431,7 @@ const LandingPage = () => {
               { icon: <Shield size={22} />, title: 'Compliance Total', desc: 'Auditoria automática, rastreabilidade completa e relatórios de conformidade gerados sem esforço.' },
             ].map((f, i) => (
               <div key={i} className="card" style={{ padding: '28px' }}>
-                <div style={{ width: 44, height: 44, borderRadius: 0, background: '#e6f7f4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0fa88f', marginBottom: 18 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 0, background: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0d1117', marginBottom: 18 }}>
                   {f.icon}
                 </div>
                 <div style={{ fontSize: 16, fontWeight: 700, color: '#0d1117', marginBottom: 8, fontFamily: "'Poppins',sans-serif" }}>{f.title}</div>
@@ -392,7 +454,7 @@ const LandingPage = () => {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
             {/* Top-left: big number */}
             <div className="card" style={{ padding: '36px' }}>
-              <div style={{ fontSize: 64, fontWeight: 800, color: '#0fa88f', fontFamily: "'Poppins',sans-serif", lineHeight: 1, marginBottom: 12, letterSpacing: -3 }}>10k+</div>
+              <div style={{ fontSize: 64, fontWeight: 800, color: '#0d1117', fontFamily: "'Poppins',sans-serif", lineHeight: 1, marginBottom: 12, letterSpacing: -3 }}>10k+</div>
               <div style={{ fontSize: 18, fontWeight: 700, color: '#0d1117', marginBottom: 6, fontFamily: "'Poppins',sans-serif" }}>Contratos activos</div>
               <div style={{ fontSize: 14, color: '#6b7280', fontWeight: 400 }}>geridos por empresas angolanas na plataforma</div>
             </div>
@@ -408,12 +470,12 @@ const LandingPage = () => {
                 {[{ icon: <FileText size={16} />, label: 'Rascunho' }, { icon: <Users size={16} />, label: 'Aprovação' }, { icon: <CheckCircle size={16} />, label: 'Assinado' }].map((step, i) => (
                   <React.Fragment key={i}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                      <div style={{ width: 42, height: 42, borderRadius: 0, background: i === 2 ? 'linear-gradient(135deg,#1d8c78,#0fa88f)' : '#f0fdf9', border: i === 2 ? 'none' : '1.5px solid #0fa88f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: i === 2 ? '#fff' : '#0fa88f' }}>
+                      <div style={{ width: 42, height: 42, borderRadius: 0, background: i === 2 ? 'linear-gradient(135deg,#000000,#0d1117)' : '#f5f5f5', border: i === 2 ? 'none' : '1.5px solid #0d1117', display: 'flex', alignItems: 'center', justifyContent: 'center', color: i === 2 ? '#fff' : '#0d1117' }}>
                         {step.icon}
                       </div>
                       <span style={{ fontSize: 9, fontWeight: 700, color: '#6b7280', textAlign: 'center', letterSpacing: 0.3 }}>{step.label}</span>
                     </div>
-                    {i < 2 && <div style={{ flex: 1, height: 1.5, background: '#0fa88f', opacity: 0.4 }} />}
+                    {i < 2 && <div style={{ flex: 1, height: 1.5, background: '#0d1117', opacity: 0.4 }} />}
                   </React.Fragment>
                 ))}
               </div>
@@ -429,11 +491,11 @@ const LandingPage = () => {
               <div style={{ background: '#f7f9fb', borderRadius: 0, padding: '16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: '#0d1117' }}>Alertas enviados</span>
-                  <span style={{ fontSize: 10, color: '#0fa88f', fontWeight: 700, background: '#e6f7f4', padding: '2px 8px', borderRadius: 0 }}>↑ 6 meses</span>
+                  <span style={{ fontSize: 10, color: '#0d1117', fontWeight: 700, background: '#f0f0f0', padding: '2px 8px', borderRadius: 0 }}>↑ 6 meses</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 48 }}>
                   {[30, 50, 42, 70, 60, 85].map((h, i) => (
-                    <div key={i} style={{ flex: 1, height: `${h}%`, borderRadius: '4px 4px 0 0', background: i === 5 ? 'linear-gradient(180deg,#0fa88f,#1d8c78)' : '#e2e5e9' }} />
+                    <div key={i} style={{ flex: 1, height: `${h}%`, borderRadius: '4px 4px 0 0', background: i === 5 ? 'linear-gradient(180deg,#0d1117,#000000)' : '#e2e5e9' }} />
                   ))}
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
@@ -446,9 +508,9 @@ const LandingPage = () => {
 
             {/* Bottom-right: mini dashboard stats */}
             <div className="card" style={{ padding: '36px' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#0fa88f', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 12 }}>Dashboard em tempo real</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#0d1117', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 12 }}>Dashboard em tempo real</div>
               <div style={{ fontSize: 28, fontWeight: 800, color: '#0d1117', fontFamily: "'Poppins',sans-serif", marginBottom: 4, letterSpacing: -1 }}>Kz 12,4M</div>
-              <div style={{ fontSize: 13, color: '#0fa88f', fontWeight: 600, marginBottom: 20 }}>↑ valor total sob gestão</div>
+              <div style={{ fontSize: 13, color: '#0d1117', fontWeight: 600, marginBottom: 20 }}>↑ valor total sob gestão</div>
               {[
                 { label: 'Contratos activos', val: '847', pct: 100 },
                 { label: 'Em negociação', val: '43', pct: 30 },
@@ -460,7 +522,7 @@ const LandingPage = () => {
                     <span style={{ fontSize: 12, fontWeight: 700, color: row.warn ? '#d97706' : '#0d1117' }}>{row.val}</span>
                   </div>
                   <div style={{ height: 5, background: '#f0f0f0', borderRadius: 0, overflow: 'hidden' }}>
-                    <div style={{ width: `${row.pct}%`, height: '100%', background: row.warn ? '#f59e0b' : 'linear-gradient(90deg,#1d8c78,#0fa88f)', borderRadius: 0 }} />
+                    <div style={{ width: `${row.pct}%`, height: '100%', background: row.warn ? '#f59e0b' : 'linear-gradient(90deg,#000000,#0d1117)', borderRadius: 0 }} />
                   </div>
                 </div>
               ))}
@@ -470,10 +532,10 @@ const LandingPage = () => {
       </section>
 
       {/* ── DARK SECTION — HOW IT WORKS ── */}
-      <section style={{ padding: '100px 24px', background: '#0d2b3e' }}>
+      <section style={{ padding: '100px 24px', background: '#0d1117' }}>
         <div style={{ maxWidth: 1140, margin: '0 auto' }}>
           <div style={{ marginBottom: 64 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, color: '#0fa88f', textTransform: 'uppercase', marginBottom: 14 }}>PASSO A PASSO</div>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, color: '#0d1117', textTransform: 'uppercase', marginBottom: 14 }}>PASSO A PASSO</div>
             <h2 style={{ fontFamily: "'Poppins',sans-serif", fontSize: 'clamp(26px,3.2vw,44px)', fontWeight: 700, color: '#fff', lineHeight: 1.15, maxWidth: 560, letterSpacing: -0.8 }}>
               Gere o ciclo completo com uma solução que simplifica.
             </h2>
@@ -485,7 +547,7 @@ const LandingPage = () => {
               { n: '3', title: 'Monitoriza e renova', desc: 'Alertas de vencimento automáticos. Dashboards de portfólio. Relatórios de compliance gerados sem esforço adicional.' },
             ].map(s => (
               <div key={s.n}>
-                <div style={{ fontSize: 52, fontWeight: 900, color: 'rgba(15,168,143,0.25)', fontFamily: "'Poppins',sans-serif", lineHeight: 1, marginBottom: 18, letterSpacing: -2 }}>{s.n}</div>
+                <div style={{ fontSize: 52, fontWeight: 900, color: 'rgba(13,17,23,0.25)', fontFamily: "'Poppins',sans-serif", lineHeight: 1, marginBottom: 18, letterSpacing: -2 }}>{s.n}</div>
                 <div style={{ fontSize: 18, fontWeight: 700, color: '#fff', marginBottom: 10, fontFamily: "'Poppins',sans-serif" }}>{s.title}</div>
                 <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', lineHeight: 1.75, fontWeight: 400 }}>{s.desc}</div>
               </div>
@@ -522,7 +584,7 @@ const LandingPage = () => {
                 <div style={{ fontSize: 32, color: '#e2e5e9', fontFamily: 'serif', marginBottom: 12, lineHeight: 1 }}>"</div>
                 <p style={{ fontSize: 13, color: '#374151', lineHeight: 1.78, marginBottom: 20, fontWeight: 400, fontStyle: 'italic' }}>{t.quote}</p>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#1d8c78,#0fa88f)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#fff', flexShrink: 0 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#000000,#0d1117)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#fff', flexShrink: 0 }}>
                     {t.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                   </div>
                   <div>
@@ -551,7 +613,7 @@ const LandingPage = () => {
               <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 24, fontWeight: 400 }}>Até 50 contratos · 5 utilizadores</div>
               {['Assinatura digital', 'Alertas automáticos', 'Dashboard básico'].map(f => (
                 <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                  <CheckCircle size={14} color="#0fa88f" />
+                  <CheckCircle size={14} color="#0d1117" />
                   <span style={{ fontSize: 13, color: '#374151', fontWeight: 400 }}>{f}</span>
                 </div>
               ))}
@@ -561,15 +623,15 @@ const LandingPage = () => {
             </div>
 
             {/* Pro — highlighted */}
-            <div style={{ background: 'linear-gradient(145deg,#0d2b3e,#0a2233)', border: '1.5px solid #1d8c78', borderRadius: 0, padding: '32px', position: 'relative', overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', top: -40, right: -40, width: 160, height: 160, borderRadius: '50%', background: 'radial-gradient(circle,rgba(15,168,143,0.2),transparent 70%)' }} />
-              <div style={{ display: 'inline-block', background: '#0fa88f', color: '#fff', fontSize: 10, fontWeight: 800, padding: '3px 10px', borderRadius: 0, marginBottom: 14, letterSpacing: 0.5 }}>MAIS POPULAR</div>
+            <div style={{ background: 'linear-gradient(145deg,#0d1117,#000000)', border: '1.5px solid #000000', borderRadius: 0, padding: '32px', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: -40, right: -40, width: 160, height: 160, borderRadius: '50%', background: 'radial-gradient(circle,rgba(13,17,23,0.2),transparent 70%)' }} />
+              <div style={{ display: 'inline-block', background: '#0d1117', color: '#fff', fontSize: 10, fontWeight: 800, padding: '3px 10px', borderRadius: 0, marginBottom: 14, letterSpacing: 0.5 }}>MAIS POPULAR</div>
               <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', fontFamily: "'Poppins',sans-serif", marginBottom: 6 }}>Pro</div>
               <div style={{ fontSize: 28, fontWeight: 800, color: '#fff', fontFamily: "'Poppins',sans-serif", marginBottom: 4, letterSpacing: -1 }}>Kz 39.900<span style={{ fontSize: 14, fontWeight: 500, color: 'rgba(255,255,255,0.45)' }}>/mês</span></div>
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 24, fontWeight: 400 }}>Contratos ilimitados · Utilizadores ilimitados</div>
               {['Tudo do Starter', 'Analytics avançado', 'Compliance automático', 'Integrações ERP', 'Suporte prioritário'].map(f => (
                 <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                  <CheckCircle size={14} color="#0fa88f" />
+                  <CheckCircle size={14} color="#0d1117" />
                   <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', fontWeight: 400 }}>{f}</span>
                 </div>
               ))}
@@ -592,12 +654,12 @@ const LandingPage = () => {
           {faqs.map((faq, i) => (
             <div key={i} className="faq-item">
               <button className="faq-btn" onClick={() => setOpenFaq(openFaq === i ? null : i)}>
-                <span style={{ color: openFaq === i ? '#0fa88f' : '#0d1117' }}>
-                  <span style={{ color: openFaq === i ? '#0fa88f' : '#b0b8c1', fontWeight: 800, fontSize: 13, marginRight: 12 }}>0{i + 1}</span>
+                <span style={{ color: openFaq === i ? '#0d1117' : '#0d1117' }}>
+                  <span style={{ color: openFaq === i ? '#0d1117' : '#b0b8c1', fontWeight: 800, fontSize: 13, marginRight: 12 }}>0{i + 1}</span>
                   {faq.q}
                 </span>
                 {openFaq === i
-                  ? <ChevronUp size={17} color="#0fa88f" style={{ flexShrink: 0 }} />
+                  ? <ChevronUp size={17} color="#0d1117" style={{ flexShrink: 0 }} />
                   : <ChevronDown size={17} color="#b0b8c1" style={{ flexShrink: 0 }} />}
               </button>
               {openFaq === i && (
@@ -617,12 +679,12 @@ const LandingPage = () => {
       {/* ── CTA DARK ── */}
       <section style={{ padding: '80px 24px', background: '#f5f7f9' }}>
         <div style={{ maxWidth: 1140, margin: '0 auto' }}>
-          <div className="cta-dark" style={{ background: '#0d2b3e', borderRadius: 0, padding: '72px 64px', position: 'relative', overflow: 'hidden' }}>
-            <div style={{ position: 'absolute', top: -80, right: -80, width: 360, height: 360, borderRadius: '50%', background: 'radial-gradient(circle,rgba(15,168,143,0.14),transparent 70%)', pointerEvents: 'none' }} />
+          <div className="cta-dark" style={{ background: '#0d1117', borderRadius: 0, padding: '72px 64px', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: -80, right: -80, width: 360, height: 360, borderRadius: '50%', background: 'radial-gradient(circle,rgba(13,17,23,0.14),transparent 70%)', pointerEvents: 'none' }} />
             <div style={{ position: 'relative', zIndex: 1 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 32 }}>
                 <div style={{ flex: '1 1 400px' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, color: '#0fa88f', textTransform: 'uppercase', marginBottom: 18 }}>Pronto para começar?</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, color: '#0d1117', textTransform: 'uppercase', marginBottom: 18 }}>Pronto para começar?</div>
                   <h2 style={{ fontFamily: "'Poppins',sans-serif", fontSize: 'clamp(24px,3vw,40px)', fontWeight: 700, color: '#fff', lineHeight: 1.2, marginBottom: 16, letterSpacing: -0.8 }}>
                     Eleva o teu processo<br />de gestão contratual
                   </h2>
@@ -649,30 +711,21 @@ const LandingPage = () => {
         <div style={{ maxWidth: 1140, margin: '0 auto' }}>
           <div className="footer-grid" style={{ display: 'grid', gridTemplateColumns: '2.2fr 1fr 1fr 1fr', gap: 44, marginBottom: 52 }}>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                <div style={{ width: 30, height: 30, borderRadius: 0, background: 'linear-gradient(135deg,#1d8c78,#0fa88f)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <FileSignature size={14} color="#fff" />
-                </div>
-                <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: 17, color: '#0d1117' }}>Agree</span>
+              <div style={{ marginBottom: 16 }}>
+                <BrandMark size="sm" />
               </div>
               <p style={{ fontSize: 13, color: '#9ca3af', lineHeight: 1.78, maxWidth: 260, fontWeight: 400 }}>
                 Startup angolana focada em gestão contratual inteligente, inovação e compliance digital.
               </p>
               <div style={{ marginTop: 12, fontSize: 12, color: '#b0b8c1', fontWeight: 50 }}>Angola · Est. 2024</div>
             </div>
-            {[
-              ['Empresa', ['Sobre nós', 'A nossa missão', 'Blog', 'Carreiras', 'Contacto']],
-              ['Plataforma', ['Funcionalidades', 'Assinatura Digital', 'Analytics', 'Integrações', 'API']],
-              ['Legal', ['Privacidade', 'Termos de Uso', 'Cookies', 'Compliance', 'Segurança']],
-            ].map(([title, links]) => (
-              <div key={String(title)}>
-                <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 18, color: '#0d1117', fontFamily: "'Poppins',sans-serif" }}>{String(title)}</h4>
+            {footerSections.map(section => (
+              <div key={section.title}>
+                <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 18, color: '#0d1117', fontFamily: "'Poppins',sans-serif" }}>{section.title}</h4>
                 <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 11 }}>
-                  {(links as string[]).map(l => (
-                    <li key={l}>
-                      <a href="#" style={{ fontSize: 13, color: '#9ca3af', transition: 'color .2s', fontWeight: 400 }}
-                        onMouseEnter={e => (e.currentTarget.style.color = '#0d1117')}
-                        onMouseLeave={e => (e.currentTarget.style.color = '#9ca3af')}>{l}</a>
+                  {section.links.map(link => (
+                    <li key={link.label}>
+                      <a href={link.href} className="footer-link">{link.label}</a>
                     </li>
                   ))}
                 </ul>
@@ -681,7 +734,7 @@ const LandingPage = () => {
           </div>
           <div style={{ borderTop: '1px solid #e2e5e9', paddingTop: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
             <span style={{ fontSize: 12, color: '#b0b8c1', fontWeight: 400 }}>© 2026 Agree. Todos os direitos reservados.</span>
-            <span style={{ fontSize: 12, color: '#b0b8c1', fontWeight: 400 }}>Feito com <span style={{ color: '#0fa88f' }}>♥</span> em Angola</span>
+            <span style={{ fontSize: 12, color: '#b0b8c1', fontWeight: 400 }}>Feito com <span style={{ color: '#0d1117' }}>♥</span> em Angola</span>
           </div>
         </div>
       </footer>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { 
   Save, 
@@ -235,7 +235,7 @@ export default function ContractForm() {
                   padding: '10px 20px',
                   fontSize: 14,
                   fontWeight: 600,
-                  background: '#0fa88f',
+                  background: '#0d1117',
                   border: 'none',
                   color: '#fff',
                   cursor: saving ? 'not-allowed' : 'pointer',
@@ -244,10 +244,10 @@ export default function ContractForm() {
                   opacity: saving ? 0.7 : 1
                 }}
                 onMouseEnter={e => {
-                  if (!saving) e.currentTarget.style.background = '#0d8a76';
+                  if (!saving) e.currentTarget.style.background = '#000000';
                 }}
                 onMouseLeave={e => {
-                  e.currentTarget.style.background = '#0fa88f';
+                  e.currentTarget.style.background = '#0d1117';
                 }}
               >
                 {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
@@ -289,7 +289,7 @@ export default function ContractForm() {
                     outline: 'none',
                     transition: 'all .2s'
                   }}
-                  onFocus={e => e.currentTarget.style.borderColor = '#0fa88f'}
+                  onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
                   onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
                   placeholder="Digite o título do contrato"
                 />
@@ -322,7 +322,7 @@ export default function ContractForm() {
                     resize: 'vertical',
                     transition: 'all .2s'
                   }}
-                  onFocus={e => e.currentTarget.style.borderColor = '#0fa88f'}
+                  onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
                   onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
                   placeholder="Breve descrição do contrato"
                 />
@@ -363,7 +363,7 @@ export default function ContractForm() {
                       outline: 'none',
                       transition: 'all .2s'
                     }}
-                    onFocus={e => e.currentTarget.style.borderColor = '#0fa88f'}
+                    onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
                     onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
                     placeholder="0,00"
                   />
@@ -409,7 +409,7 @@ export default function ContractForm() {
                         outline: 'none',
                         transition: 'all .2s'
                       }}
-                      onFocus={e => e.currentTarget.style.borderColor = '#0fa88f'}
+                      onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
                       onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
                     />
                   </div>
@@ -448,7 +448,7 @@ export default function ContractForm() {
                         outline: 'none',
                         transition: 'all .2s'
                       }}
-                      onFocus={e => e.currentTarget.style.borderColor = '#0fa88f'}
+                      onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
                       onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
                     />
                   </div>
@@ -479,8 +479,8 @@ export default function ContractForm() {
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: 6,
                       padding: '6px 12px', fontSize: 12, fontWeight: 600,
-                      background: generating ? '#e6f7f4' : 'linear-gradient(135deg, #0fa88f, #1d8c78)',
-                      border: 'none', color: generating ? '#0fa88f' : '#fff',
+                      background: generating ? '#f0f0f0' : 'linear-gradient(135deg, #0d1117, #000000)',
+                      border: 'none', color: generating ? '#0d1117' : '#fff',
                       cursor: generating ? 'not-allowed' : 'pointer',
                       transition: 'all .2s', fontFamily: "'Poppins',sans-serif",
                       borderRadius: 8, opacity: generating ? 0.8 : 1
@@ -497,12 +497,12 @@ export default function ContractForm() {
                       display: 'inline-flex', alignItems: 'center', gap: 6,
                       padding: '6px 12px', fontSize: 12, fontWeight: 600,
                       background: '#fff', border: '1px solid #e2e5e9',
-                      color: analyzing ? '#0fa88f' : '#6b7280',
+                      color: analyzing ? '#0d1117' : '#6b7280',
                       cursor: analyzing ? 'not-allowed' : 'pointer',
                       transition: 'all .2s', fontFamily: "'Poppins',sans-serif"
                     }}
                     onMouseEnter={e => { if (!analyzing) { e.currentTarget.style.background = '#f7f9fb'; e.currentTarget.style.color = '#0d1117'; } }}
-                    onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = analyzing ? '#0fa88f' : '#6b7280'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = analyzing ? '#0d1117' : '#6b7280'; }}
                   >
                     {analyzing ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
                     {analyzing ? 'Analisando...' : 'Analisar Riscos'}
@@ -526,7 +526,7 @@ export default function ContractForm() {
                   resize: 'vertical',
                   transition: 'all .2s'
                 }}
-                onFocus={e => e.currentTarget.style.borderColor = '#0fa88f'}
+                onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
                 onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
                 placeholder="Cole o conteúdo completo do contrato aqui..."
               />
@@ -554,10 +554,10 @@ export default function ContractForm() {
                                   risk.severity === 'medium' ? 'rgba(245, 158, 11, 0.05)' : 
                                   'rgba(15, 168, 143, 0.05)',
                       borderLeft: '3px solid ' + (risk.severity === 'high' ? '#ef4444' : 
-                                                  risk.severity === 'medium' ? '#f59e0b' : '#0fa88f')
+                                                  risk.severity === 'medium' ? '#f59e0b' : '#0d1117')
                     }}>
                       <AlertCircle size={18} color={risk.severity === 'high' ? '#ef4444' : 
-                                                         risk.severity === 'medium' ? '#f59e0b' : '#0fa88f'} />
+                                                         risk.severity === 'medium' ? '#f59e0b' : '#0d1117'} />
                       <div>
                         <p style={{
                           fontSize: 13,
@@ -602,7 +602,7 @@ export default function ContractForm() {
                 cursor: 'pointer'
               }}
                 onMouseEnter={e => {
-                  e.currentTarget.style.borderColor = '#0fa88f';
+                  e.currentTarget.style.borderColor = '#0d1117';
                   e.currentTarget.style.background = '#f6fffd';
                 }}
                 onMouseLeave={e => {

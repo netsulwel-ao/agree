@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { 
   ShieldCheck, 
@@ -167,9 +167,9 @@ export default function Compliance() {
               border: 'none',
               fontSize: 13,
               fontWeight: 600,
-              color: activeTab === tab.id ? '#0fa88f' : '#6b7280',
+              color: activeTab === tab.id ? '#0d1117' : '#6b7280',
               cursor: 'pointer',
-              borderBottom: activeTab === tab.id ? '2px solid #0fa88f' : '2px solid transparent',
+              borderBottom: activeTab === tab.id ? '2px solid #0d1117' : '2px solid transparent',
               transition: 'all .2s',
               fontFamily: "'Poppins',sans-serif",
               display: 'inline-flex',
@@ -249,14 +249,14 @@ export default function Compliance() {
                     width: 32,
                     height: 32,
                     borderRadius: 0,
-                    background: log.status === 'success' ? 'rgba(15,168,143,0.1)' : 'rgba(239,68,68,0.1)',
+                    background: log.status === 'success' ? 'rgba(13,17,23,0.1)' : 'rgba(239,68,68,0.1)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     flexShrink: 0
                   }}>
                     {log.status === 'success' ? 
-                      <CheckCircle2 size={18} color="#0fa88f" /> : 
+                      <CheckCircle2 size={18} color="#0d1117" /> : 
                       <AlertTriangle size={18} color="#ef4444" />
                     }
                   </div>
@@ -342,7 +342,7 @@ export default function Compliance() {
                             width: 32,
                             height: 32,
                             borderRadius: 0,
-                            background: '#0fa88f',
+                            background: '#0d1117',
                             color: '#fff',
                             display: 'flex',
                             alignItems: 'center',
@@ -366,8 +366,8 @@ export default function Compliance() {
                           padding: '4px 12px',
                           fontSize: 11,
                           fontWeight: 600,
-                          background: u.role === 'admin' ? 'rgba(15,168,143,0.1)' : '#f7f9fb',
-                          color: u.role === 'admin' ? '#0fa88f' : '#6b7280',
+                          background: u.role === 'admin' ? 'rgba(13,17,23,0.1)' : '#f7f9fb',
+                          color: u.role === 'admin' ? '#0d1117' : '#6b7280',
                           fontFamily: "'Poppins',sans-serif"
                         }}>
                           {u.role === 'admin' ? 'Admin' : 'User'}
@@ -419,13 +419,13 @@ export default function Compliance() {
                 width: 40,
                 height: 40,
                 borderRadius: 12,
-                background: 'rgba(15,168,143,0.1)',
+                background: 'rgba(13,17,23,0.1)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 marginBottom: 16
               }}>
-                <ShieldCheck size={20} color="#0fa88f" />
+                <ShieldCheck size={20} color="#0d1117" />
               </div>
               <h3 style={{
                 fontSize: 16,
@@ -448,7 +448,7 @@ export default function Compliance() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                color: '#0fa88f',
+                color: '#0d1117',
                 fontSize: 13,
                 fontWeight: 600,
                 fontFamily: "'Poppins',sans-serif"
@@ -470,13 +470,13 @@ export default function Compliance() {
                 width: 40,
                 height: 40,
                 borderRadius: 12,
-                background: 'rgba(15,168,143,0.1)',
+                background: 'rgba(13,17,23,0.1)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 marginBottom: 16
               }}>
-                <Key size={20} color="#0fa88f" />
+                <Key size={20} color="#0d1117" />
               </div>
               <h3 style={{
                 fontSize: 16,
@@ -499,7 +499,7 @@ export default function Compliance() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                color: '#0fa88f',
+                color: '#0d1117',
                 fontSize: 13,
                 fontWeight: 600,
                 fontFamily: "'Poppins',sans-serif"
@@ -521,13 +521,13 @@ export default function Compliance() {
                 width: 40,
                 height: 40,
                 borderRadius: 12,
-                background: 'rgba(15,168,143,0.1)',
+                background: 'rgba(13,17,23,0.1)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 marginBottom: 16
               }}>
-                <Lock size={20} color="#0fa88f" />
+                <Lock size={20} color="#0d1117" />
               </div>
               <h3 style={{
                 fontSize: 16,
@@ -550,7 +550,7 @@ export default function Compliance() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                color: '#0fa88f',
+                color: '#0d1117',
                 fontSize: 13,
                 fontWeight: 600,
                 fontFamily: "'Poppins',sans-serif"
@@ -572,13 +572,13 @@ export default function Compliance() {
                 width: 40,
                 height: 40,
                 borderRadius: 12,
-                background: 'rgba(15,168,143,0.1)',
+                background: 'rgba(13,17,23,0.1)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 marginBottom: 16
               }}>
-                <History size={20} color="#0fa88f" />
+                <History size={20} color="#0d1117" />
               </div>
               <h3 style={{
                 fontSize: 16,
@@ -601,7 +601,7 @@ export default function Compliance() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                color: '#0fa88f',
+                color: '#0d1117',
                 fontSize: 13,
                 fontWeight: 600,
                 fontFamily: "'Poppins',sans-serif"
@@ -623,13 +623,13 @@ export default function Compliance() {
                 width: 40,
                 height: 40,
                 borderRadius: 12,
-                background: 'rgba(15,168,143,0.1)',
+                background: 'rgba(13,17,23,0.1)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 marginBottom: 16
               }}>
-                <FileCheck size={20} color="#0fa88f" />
+                <FileCheck size={20} color="#0d1117" />
               </div>
               <h3 style={{
                 fontSize: 16,
@@ -652,7 +652,7 @@ export default function Compliance() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                color: '#0fa88f',
+                color: '#0d1117',
                 fontSize: 13,
                 fontWeight: 600,
                 fontFamily: "'Poppins',sans-serif"
@@ -674,13 +674,13 @@ export default function Compliance() {
                 width: 40,
                 height: 40,
                 borderRadius: 12,
-                background: 'rgba(15,168,143,0.1)',
+                background: 'rgba(13,17,23,0.1)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 marginBottom: 16
               }}>
-                <UserCheck size={20} color="#0fa88f" />
+                <UserCheck size={20} color="#0d1117" />
               </div>
               <h3 style={{
                 fontSize: 16,
@@ -703,7 +703,7 @@ export default function Compliance() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                color: '#0fa88f',
+                color: '#0d1117',
                 fontSize: 13,
                 fontWeight: 600,
                 fontFamily: "'Poppins',sans-serif"

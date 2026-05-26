@@ -4,10 +4,12 @@ import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import {
-  ArrowRight, ArrowLeft, FileSignature, Shield,
-  Bell, Zap, CheckCircle, BarChart3, Mail
+  ArrowRight, ArrowLeft, Shield,
+  Bell, Zap, CheckCircle, BarChart3,
+  FileSignature
 } from 'lucide-react';
 import { useGlobalLoading } from '../contexts/GlobalLoadingContext';
+import AgreeLogo from '../Agree-logo.svg';
 
 export default function AuthenticationScreen() {
   const [mode, setMode] = useState<'login' | 'signup' | 'recovery'>('login');
@@ -101,11 +103,9 @@ export default function AuthenticationScreen() {
             <span className="text-sm font-semibold">Voltar à página inicial</span>
           </button>
 
-          <div className="flex items-center gap-3 mb-9">
-            <div className="w-12 h-12 bg-gradient-to-br from-teal-600 to-teal-500 flex items-center justify-center shadow-lg shadow-teal-500/30">
-              <FileSignature size={24} className="text-white" />
-            </div>
-            <span className="font-extrabold text-2xl text-white">Agree</span>
+          <div className="flex items-center gap-1 mb-9 bg-white px-3 py-2 w-max">
+            <img src={AgreeLogo} alt="" style={{ height: 36, display: 'block' }} />
+            <span className="text-[23px] font-extrabold text-slate-900 tracking-tight" style={{ marginLeft: -2 }}>Agree</span>
           </div>
 
           <motion.h1
@@ -138,7 +138,7 @@ export default function AuthenticationScreen() {
                 transition={{ duration: 0.5, delay: 0.2 + i * 0.1 }}
                 className="bg-white/5 border border-white/10 p-5"
               >
-                <div className="w-10 h-10 bg-gradient-to-br from-teal-600 to-teal-500 flex items-center justify-center mb-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-neutral-800 to-neutral-900 flex items-center justify-center mb-3">
                   {React.cloneElement(feature.icon as React.ReactElement, { className: "text-white" })}
                 </div>
                 <div className="text-[13px] font-bold text-white mb-1">
@@ -155,7 +155,7 @@ export default function AuthenticationScreen() {
         <div className="flex items-center gap-5 flex-wrap pt-8 border-t border-white/10 mt-12">
           {['10k+ contratos geridos', '500+ empresas', '98% taxa de retenção', 'Suporte 24/7'].map((label, i) => (
             <div key={i} className="flex items-center gap-1.5">
-              <CheckCircle size={15} className="text-teal-500" />
+              <CheckCircle size={15} className="text-white/80" />
               <span className="text-xs text-white/70">{label}</span>
             </div>
           ))}
@@ -170,11 +170,11 @@ export default function AuthenticationScreen() {
             {mode !== 'recovery' && (
               <button 
                 onClick={() => setMode(mode === 'login' ? 'signup' : 'login')} 
-                className="text-sm font-semibold text-slate-500 hover:text-teal-500 transition-colors bg-transparent border-none cursor-pointer flex gap-1"
+                className="text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors bg-transparent border-none cursor-pointer flex gap-1"
               >
                 {mode === 'login'
-                  ? <>Ainda não tens conta? <strong className="text-slate-900 hover:text-teal-500">Criar conta</strong></>
-                  : <>Já tens uma conta? <strong className="text-slate-900 hover:text-teal-500">Entrar</strong></>
+                  ? <>Ainda não tens conta? <strong className="text-slate-900 hover:text-black">Criar conta</strong></>
+                  : <>Já tens uma conta? <strong className="text-slate-900 hover:text-black">Entrar</strong></>
                 }
               </button>
             )}
@@ -229,7 +229,7 @@ export default function AuthenticationScreen() {
                     NOME COMPLETO
                   </label>
                   <input 
-                    className="w-full px-4 py-3.5 text-[15px] bg-white border-2 border-slate-200 text-slate-900 outline-none transition-all focus:border-teal-500 focus:shadow-[0_0_0_3px_rgba(20,184,166,0.1)] placeholder:text-slate-400" 
+                    className="w-full px-4 py-3.5 text-[15px] bg-white border-2 border-slate-200 text-slate-900 outline-none transition-all focus:border-slate-900 focus:shadow-[0_0_0_3px_rgba(0,0,0,0.08)] placeholder:text-slate-400" 
                     type="text" 
                     value={name} 
                     onChange={e => setName(e.target.value)} 
@@ -243,7 +243,7 @@ export default function AuthenticationScreen() {
                   EMAIL
                 </label>
                 <input 
-                  className="w-full px-4 py-3.5 text-[15px] bg-white border-2 border-slate-200 text-slate-900 outline-none transition-all focus:border-teal-500 focus:shadow-[0_0_0_3px_rgba(20,184,166,0.1)] placeholder:text-slate-400" 
+                  className="w-full px-4 py-3.5 text-[15px] bg-white border-2 border-slate-200 text-slate-900 outline-none transition-all focus:border-slate-900 focus:shadow-[0_0_0_3px_rgba(0,0,0,0.08)] placeholder:text-slate-400" 
                   type="email" 
                   value={email} 
                   onChange={e => setEmail(e.target.value)} 
@@ -257,7 +257,7 @@ export default function AuthenticationScreen() {
                     SENHA
                   </label>
                   <input 
-                    className="w-full px-4 py-3.5 text-[15px] bg-white border-2 border-slate-200 text-slate-900 outline-none transition-all focus:border-teal-500 focus:shadow-[0_0_0_3px_rgba(20,184,166,0.1)] placeholder:text-slate-400" 
+                    className="w-full px-4 py-3.5 text-[15px] bg-white border-2 border-slate-200 text-slate-900 outline-none transition-all focus:border-slate-900 focus:shadow-[0_0_0_3px_rgba(0,0,0,0.08)] placeholder:text-slate-400" 
                     type="password" 
                     value={password} 
                     onChange={e => setPassword(e.target.value)} 
@@ -269,7 +269,7 @@ export default function AuthenticationScreen() {
 
               {mode === 'login' && (
                 <div className="flex justify-end -mt-2">
-                  <button type="button" onClick={() => setMode('recovery')} className="text-xs font-semibold text-teal-600 hover:text-teal-700 bg-transparent border-none cursor-pointer">
+                  <button type="button" onClick={() => setMode('recovery')} className="text-xs font-semibold text-slate-700 hover:text-black bg-transparent border-none cursor-pointer">
                     Esqueci-me da senha
                   </button>
                 </div>
@@ -278,7 +278,7 @@ export default function AuthenticationScreen() {
               <button
                 type="submit" 
                 disabled={loading} 
-                className="w-full flex items-center justify-center gap-2 bg-teal-500 text-white border-none py-3.5 px-6 text-[15px] font-bold cursor-pointer transition-all hover:bg-teal-600 hover:-translate-y-[1px] hover:shadow-[0_8px_24px_rgba(20,184,166,0.35)] mt-1 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center gap-2 bg-slate-900 text-white border-none py-3.5 px-6 text-[15px] font-bold cursor-pointer transition-all hover:bg-black hover:-translate-y-[1px] hover:shadow-[0_8px_24px_rgba(0,0,0,0.2)] mt-1 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {loading ? 'Aguarda...' : (mode === 'login' ? 'Entrar no Agree' : mode === 'signup' ? 'Criar conta' : 'Enviar e-mail')}
                 {!loading && mode !== 'recovery' && <ArrowRight size={18} />}
@@ -293,9 +293,9 @@ export default function AuthenticationScreen() {
 
             <p className="mt-6 text-xs text-slate-400 leading-relaxed">
               Ao continuar, confirmas que tens mais de 18 anos e aceitas os{' '}
-              <a href="#" className="text-teal-500 hover:underline font-medium">Termos de Serviço</a>
+              <a href="#" className="text-slate-900 hover:underline font-medium">Termos de Serviço</a>
               {' '}e{' '}
-              <a href="#" className="text-teal-500 hover:underline font-medium">Política de Privacidade</a> do Agree.
+              <a href="#" className="text-slate-900 hover:underline font-medium">Política de Privacidade</a> do Agree.
             </p>
           </motion.div>
         </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import {
   ArrowLeft,
@@ -21,6 +21,7 @@ import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { exportContractToPdf } from '../services/exportPdf';
+import SignaturePanel from './SignaturePanel';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -38,7 +39,7 @@ export default function ContractDetail() {
     content: ''
   });
   const [savingNote, setSavingNote] = useState(false);
-  const [activeTab, setActiveTab] = useState<'details' | 'versions' | 'notes' | 'files'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'versions' | 'notes' | 'files' | 'signatures'>('details');
 
   useEffect(() => {
     if (user) {
@@ -184,7 +185,7 @@ export default function ContractDetail() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'approved': return { bg: 'rgba(15,168,143,0.1)', text: '#0fa88f' };
+      case 'approved': return { bg: 'rgba(13,17,23,0.1)', text: '#0d1117' };
       case 'pending': return { bg: 'rgba(245,158,11,0.1)', text: '#f59e0b' };
       case 'rejected': return { bg: 'rgba(239,68,68,0.1)', text: '#ef4444' };
       default: return { bg: '#f7f9fb', text: '#6b7280' };
@@ -296,17 +297,17 @@ export default function ContractDetail() {
             padding: '10px 18px',
             fontSize: 13,
             fontWeight: 600,
-            background: '#0fa88f',
+            background: '#0d1117',
             border: 'none',
             color: '#fff',
             cursor: 'pointer',
             fontFamily: "'Poppins',sans-serif"
           }}
             onMouseEnter={e => {
-              e.currentTarget.style.background = '#0d8a76';
+              e.currentTarget.style.background = '#000000';
             }}
             onMouseLeave={e => {
-              e.currentTarget.style.background = '#0fa88f';
+              e.currentTarget.style.background = '#0d1117';
             }}
           >
             <Download size={16} />
@@ -330,7 +331,8 @@ export default function ContractDetail() {
           { id: 'details', label: 'Detalhes', icon: FileText },
           { id: 'versions', label: 'Versões', icon: History },
           { id: 'notes', label: 'Notas de Reunião', icon: FileText },
-          { id: 'files', label: 'Anexos', icon: Paperclip }
+          { id: 'files', label: 'Anexos', icon: Paperclip },
+          { id: 'signatures', label: 'Assinaturas', icon: CheckCircle2 }
         ].map(tab => (
           <button
             key={tab.id}
@@ -340,7 +342,7 @@ export default function ContractDetail() {
               padding: '10px 16px',
               background: activeTab === tab.id ? '#fff' : 'transparent',
               border: activeTab === tab.id ? '1px solid #e2e5e9' : 'none',
-              color: activeTab === tab.id ? '#0fa88f' : '#6b7280',
+              color: activeTab === tab.id ? '#0d1117' : '#6b7280',
               fontSize: 13,
               fontWeight: activeTab === tab.id ? 600 : 500,
               cursor: 'pointer',
@@ -450,7 +452,7 @@ export default function ContractDetail() {
                       fontSize: 18,
                       fontWeight: 700,
                       color: contract.risk_level === 'high' ? '#ef4444' : 
-                             contract.risk_level === 'medium' ? '#f59e0b' : '#0fa88f',
+                             contract.risk_level === 'medium' ? '#f59e0b' : '#0d1117',
                       fontFamily: "'Poppins',sans-serif"
                     }}>
                       {contract.risk_level === 'high' ? 'Alto' : 
@@ -588,12 +590,12 @@ export default function ContractDetail() {
                       padding: 12,
                       background: risk.severity === 'high' ? 'rgba(239,68,68,0.05)' : 
                                   risk.severity === 'medium' ? 'rgba(245,158,11,0.05)' : 
-                                  'rgba(15,168,143,0.05)',
+                                  'rgba(13,17,23,0.05)',
                       borderLeft: '3px solid ' + (risk.severity === 'high' ? '#ef4444' : 
-                                                          risk.severity === 'medium' ? '#f59e0b' : '#0fa88f')
+                                                          risk.severity === 'medium' ? '#f59e0b' : '#0d1117')
                     }}>
                       <AlertCircle size={18} color={risk.severity === 'high' ? '#ef4444' : 
-                                                         risk.severity === 'medium' ? '#f59e0b' : '#0fa88f'} />
+                                                         risk.severity === 'medium' ? '#f59e0b' : '#0d1117'} />
                       <div>
                         <p style={{
                           fontSize: 13,
@@ -662,14 +664,14 @@ export default function ContractDetail() {
                     <div style={{
                       width: 36,
                       height: 36,
-                      background: '#e6f7f4',
+                      background: '#f0f0f0',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       flexShrink: 0,
                       fontSize: 12,
                       fontWeight: 700,
-                      color: '#0fa88f',
+                      color: '#0d1117',
                       fontFamily: "'Poppins',sans-serif"
                     }}>
                       v{version.version_number}
@@ -744,7 +746,7 @@ export default function ContractDetail() {
                 padding: '10px 20px',
                 fontSize: 14,
                 fontWeight: 600,
-                background: '#0fa88f',
+                background: '#0d1117',
                 border: 'none',
                 color: '#fff',
                 cursor: 'pointer',
@@ -893,7 +895,7 @@ export default function ContractDetail() {
                       padding: '10px 20px',
                       fontSize: 14,
                       fontWeight: 600,
-                      background: '#0fa88f',
+                      background: '#0d1117',
                       border: 'none',
                       color: '#fff',
                       cursor: savingNote ? 'not-allowed' : 'pointer',
@@ -1028,13 +1030,13 @@ export default function ContractDetail() {
                     <div style={{
                       width: 40,
                       height: 40,
-                      background: '#e6f7f4',
+                      background: '#f0f0f0',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       flexShrink: 0
                     }}>
-                      <File size={20} color="#0fa88f" />
+                      <File size={20} color="#0d1117" />
                     </div>
                     <div>
                       <p style={{
@@ -1094,6 +1096,14 @@ export default function ContractDetail() {
             )}
           </div>
         </div>
+      )}
+
+      {activeTab === 'signatures' && (
+        <SignaturePanel
+          contract={contract}
+          user={user}
+          onUpdate={fetchContractData}
+        />
       )}
     </div>
   );

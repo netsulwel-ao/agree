@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { 
   TrendingUp, 
@@ -29,7 +29,7 @@ import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval, parseISO
 import { ptBR } from 'date-fns/locale';
 import { useAuth } from '../contexts/AuthContext';
 
-const COLORS = ['#0fa88f', '#f59e0b', '#ef4444', '#6b7280'];
+const COLORS = ['#0d1117', '#f59e0b', '#ef4444', '#6b7280'];
 
 export default function Analytics() {
   const { user } = useAuth();
@@ -212,8 +212,8 @@ export default function Analytics() {
             {stats.total}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <CheckCircle2 size={16} color="#0fa88f" />
-            <span style={{ fontSize: 12, color: '#0fa88f', fontWeight: 600, fontFamily: "'Poppins',sans-serif" }}>
+            <CheckCircle2 size={16} color="#0d1117" />
+            <span style={{ fontSize: 12, color: '#0d1117', fontWeight: 600, fontFamily: "'Poppins',sans-serif" }}>
               {stats.approved} aprovados
             </span>
           </div>
@@ -249,8 +249,8 @@ export default function Analytics() {
             {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(stats.totalValue)}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <TrendingUp size={16} color="#0fa88f" />
-            <span style={{ fontSize: 12, color: '#0fa88f', fontWeight: 600, fontFamily: "'Poppins',sans-serif" }}>
+            <TrendingUp size={16} color="#0d1117" />
+            <span style={{ fontSize: 12, color: '#0d1117', fontWeight: 600, fontFamily: "'Poppins',sans-serif" }}>
               ↑ 8% vs período anterior
             </span>
           </div>
@@ -368,8 +368,8 @@ export default function Analytics() {
               <AreaChart data={financialData}>
                 <defs>
                   <linearGradient id="colorFinancial" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#0fa88f" stopOpacity={0.1} />
-                    <stop offset="95%" stopColor="#0fa88f" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#0d1117" stopOpacity={0.1} />
+                    <stop offset="95%" stopColor="#0d1117" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e5e9" />
@@ -404,7 +404,7 @@ export default function Analytics() {
                 <Area
                   type="monotone"
                   dataKey="value"
-                  stroke="#0fa88f"
+                  stroke="#0d1117"
                   strokeWidth={2}
                   fillOpacity={1}
                   fill="url(#colorFinancial)"
@@ -519,7 +519,7 @@ export default function Analytics() {
                   {riskData.map((entry, index) => (
                     <Cell 
                       key={`cell-${index}`} 
-                      fill={entry.name === 'Alto' ? '#ef4444' : entry.name === 'Médio' ? '#f59e0b' : '#0fa88f'} 
+                      fill={entry.name === 'Alto' ? '#ef4444' : entry.name === 'Médio' ? '#f59e0b' : '#0d1117'} 
                     />
                   ))}
                 </Bar>
@@ -577,7 +577,7 @@ export default function Analytics() {
                     fontFamily: "'Poppins',sans-serif"
                   }}
                 />
-                <Bar dataKey="total" name="Total" stackId="a" fill="#0fa88f" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="total" name="Total" stackId="a" fill="#0d1117" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="alto" name="Risco Alto" stackId="a" fill="#ef4444" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="medio" name="Risco Médio" stackId="a" fill="#f59e0b" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="baixo" name="Risco Baixo" stackId="a" fill="#6b7280" radius={[4, 4, 0, 0]} />

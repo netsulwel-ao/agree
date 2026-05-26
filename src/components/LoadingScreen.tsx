@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 
 interface LoadingScreenProps {
   message?: string;
@@ -27,7 +27,7 @@ export default function LoadingScreen({ message = 'Carregando...' }: LoadingScre
           width: 48,
           height: 48,
           border: '4px solid rgba(15, 168, 143, 0.2)',
-          borderTopColor: '#0fa88f',
+          borderTopColor: '#0d1117',
           borderRadius: '50%',
           animation: 'spin 1s linear infinite'
         }} />

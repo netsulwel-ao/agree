@@ -42,7 +42,7 @@ export default function AuthenticationScreen() {
         navigate('/dashboard');
       } else if (mode === 'recovery') {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}/`,
+          redirectTo: 'https://agree.netsulwel.tech/',
         });
         if (error) throw error;
         toast.success('Email de recuperação enviado! Verifica a tua caixa de entrada.');
@@ -55,7 +55,7 @@ export default function AuthenticationScreen() {
             data: {
               name,
             },
-            emailRedirectTo: `${window.location.origin}/dashboard`
+            emailRedirectTo: 'https://agree.netsulwel.tech/dashboard'
           }
         });
         if (error) throw error;
@@ -81,7 +81,7 @@ export default function AuthenticationScreen() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${import.meta.env.VITE_REDIRECT_URL || window.location.origin}/dashboard`
+          redirectTo: 'https://agree.netsulwel.tech/dashboard'
         }
       });
       if (error) throw error;

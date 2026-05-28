@@ -16,13 +16,15 @@ import {
   Plus,
   Eye,
   FileEdit,
-  Trash2
+  Trash2,
+  Sparkles
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { exportContractToPdf } from '../services/exportPdf';
+import { analyzeContractRisks } from '../services/gemini';
 import SignaturePanel from './SignaturePanel';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -608,17 +610,46 @@ export default function ContractDetail() {
                 borderRadius: 0,
                 padding: 24
               }}>
-                <h3 style={{
-                  fontSize: 14,
-                  fontWeight: 700,
-                  color: '#6b7280',
-                  textTransform: 'uppercase',
-                  letterSpacing: 1,
-                  marginBottom: 16,
-                  fontFamily: "'Poppins',sans-serif"
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 16
                 }}>
-                  Riscos Identificados
-                </h3>
+                  <h3 style={{
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: '#6b7280',
+                    textTransform: 'uppercase',
+                    letterSpacing: 1,
+                    fontFamily: "'Poppins',sans-serif"
+                  }}>
+                    Riscos Identificados
+                  </h3>
+                  <button
+                    onClick={async () => {
+                      if (!contract.content) { toast.error('O contrato não tem conteúdo para analisar'); return; }
+                      const results = await analyzeContractRisks(contract.content);
+                      if (results.length > 0) {
+                        const { error } = await supabase.from('contracts').update({ risks: results }).eq('id', contractId).eq('owner_id', user?.id);
+                        if (!error) {
+                          setContract({ ...contract, risks: results });
+                          toast.success('Riscos actualizados com sucesso');
+                        }
+                      }
+                    }}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      padding: '6px 12px', fontSize: 12, fontWeight: 600,
+                      background: '#fff', border: '1px solid #e2e5e9',
+                      color: '#6b7280', cursor: 'pointer',
+                      fontFamily: "'Poppins',sans-serif"
+                    }}
+                  >
+                    <Sparkles size={14} />
+                    Re-analisar
+                  </button>
+                </div>
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {contract.risks.map((risk: any, idx: number) => (

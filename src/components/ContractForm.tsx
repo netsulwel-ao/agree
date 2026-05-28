@@ -10,9 +10,11 @@ import {
   Paperclip,
   File,
   Loader2,
-  Wand2
+  Wand2,
+  FileUp
 } from 'lucide-react';
 import { analyzeContractRisks, generateContractSuggestions } from '../services/gemini';
+import { extractTextFromPdf } from '../services/pdf';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -25,6 +27,7 @@ export default function ContractForm() {
   const isEditing = !!editId;
   const [analyzing, setAnalyzing] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [extractingPdf, setExtractingPdf] = useState(false);
   const [risks, setRisks] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [loadingContract, setLoadingContract] = useState(isEditing);
@@ -107,6 +110,26 @@ export default function ContractForm() {
       toast.error("Erro ao gerar contrato");
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type !== 'application/pdf') {
+      toast.error('Selecciona um ficheiro PDF');
+      return;
+    }
+    setExtractingPdf(true);
+    try {
+      const text = await extractTextFromPdf(file);
+      setFormData(prev => ({ ...prev, content: text }));
+      toast.success(`Texto extraído do PDF (${(text.length / 1000).toFixed(0)}k caracteres)`);
+    } catch {
+      toast.error('Erro ao extrair texto do PDF');
+    } finally {
+      setExtractingPdf(false);
+      e.target.value = '';
     }
   };
 
@@ -538,6 +561,25 @@ export default function ContractForm() {
                   Conteúdo do Contrato
                 </label>
                 <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    onChange={handlePdfUpload}
+                    style={{ display: 'none' }}
+                    id="pdf-upload"
+                  />
+                  <label htmlFor="pdf-upload" style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    padding: '6px 12px', fontSize: 12, fontWeight: 600,
+                    background: '#fff', border: '1px solid #e2e5e9',
+                    color: extractingPdf ? '#0d1117' : '#6b7280',
+                    cursor: extractingPdf ? 'not-allowed' : 'pointer',
+                    transition: 'all .2s', fontFamily: "'Poppins',sans-serif",
+                    opacity: extractingPdf ? 0.8 : 1
+                  }}>
+                    {extractingPdf ? <Loader2 size={14} className="animate-spin" /> : <FileUp size={14} />}
+                    {extractingPdf ? 'Extraindo...' : 'Upload PDF'}
+                  </label>
                   <button
                     type="button"
                     onClick={handleGenerate}

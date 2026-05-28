@@ -167,6 +167,10 @@ export default function ContractForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (!formData.title.trim()) {
+      toast.error("O título do contrato é obrigatório");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -214,15 +218,19 @@ export default function ContractForm() {
 
         if (updateError) throw updateError;
 
+        const { data: latestVersion } = await supabase
+          .from('contract_versions')
+          .select('version_number')
+          .eq('contract_id', editId)
+          .order('version_number', { ascending: false })
+          .limit(1);
+
+        const nextVersion = (latestVersion?.[0]?.version_number || 0) + 1;
+
         await supabase.from('contract_versions').insert({
           contract_id: editId,
           content: formData.content,
-          version_number: (await supabase
-            .from('contract_versions')
-            .select('version_number')
-            .eq('contract_id', editId)
-            .order('version_number', { ascending: false })
-            .limit(1)).data?.[0]?.version_number + 1 || 1
+          version_number: nextVersion
         });
 
         toast.success("Contrato actualizado com sucesso!");
@@ -384,7 +392,6 @@ export default function ContractForm() {
                 </label>
                 <input
                   type="text"
-                  required
                   value={formData.title}
                   onChange={e => setFormData({ ...formData, title: e.target.value })}
                   style={{

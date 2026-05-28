@@ -263,7 +263,7 @@ export default function ContractDetail() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
-          <button style={{
+          {/*<button style={{
             display: 'inline-flex',
             alignItems: 'center',
             gap: 8,
@@ -287,7 +287,7 @@ export default function ContractDetail() {
           >
             <Share2 size={16} />
             Partilhar
-          </button>
+          </button>*/}
           <button
             onClick={() => exportContractToPdf(contract)}
             style={{

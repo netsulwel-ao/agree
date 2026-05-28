@@ -348,9 +348,9 @@ const LandingPage = () => {
                 <button className="btn-primary" onClick={() => navigate('/login')} style={{ padding: '14px 28px', fontSize: 15 }}>
                   Acessar o Sistema <ArrowRight size={16} />
                 </button>
-                <button className="btn-outline" style={{ padding: '14px 22px', fontSize: 15 }}>
+                {/*<button className="btn-outline" style={{ padding: '14px 22px', fontSize: 15 }}>
                   Ver Demonstração <ArrowUpRight size={16} />
-                </button>
+                </button>*/}
               </div>
 
               {/* Partner logos */}
@@ -696,9 +696,9 @@ const LandingPage = () => {
                   <button className="btn-primary" onClick={() => navigate('/login')} style={{ padding: '15px 32px', fontSize: 15 }}>
                     Começar Agora <ArrowRight size={16} />
                   </button>
-                  <button onClick={() => {}} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', color: 'rgba(255,255,255,0.55)', cursor: 'pointer', fontSize: 14, fontWeight: 600, fontFamily: "'Poppins',sans-serif", justifyContent: 'center' }}>
+                  {/*<button onClick={() => {}} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', color: 'rgba(255,255,255,0.55)', cursor: 'pointer', fontSize: 14, fontWeight: 600, fontFamily: "'Poppins',sans-serif", justifyContent: 'center' }}>
                     Saber mais <ArrowUpRight size={15} />
-                  </button>
+                  </button>*/}
                 </div>
               </div>
             </div>

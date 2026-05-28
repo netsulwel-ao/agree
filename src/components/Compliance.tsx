@@ -209,7 +209,7 @@ export default function Compliance() {
               }}>
                 Logs de Auditoria
               </h2>
-              <button style={{
+              {/*<button style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 8,
@@ -234,7 +234,7 @@ export default function Compliance() {
               >
                 <Download size={16} />
                 Exportar
-              </button>
+              </button>*/}
             </div>
             <div style={{ maxHeight: 500, overflowY: 'auto' }}>
               {auditLogs.map((log, idx) => (

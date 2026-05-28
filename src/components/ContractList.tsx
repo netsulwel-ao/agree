@@ -114,7 +114,7 @@ export default function ContractList() {
           </button>
         </form>
 
-        <div style={{ display: 'flex', gap: 12 }}>
+        {/*<div style={{ display: 'flex', gap: 12 }}>
           <button style={btnStyle}
             onMouseEnter={e => { e.currentTarget.style.background = '#f7f9fb'; e.currentTarget.style.color = '#0d1117'; }}
             onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#6b7280'; }}
@@ -127,7 +127,7 @@ export default function ContractList() {
           >
             <CalendarIcon size={16} /> Data
           </button>
-        </div>
+        </div>*/}
       </div>
 
       {/* Table */}
@@ -216,8 +216,8 @@ export default function ContractList() {
                       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4 }} onClick={e => e.stopPropagation()}>
                         {[
                           { icon: <Eye size={15} />, hoverColor: '#0d1117', onClick: () => navigate(`/contracts/${contract.id}`) },
-                          { icon: <FileEdit size={15} />, hoverColor: '#0d1117', onClick: () => {} },
-                          { icon: <Trash2 size={15} />, hoverColor: '#ef4444', onClick: () => {} },
+                          //{ icon: <FileEdit size={15} />, hoverColor: '#0d1117', onClick: () => {} },
+                          //{ icon: <Trash2 size={15} />, hoverColor: '#ef4444', onClick: () => {} },
                         ].map((btn, bi) => (
                           <button
                             key={bi}

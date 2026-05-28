@@ -81,7 +81,7 @@ export default function AuthenticationScreen() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/dashboard`
+          redirectTo: `${import.meta.env.VITE_REDIRECT_URL || window.location.origin}/dashboard`
         }
       });
       if (error) throw error;
@@ -296,6 +296,7 @@ export default function AuthenticationScreen() {
               <a href="#" className="text-slate-900 hover:underline font-medium">Termos de Serviço</a>
               {' '}e{' '}
               <a href="#" className="text-slate-900 hover:underline font-medium">Política de Privacidade</a> do Agree.
+              {/** TODO: add actual pages for Terms and Privacy */}
             </p>
           </motion.div>
         </div>

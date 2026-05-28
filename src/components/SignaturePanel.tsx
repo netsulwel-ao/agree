@@ -2,12 +2,12 @@
 import { supabase } from '../lib/supabase';
 import {
   PenLine, CheckCircle2, Clock, Plus, Trash2,
-  Mail, User, Shield, AlertCircle, Loader2
+  Mail, Shield, AlertCircle, Loader2
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { User as FirebaseUser } from 'firebase/auth';
+import type { User } from '@supabase/supabase-js';
 
 interface Signature {
   id: string;
@@ -20,7 +20,7 @@ interface Signature {
 
 interface SignaturePanelProps {
   contract: any;
-  user: FirebaseUser;
+  user: User;
   onUpdate: () => void;
 }
 
@@ -43,7 +43,7 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
   const [signing, setSigning] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const isOwner = contract.owner_id === user.uid;
+  const isOwner = contract.owner_id === user.id;
   const currentUserSignature = signatures.find(s => s.email === user.email);
   const allSigned = signatures.length > 0 && signatures.every(s => s.signed);
   const signedCount = signatures.filter(s => s.signed).length;

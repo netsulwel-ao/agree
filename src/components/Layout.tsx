@@ -10,8 +10,18 @@ import {
 import { addDays, isBefore, isAfter, parseISO } from 'date-fns';
 import AgreeLogo from '../Agree-logo.svg';
 
+interface AlertContract {
+  id?: string;
+  title?: string | null;
+  end_date: string | null;
+  risk_level: string | null;
+  status: string | null;
+}
+
 export default function Layout() {
   const [alertCount, setAlertCount] = useState(0);
+  const [alerts, setAlerts] = useState<AlertContract[]>([]);
+  const [alertsOpen, setAlertsOpen] = useState(false);
   const { user, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -22,21 +32,26 @@ export default function Layout() {
     const fetchAlerts = async () => {
       const { data } = await supabase
         .from('contracts')
-        .select('end_date, risk_level, status')
+        .select('id, title, end_date, risk_level, status')
         .eq('owner_id', user.id);
 
-      if (!data) return;
+      if (!data) {
+        setAlertCount(0);
+        setAlerts([]);
+        return;
+      }
       const today = new Date();
       const in30 = addDays(today, 30);
 
-      const count = data.filter(c => {
+      const flagged = data.filter(c => {
         const expiring = c.end_date && isAfter(parseISO(c.end_date), today) && isBefore(parseISO(c.end_date), in30);
         const expired = c.end_date && isBefore(parseISO(c.end_date), today) && c.status !== 'rejected';
         const highRisk = c.risk_level === 'high';
         return expiring || expired || highRisk;
-      }).length;
+      });
 
-      setAlertCount(count);
+      setAlertCount(flagged.length);
+      setAlerts(flagged);
     };
     fetchAlerts();
   }, [user]);
@@ -71,6 +86,73 @@ export default function Layout() {
         :root {
           --accent: #0d1117; --accent-dark: #000000; --accent-light: #f0f0f0;
           --border: rgba(226, 229, 233, 0.6);
+        }
+        .alerts-panel {
+          position: absolute;
+          top: 90px;
+          right: 32px;
+          width: 340px;
+          max-height: 360px;
+          background: #0d1117;
+          color: #f9fafb;
+          border-radius: 18px;
+          border: 1px solid rgba(148,163,184,0.4);
+          box-shadow: 0 18px 45px rgba(0,0,0,0.45);
+          padding: 16px;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          z-index: 50;
+        }
+        .alerts-panel-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          margin-bottom: 4px;
+        }
+        .alerts-panel-title {
+          font-size: 14px;
+          font-weight: 600;
+          letter-spacing: .02em;
+        }
+        .alerts-panel-count {
+          font-size: 11px;
+          color: rgba(249,250,251,0.6);
+        }
+        .alerts-list {
+          margin-top: 4px;
+          padding: 0;
+          list-style: none;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          overflow-y: auto;
+        }
+        .alerts-item {
+          border-radius: 12px;
+          padding: 10px 11px;
+          background: rgba(15,23,42,0.85);
+          border: 1px solid rgba(148,163,184,0.35);
+        }
+        .alerts-item.expired { border-color: rgba(248,113,113,0.7); }
+        .alerts-item.expiring { border-color: rgba(250,204,21,0.8); }
+        .alerts-item.risky { border-color: rgba(96,165,250,0.8); }
+        .alerts-item-title {
+          font-size: 13px;
+          font-weight: 600;
+          margin-bottom: 2px;
+        }
+        .alerts-item-meta {
+          font-size: 11px;
+          color: rgba(148,163,184,0.9);
+          display: flex;
+          justify-content: space-between;
+          gap: 6px;
+        }
+        .alerts-empty {
+          font-size: 12px;
+          color: rgba(148,163,184,0.9);
         }
         .sidebar .nav-link {
           display: flex; align-items: center; gap: 12px;
@@ -213,7 +295,7 @@ export default function Layout() {
           justifyContent: 'space-between', position: 'sticky', top: 24,
           zIndex: 30, marginBottom: 24, boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
         }}>
-          <div>
+          <div style={{ position: 'relative', flex: 1 }}>
             <h2 style={{ fontFamily: "'Poppins',sans-serif", fontSize: 20, fontWeight: 700, color: '#0d1117', marginBottom: 4 }}>
               {currentNav?.label || 'Detalhes'}
             </h2>
@@ -221,9 +303,9 @@ export default function Layout() {
               Gerencie os seus contratos com total controlo
             </p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, position: 'relative' }}>
             <button
-              onClick={() => navigate('/dashboard')}
+              onClick={() => setAlertsOpen(prev => !prev)}
               style={{
                 background: alertCount > 0 ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.5)',
                 border: `1px solid ${alertCount > 0 ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`,
@@ -243,6 +325,72 @@ export default function Layout() {
                 }} />
               )}
             </button>
+            {alertsOpen && (
+              <div
+                className="alerts-panel"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="alerts-panel-header">
+                  <div>
+                    <div className="alerts-panel-title">Alertas de contratos</div>
+                    <div className="alerts-panel-count">
+                      {alertCount === 0
+                        ? 'Nenhum alerta no momento'
+                        : `${alertCount} contrato${alertCount > 1 ? 's' : ''} a acompanhar`}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setAlertsOpen(false)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'rgba(148,163,184,0.9)',
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      padding: '4px 6px',
+                    }}
+                  >
+                    Fechar
+                  </button>
+                </div>
+                {alerts.length === 0 ? (
+                  <div className="alerts-empty">
+                    Todos os contratos estão em dia. Óptimo trabalho.
+                  </div>
+                ) : (
+                  <ul className="alerts-list">
+                    {alerts.map(alert => {
+                      const end = alert.end_date ? parseISO(alert.end_date) : null;
+                      const now = new Date();
+                      const expired = end && isBefore(end, now);
+                      const in30 = end && isAfter(end, now) && isBefore(end, addDays(now, 30));
+                      const cls = expired ? 'alerts-item expired' : in30 ? 'alerts-item expiring' : 'alerts-item risky';
+                      return (
+                        <li key={alert.id || `${alert.end_date}-${alert.status}`} className={cls}>
+                          <div className="alerts-item-title">
+                            {alert.title || 'Contrato sem título'}
+                          </div>
+                          <div className="alerts-item-meta">
+                            <span>
+                              {expired
+                                ? 'Vencido'
+                                : in30
+                                ? 'A vencer em 30 dias'
+                                : 'Risco elevado'}
+                            </span>
+                            <span>
+                              {alert.end_date
+                                ? `Fim: ${new Date(alert.end_date).toLocaleDateString()}`
+                                : 'Sem data de fim'}
+                            </span>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
         </header>
 

@@ -28,7 +28,7 @@ export default function ContractForm() {
   const [analyzing, setAnalyzing] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [extractingPdf, setExtractingPdf] = useState(false);
-  const [risks, setRisks] = useState<any[]>([]);
+  const [analysis, setAnalysis] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [loadingContract, setLoadingContract] = useState(isEditing);
   
@@ -66,7 +66,7 @@ export default function ContractForm() {
         startDate: data.start_date || '',
         endDate: data.end_date || '',
       });
-      setRisks(data.risks || []);
+      setAnalysis(data.risks ? { risks: data.risks } : null);
       setExistingAttachments(data.attachments || []);
       setLoadingContract(false);
     };
@@ -75,16 +75,16 @@ export default function ContractForm() {
 
   const handleAnalyze = async () => {
     if (!formData.content) {
-      toast.error("Adicione o conteúdo do contrato para analisar riscos");
+      toast.error("Adicione o conteúdo do contrato para analisar");
       return;
     }
     setAnalyzing(true);
     try {
-      const results = await analyzeContractRisks(formData.content);
-      setRisks(results);
-      toast.success("Análise de riscos concluída!");
+      const result = await analyzeContractRisks(formData.content);
+      setAnalysis(result);
+      toast.success("Análise completa concluída!");
     } catch (error) {
-      toast.error("Erro ao analisar riscos");
+      toast.error("Erro ao analisar contrato");
     } finally {
       setAnalyzing(false);
     }
@@ -140,10 +140,10 @@ export default function ContractForm() {
         toast.success('Campos preenchidos automaticamente!');
       }
 
-      const results = await analyzeContractRisks(text);
-      if (results.length > 0) {
-        setRisks(results);
-        toast.success(`${results.length} riscos identificados`);
+      const result = await analyzeContractRisks(text);
+      if (result.risks?.length > 0) {
+        setAnalysis(result);
+        toast.success(`${result.risks.length} riscos identificados`);
       }
     } catch {
       toast.error('Erro ao processar PDF');
@@ -206,7 +206,7 @@ export default function ContractForm() {
             value: parseFloat(formData.value) || 0,
             start_date: formData.startDate || null,
             end_date: formData.endDate || null,
-            risks: risks,
+            risks: analysis?.risks || [],
             attachments: allAttachments,
           })
           .eq('id', editId)
@@ -239,7 +239,7 @@ export default function ContractForm() {
             owner_id: user.id,
             start_date: formData.startDate || null,
             end_date: formData.endDate || null,
-            risks: risks,
+            risks: analysis?.risks || [],
             attachments: allAttachments,
           })
           .select()
@@ -266,7 +266,7 @@ export default function ContractForm() {
 
   return (
     <div style={{
-      maxWidth: 1200,
+      maxWidth: 1600,
       margin: '0 auto',
       fontFamily: "'Poppins', sans-serif"
     }}>
@@ -655,54 +655,129 @@ export default function ContractForm() {
               />
             </div>
 
-            {risks.length > 0 && (
-              <div>
-                <h3 style={{
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: '#374151',
-                  marginBottom: 12,
-                  fontFamily: "'Poppins',sans-serif"
-                }}>
-                  Riscos Identificados
-                </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {risks.map((risk, idx) => (
-                    <div key={idx} style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: 12,
-                      padding: '12px',
-                      background: risk.severity === 'high' ? 'rgba(239, 68, 68, 0.05)' : 
-                                  risk.severity === 'medium' ? 'rgba(245, 158, 11, 0.05)' : 
-                                  'rgba(15, 168, 143, 0.05)',
-                      borderLeft: '3px solid ' + (risk.severity === 'high' ? '#ef4444' : 
-                                                  risk.severity === 'medium' ? '#f59e0b' : '#0d1117')
-                    }}>
-                      <AlertCircle size={18} color={risk.severity === 'high' ? '#ef4444' : 
-                                                         risk.severity === 'medium' ? '#f59e0b' : '#0d1117'} />
-                      <div>
-                        <p style={{
-                          fontSize: 13,
-                          fontWeight: 600,
-                          color: '#0d1117',
-                          textTransform: 'capitalize',
-                          marginBottom: 2,
-                          fontFamily: "'Poppins',sans-serif"
+            {analysis && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {analysis.summary && (
+                  <div style={{
+                    padding: 16,
+                    background: 'rgba(15, 168, 143, 0.05)',
+                    borderLeft: '3px solid #0d1117'
+                  }}>
+                    <p style={{
+                      fontSize: 13, fontWeight: 600, color: '#0d1117', marginBottom: 4,
+                      fontFamily: "'Poppins',sans-serif"
+                    }}>Análise Geral</p>
+                    <p style={{
+                      fontSize: 13, color: '#374151', lineHeight: 1.6,
+                      fontFamily: "'Poppins',sans-serif"
+                    }}>{analysis.summary}</p>
+                  </div>
+                )}
+
+                {analysis.applicableLaw && (
+                  <div style={{
+                    padding: 16,
+                    background: 'rgba(99, 102, 241, 0.05)',
+                    borderLeft: '3px solid #6366f1'
+                  }}>
+                    <p style={{
+                      fontSize: 13, fontWeight: 600, color: '#6366f1', marginBottom: 4,
+                      fontFamily: "'Poppins',sans-serif"
+                    }}>Legislação Aplicável</p>
+                    <p style={{
+                      fontSize: 13, color: '#374151', lineHeight: 1.6,
+                      fontFamily: "'Poppins',sans-serif"
+                    }}>{analysis.applicableLaw}</p>
+                  </div>
+                )}
+
+                {analysis.valueAnalysis && (
+                  <div style={{
+                    padding: 16,
+                    background: 'rgba(245, 158, 11, 0.05)',
+                    borderLeft: '3px solid #f59e0b'
+                  }}>
+                    <p style={{
+                      fontSize: 13, fontWeight: 600, color: '#f59e0b', marginBottom: 4,
+                      fontFamily: "'Poppins',sans-serif"
+                    }}>Análise de Valor</p>
+                    <p style={{
+                      fontSize: 13, color: '#374151', lineHeight: 1.6,
+                      fontFamily: "'Poppins',sans-serif"
+                    }}>{analysis.valueAnalysis}</p>
+                  </div>
+                )}
+
+                {analysis.risks?.length > 0 && (
+                  <div>
+                    <h3 style={{
+                      fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 12,
+                      fontFamily: "'Poppins',sans-serif"
+                    }}>Riscos Identificados ({analysis.risks.length})</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {analysis.risks.map((risk: any, idx: number) => (
+                        <div key={idx} style={{
+                          display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px',
+                          background: risk.severity === 'high' ? 'rgba(239, 68, 68, 0.05)' : 
+                                      risk.severity === 'medium' ? 'rgba(245, 158, 11, 0.05)' : 
+                                      'rgba(15, 168, 143, 0.05)',
+                          borderLeft: '3px solid ' + (risk.severity === 'high' ? '#ef4444' : 
+                                                      risk.severity === 'medium' ? '#f59e0b' : '#10b981')
                         }}>
-                          Risco {risk.severity}
-                        </p>
-                        <p style={{
-                          fontSize: 13,
-                          color: '#374151',
-                          fontFamily: "'Poppins',sans-serif"
-                        }}>
-                          {risk.description}
-                        </p>
-                      </div>
+                          <AlertCircle size={18} color={risk.severity === 'high' ? '#ef4444' : 
+                                                                        risk.severity === 'medium' ? '#f59e0b' : '#10b981'} />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 2 }}>
+                              <span style={{
+                                fontSize: 12, fontWeight: 700, textTransform: 'capitalize', color: '#0d1117',
+                                fontFamily: "'Poppins',sans-serif"
+                              }}>Risco {risk.severity}</span>
+                              {risk.type && (
+                                <span style={{
+                                  fontSize: 10, fontWeight: 600, padding: '2px 8px',
+                                  background: '#f0f0f0', color: '#6b7280',
+                                  fontFamily: "'Poppins',sans-serif"
+                                }}>{risk.type}</span>
+                              )}
+                            </div>
+                            <p style={{
+                              fontSize: 13, color: '#374151', lineHeight: 1.5,
+                              fontFamily: "'Poppins',sans-serif"
+                            }}>{risk.description}</p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                )}
+
+                {analysis.opportunities?.length > 0 && (
+                  <div>
+                    <h3 style={{
+                      fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 12,
+                      fontFamily: "'Poppins',sans-serif"
+                    }}>Oportunidades e Benefícios ({analysis.opportunities.length})</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {analysis.opportunities.map((opp: any, idx: number) => (
+                        <div key={idx} style={{
+                          display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px',
+                          background: 'rgba(15, 168, 143, 0.05)',
+                          borderLeft: '3px solid #10b981'
+                        }}>
+                          <div style={{
+                            width: 18, height: 18, borderRadius: '50%', background: '#10b981',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                            color: '#fff', fontSize: 11, fontWeight: 700
+                          }}>+</div>
+                          <p style={{
+                            fontSize: 13, color: '#374151', lineHeight: 1.5,
+                            fontFamily: "'Poppins',sans-serif"
+                          }}>{opp.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

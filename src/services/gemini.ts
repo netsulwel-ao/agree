@@ -10,10 +10,10 @@ const groq = new Groq({
 const MODEL = "llama-3.3-70b-versatile";
 
 export async function analyzeContractRisks(content: string) {
-  if (!content) return [];
+  if (!content) return { summary: '', risks: [], opportunities: [], valueAnalysis: '', applicableLaw: '' };
   if (!apiKey) {
     console.warn("Groq API key not set");
-    return [];
+    return { summary: '', risks: [], opportunities: [], valueAnalysis: '', applicableLaw: '' };
   }
 
   try {
@@ -22,28 +22,62 @@ export async function analyzeContractRisks(content: string) {
       messages: [
         {
           role: "system",
-          content: "És um especialista jurídico angolano. Analisa contratos e identifica riscos. Responde SEMPRE em JSON válido, sem markdown, sem blocos de código."
+          content: `És um advogado especialista em direito angolano e internacional. 
+A tua função é analisar contratos de forma completa.
+Responde SEMPRE em JSON válido, sem markdown, sem blocos de código.`
         },
         {
           role: "user",
-          content: `Analisa o seguinte contrato e identifica os riscos potenciais.
-Retorna APENAS um array JSON com este formato exato:
-[{"severity": "low"|"medium"|"high", "description": "descrição em português"}]
+          content: `Analisa o seguinte contrato de forma completa.
+
+Retorna APENAS um JSON com este formato exato:
+{
+  "summary": "breve resumo do contrato e análise geral",
+  "risks": [
+    {
+      "severity": "low"|"medium"|"high",
+      "type": "legal"|"financial"|"operational"|"regulatory"|"contractual",
+      "description": "descrição detalhada do risco em português"
+    }
+  ],
+  "opportunities": [
+    {
+      "type": "positive"|"neutral",
+      "description": "descrição da oportunidade ou benefício em português"
+    }
+  ],
+  "valueAnalysis": "análise se o valor do contrato é justo e se compensa o investimento",
+  "applicableLaw": "legislação angolana e/ou internacional aplicável ao contrato"
+}
+
+Considera:
+- Legislação angolana (Lei dos Contratos, Código Civil Angolano, Lei da Concorrência)
+- Se aplicável, legislação internacional
+- Riscos financeiros, legais, operacionais e regulatórios
+- Oportunidades e benefícios do contrato
+- Se o valor apresentado é justo face ao mercado
 
 Contrato:
 ${content}`
         }
       ],
       temperature: 0.3,
-      max_tokens: 1024,
+      max_tokens: 2048,
     });
 
-    const text = completion.choices[0]?.message?.content?.trim() || "[]";
+    const text = completion.choices[0]?.message?.content?.trim() || "{}";
     const clean = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    return JSON.parse(clean);
+    const parsed = JSON.parse(clean);
+    return {
+      summary: parsed.summary || '',
+      risks: parsed.risks || [],
+      opportunities: parsed.opportunities || [],
+      valueAnalysis: parsed.valueAnalysis || '',
+      applicableLaw: parsed.applicableLaw || ''
+    };
   } catch (e) {
     console.error("Error analyzing contract risks:", e);
-    return [];
+    return { summary: '', risks: [], opportunities: [], valueAnalysis: '', applicableLaw: '' };
   }
 }
 

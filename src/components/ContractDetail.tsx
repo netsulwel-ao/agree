@@ -603,7 +603,7 @@ export default function ContractDetail() {
               )}
             </div>
 
-            {contract.risks && contract.risks.length > 0 && (
+            {contract.risks && Array.isArray(contract.risks) && contract.risks.length > 0 && (
               <div style={{
                 background: '#fff',
                 border: '1px solid #e2e5e9',
@@ -624,16 +624,16 @@ export default function ContractDetail() {
                     letterSpacing: 1,
                     fontFamily: "'Poppins',sans-serif"
                   }}>
-                    Riscos Identificados
+                    Riscos Identificados ({contract.risks.length})
                   </h3>
                   <button
                     onClick={async () => {
                       if (!contract.content) { toast.error('O contrato não tem conteúdo para analisar'); return; }
                       const results = await analyzeContractRisks(contract.content);
-                      if (results.length > 0) {
-                        const { error } = await supabase.from('contracts').update({ risks: results }).eq('id', contractId).eq('owner_id', user?.id);
+                      if (results.risks?.length > 0) {
+                        const { error } = await supabase.from('contracts').update({ risks: results.risks }).eq('id', contractId).eq('owner_id', user?.id);
                         if (!error) {
-                          setContract({ ...contract, risks: results });
+                          setContract({ ...contract, risks: results.risks });
                           toast.success('Riscos actualizados com sucesso');
                         }
                       }
@@ -660,30 +660,30 @@ export default function ContractDetail() {
                       padding: 12,
                       background: risk.severity === 'high' ? 'rgba(239,68,68,0.05)' : 
                                   risk.severity === 'medium' ? 'rgba(245,158,11,0.05)' : 
-                                  'rgba(13,17,23,0.05)',
+                                  'rgba(16,185,129,0.05)',
                       borderLeft: '3px solid ' + (risk.severity === 'high' ? '#ef4444' : 
-                                                          risk.severity === 'medium' ? '#f59e0b' : '#0d1117')
+                                                          risk.severity === 'medium' ? '#f59e0b' : '#10b981')
                     }}>
                       <AlertCircle size={18} color={risk.severity === 'high' ? '#ef4444' : 
-                                                         risk.severity === 'medium' ? '#f59e0b' : '#0d1117'} />
-                      <div>
+                                                                        risk.severity === 'medium' ? '#f59e0b' : '#10b981'} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 2 }}>
+                          <span style={{
+                            fontSize: 13, fontWeight: 600, textTransform: 'capitalize', color: '#0d1117',
+                            fontFamily: "'Poppins',sans-serif"
+                          }}>Risco {risk.severity}</span>
+                          {risk.type && (
+                            <span style={{
+                              fontSize: 10, fontWeight: 600, padding: '2px 8px',
+                              background: '#f0f0f0', color: '#6b7280',
+                              fontFamily: "'Poppins',sans-serif"
+                            }}>{risk.type}</span>
+                          )}
+                        </div>
                         <p style={{
-                          fontSize: 13,
-                          fontWeight: 600,
-                          color: '#0d1117',
-                          textTransform: 'capitalize',
-                          marginBottom: 2,
+                          fontSize: 13, color: '#374151', lineHeight: 1.5,
                           fontFamily: "'Poppins',sans-serif"
-                        }}>
-                          Risco {risk.severity}
-                        </p>
-                        <p style={{
-                          fontSize: 13,
-                          color: '#374151',
-                          fontFamily: "'Poppins',sans-serif"
-                        }}>
-                          {risk.description}
-                        </p>
+                        }}>{risk.description}</p>
                       </div>
                     </div>
                   ))}

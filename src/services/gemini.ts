@@ -91,6 +91,46 @@ ${JSON.stringify(contractSummaries)}`
   }
 }
 
+export async function extractContractFromText(text: string) {
+  if (!text || !apiKey) return null;
+
+  try {
+    const completion = await groq.chat.completions.create({
+      model: MODEL,
+      messages: [
+        {
+          role: "system",
+          content: "És um assistente jurídico angolano. Extraí dados estruturados de contratos. Responde SEMPRE em JSON válido, sem markdown."
+        },
+        {
+          role: "user",
+          content: `Extraí os dados do seguinte contrato e retorna APENAS um JSON com este formato:
+{
+  "title": "título do contrato",
+  "description": "breve descrição (máx 100 palavras)",
+  "startDate": "data de início no formato YYYY-MM-DD ou vazio",
+  "endDate": "data de término no formato YYYY-MM-DD ou vazio",
+  "value": "valor numérico sem símbolos (ex: 1500000.00) ou vazio"
+}
+
+Se não encontrares um campo, deixa vazio. Não inventes dados.
+Texto do contrato:
+${text.slice(0, 15000)}`
+        }
+      ],
+      temperature: 0.2,
+      max_tokens: 512,
+    });
+
+    const content = completion.choices[0]?.message?.content?.trim() || "{}";
+    const clean = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    return JSON.parse(clean);
+  } catch (e) {
+    console.error("Error extracting contract data:", e);
+    return null;
+  }
+}
+
 export async function generateContractSuggestions(description: string): Promise<string> {
   if (!description || !apiKey) return "";
 

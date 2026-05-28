@@ -13,7 +13,7 @@ import {
   Wand2,
   FileUp
 } from 'lucide-react';
-import { analyzeContractRisks, generateContractSuggestions } from '../services/gemini';
+import { analyzeContractRisks, generateContractSuggestions, extractContractFromText } from '../services/gemini';
 import { extractTextFromPdf } from '../services/pdf';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
@@ -124,9 +124,29 @@ export default function ContractForm() {
     try {
       const text = await extractTextFromPdf(file);
       setFormData(prev => ({ ...prev, content: text }));
-      toast.success(`Texto extraído do PDF (${(text.length / 1000).toFixed(0)}k caracteres)`);
+      toast.success(`Texto extraído (${(text.length / 1000).toFixed(0)}k caracteres). A extrair dados...`);
+
+      const extracted = await extractContractFromText(text);
+      if (extracted) {
+        setFormData(prev => ({
+          ...prev,
+          title: extracted.title || prev.title,
+          description: extracted.description || prev.description,
+          value: extracted.value || prev.value,
+          startDate: extracted.startDate || prev.startDate,
+          endDate: extracted.endDate || prev.endDate,
+          content: text,
+        }));
+        toast.success('Campos preenchidos automaticamente!');
+      }
+
+      const results = await analyzeContractRisks(text);
+      if (results.length > 0) {
+        setRisks(results);
+        toast.success(`${results.length} riscos identificados`);
+      }
     } catch {
-      toast.error('Erro ao extrair texto do PDF');
+      toast.error('Erro ao processar PDF');
     } finally {
       setExtractingPdf(false);
       e.target.value = '';
@@ -246,7 +266,7 @@ export default function ContractForm() {
 
   return (
     <div style={{
-      maxWidth: 800,
+      maxWidth: 1200,
       margin: '0 auto',
       fontFamily: "'Poppins', sans-serif"
     }}>
@@ -348,7 +368,7 @@ export default function ContractForm() {
           <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 24 }}>
             <div style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
+              gridTemplateColumns: '1fr 1fr 1fr',
               gap: 24
             }}>
               <div style={{ gridColumn: '1 / -1' }}>
@@ -380,7 +400,7 @@ export default function ContractForm() {
                   }}
                   onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
                   onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
-                  placeholder="Digite o título do contrato"
+                  placeholder="Título do contrato"
                 />
               </div>
 
@@ -398,7 +418,7 @@ export default function ContractForm() {
                 <textarea
                   value={formData.description}
                   onChange={e => setFormData({ ...formData, description: e.target.value })}
-                  rows={3}
+                  rows={2}
                   style={{
                     width: '100%',
                     padding: '10px 14px',
@@ -459,88 +479,83 @@ export default function ContractForm() {
                 </div>
               </div>
 
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: 16
-              }}>
-                <div>
-                  <label style={{
-                    display: 'block',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: '#374151',
-                    marginBottom: 8,
-                    fontFamily: "'Poppins',sans-serif"
-                  }}>
-                    Data de Início
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <CalendarIcon style={{
-                      position: 'absolute',
-                      left: 14,
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      color: '#6b7280'
-                    }} size={18} />
-                    <input
-                      type="date"
-                      value={formData.startDate}
-                      onChange={e => setFormData({ ...formData, startDate: e.target.value })}
-                      style={{
-                        width: '100%',
-                        padding: '10px 14px 10px 42px',
-                        fontSize: 14,
-                        fontFamily: "'Poppins',sans-serif",
-                        background: '#fff',
-                        border: '1.5px solid #e2e5e9',
-                        color: '#0d1117',
-                        outline: 'none',
-                        transition: 'all .2s'
-                      }}
-                      onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
-                      onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
-                    />
-                  </div>
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#374151',
+                  marginBottom: 8,
+                  fontFamily: "'Poppins',sans-serif"
+                }}>
+                  Data de Início
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <CalendarIcon style={{
+                    position: 'absolute',
+                    left: 14,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: '#6b7280'
+                  }} size={18} />
+                  <input
+                    type="date"
+                    value={formData.startDate}
+                    onChange={e => setFormData({ ...formData, startDate: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px 10px 42px',
+                      fontSize: 14,
+                      fontFamily: "'Poppins',sans-serif",
+                      background: '#fff',
+                      border: '1.5px solid #e2e5e9',
+                      color: '#0d1117',
+                      outline: 'none',
+                      transition: 'all .2s'
+                    }}
+                    onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
+                    onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
+                  />
                 </div>
-                <div>
-                  <label style={{
-                    display: 'block',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: '#374151',
-                    marginBottom: 8,
-                    fontFamily: "'Poppins',sans-serif"
-                  }}>
-                    Data de Término
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <CalendarIcon style={{
-                      position: 'absolute',
-                      left: 14,
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      color: '#6b7280'
-                    }} size={18} />
-                    <input
-                      type="date"
-                      value={formData.endDate}
-                      onChange={e => setFormData({ ...formData, endDate: e.target.value })}
-                      style={{
-                        width: '100%',
-                        padding: '10px 14px 10px 42px',
-                        fontSize: 14,
-                        fontFamily: "'Poppins',sans-serif",
-                        background: '#fff',
-                        border: '1.5px solid #e2e5e9',
-                        color: '#0d1117',
-                        outline: 'none',
-                        transition: 'all .2s'
-                      }}
-                      onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
-                      onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
-                    />
-                  </div>
+              </div>
+
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#374151',
+                  marginBottom: 8,
+                  fontFamily: "'Poppins',sans-serif"
+                }}>
+                  Data de Término
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <CalendarIcon style={{
+                    position: 'absolute',
+                    left: 14,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: '#6b7280'
+                  }} size={18} />
+                  <input
+                    type="date"
+                    value={formData.endDate}
+                    onChange={e => setFormData({ ...formData, endDate: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px 10px 42px',
+                      fontSize: 14,
+                      fontFamily: "'Poppins',sans-serif",
+                      background: '#fff',
+                      border: '1.5px solid #e2e5e9',
+                      color: '#0d1117',
+                      outline: 'none',
+                      transition: 'all .2s'
+                    }}
+                    onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
+                    onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
+                  />
                 </div>
               </div>
             </div>
@@ -621,7 +636,7 @@ export default function ContractForm() {
                 required
                 value={formData.content}
                 onChange={e => setFormData({ ...formData, content: e.target.value })}
-                rows={10}
+                rows={16}
                 style={{
                   width: '100%',
                   padding: '12px 14px',

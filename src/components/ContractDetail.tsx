@@ -14,7 +14,9 @@ import {
   Loader2,
   ExternalLink,
   Plus,
-  Eye
+  Eye,
+  FileEdit,
+  Trash2
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -263,19 +265,21 @@ export default function ContractDetail() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
-          {/*<button style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '10px 18px',
-            fontSize: 13,
-            fontWeight: 600,
-            background: '#fff',
-            border: '1.5px solid #e2e5e9',
-            color: '#6b7280',
-            cursor: 'pointer',
-            fontFamily: "'Poppins',sans-serif"
-          }}
+          <button
+            onClick={() => navigate(`/contracts/${contractId}/edit`)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '10px 18px',
+              fontSize: 13,
+              fontWeight: 600,
+              background: '#fff',
+              border: '1.5px solid #e2e5e9',
+              color: '#6b7280',
+              cursor: 'pointer',
+              fontFamily: "'Poppins',sans-serif"
+            }}
             onMouseEnter={e => {
               e.currentTarget.style.background = '#f7f9fb';
               e.currentTarget.style.color = '#0d1117';
@@ -285,9 +289,44 @@ export default function ContractDetail() {
               e.currentTarget.style.color = '#6b7280';
             }}
           >
-            <Share2 size={16} />
-            Partilhar
-          </button>*/}
+            <FileEdit size={16} />
+            Editar
+          </button>
+          <button
+            onClick={() => {
+              if (window.confirm('Tens a certeza que pretendes eliminar este contrato? Esta acção é irreversível.')) {
+                supabase.from('contracts').delete().eq('id', contractId).eq('owner_id', user?.id).then(({ error }) => {
+                  if (error) { toast.error('Erro ao eliminar contrato'); return; }
+                  toast.success('Contrato eliminado com sucesso');
+                  navigate('/contracts');
+                });
+              }
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '10px 18px',
+              fontSize: 13,
+              fontWeight: 600,
+              background: '#fff',
+              border: '1.5px solid #fee2e2',
+              color: '#ef4444',
+              cursor: 'pointer',
+              fontFamily: "'Poppins',sans-serif"
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = '#fef2f2';
+              e.currentTarget.style.color = '#dc2626';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = '#fff';
+              e.currentTarget.style.color = '#ef4444';
+            }}
+          >
+            <Trash2 size={16} />
+            Eliminar
+          </button>
           <button
             onClick={() => exportContractToPdf(contract)}
             style={{

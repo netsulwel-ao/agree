@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { 
   Save, 
@@ -15,16 +15,19 @@ import {
 import { analyzeContractRisks, generateContractSuggestions } from '../services/gemini';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function ContractForm() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { id: editId } = useParams<{ id: string }>();
+  const isEditing = !!editId;
   const [analyzing, setAnalyzing] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [risks, setRisks] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
+  const [loadingContract, setLoadingContract] = useState(isEditing);
   
   const [formData, setFormData] = useState({
     title: '',
@@ -36,6 +39,36 @@ export default function ContractForm() {
   });
 
   const [attachments, setAttachments] = useState<File[]>([]);
+  const [existingAttachments, setExistingAttachments] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!editId || !user) return;
+    const fetchContract = async () => {
+      const { data, error } = await supabase
+        .from('contracts')
+        .select('*')
+        .eq('id', editId)
+        .eq('owner_id', user.id)
+        .single();
+      if (error || !data) {
+        toast.error('Contrato não encontrado');
+        navigate('/contracts');
+        return;
+      }
+      setFormData({
+        title: data.title || '',
+        description: data.description || '',
+        content: data.content || '',
+        value: data.value?.toString() || '',
+        startDate: data.start_date || '',
+        endDate: data.end_date || '',
+      });
+      setRisks(data.risks || []);
+      setExistingAttachments(data.attachments || []);
+      setLoadingContract(false);
+    };
+    fetchContract();
+  }, [editId, user, navigate]);
 
   const handleAnalyze = async () => {
     if (!formData.content) {
@@ -94,7 +127,7 @@ export default function ContractForm() {
 
     setSaving(true);
     try {
-      const uploadedAttachments = [];
+      const allAttachments = [...existingAttachments];
       if (attachments.length > 0) {
         for (const file of attachments) {
           const filePath = `${user.id}/${Date.now()}_${file.name}`;
@@ -108,7 +141,7 @@ export default function ContractForm() {
             .from('contracts')
             .getPublicUrl(filePath);
 
-          uploadedAttachments.push({
+          allAttachments.push({
             id: uuidv4(),
             name: file.name,
             url: publicUrl,
@@ -120,33 +153,66 @@ export default function ContractForm() {
         }
       }
 
-      const { data: contract, error: contractError } = await supabase
-        .from('contracts')
-        .insert({
-          title: formData.title,
-          description: formData.description,
+      if (isEditing) {
+        const { error: updateError } = await supabase
+          .from('contracts')
+          .update({
+            title: formData.title,
+            description: formData.description,
+            content: formData.content,
+            value: parseFloat(formData.value) || 0,
+            start_date: formData.startDate || null,
+            end_date: formData.endDate || null,
+            risks: risks,
+            attachments: allAttachments,
+          })
+          .eq('id', editId)
+          .eq('owner_id', user.id);
+
+        if (updateError) throw updateError;
+
+        await supabase.from('contract_versions').insert({
+          contract_id: editId,
           content: formData.content,
-          value: parseFloat(formData.value) || 0,
-          status: 'draft',
-          owner_id: user.id,
-          start_date: formData.startDate || null,
-          end_date: formData.endDate || null,
-          risks: risks,
-          attachments: uploadedAttachments,
-        })
-        .select()
-        .single();
+          version_number: (await supabase
+            .from('contract_versions')
+            .select('version_number')
+            .eq('contract_id', editId)
+            .order('version_number', { ascending: false })
+            .limit(1)).data?.[0]?.version_number + 1 || 1
+        });
 
-      if (contractError) throw contractError;
-      
-      await supabase.from('contract_versions').insert({
-        contract_id: contract.id,
-        content: formData.content,
-        version_number: 1
-      });
+        toast.success("Contrato actualizado com sucesso!");
+        navigate(`/contracts/${editId}`);
+      } else {
+        const { data: contract, error: contractError } = await supabase
+          .from('contracts')
+          .insert({
+            title: formData.title,
+            description: formData.description,
+            content: formData.content,
+            value: parseFloat(formData.value) || 0,
+            status: 'draft',
+            owner_id: user.id,
+            start_date: formData.startDate || null,
+            end_date: formData.endDate || null,
+            risks: risks,
+            attachments: allAttachments,
+          })
+          .select()
+          .single();
 
-      toast.success("Contrato criado com sucesso!");
-      navigate('/contracts');
+        if (contractError) throw contractError;
+        
+        await supabase.from('contract_versions').insert({
+          contract_id: contract.id,
+          content: formData.content,
+          version_number: 1
+        });
+
+        toast.success("Contrato criado com sucesso!");
+        navigate('/contracts');
+      }
     } catch (error) {
       console.error("Error saving contract:", error);
       toast.error("Erro ao salvar contrato");
@@ -185,14 +251,14 @@ export default function ContractForm() {
                 marginBottom: 4,
                 fontFamily: "'Poppins',sans-serif"
               }}>
-                Novo Contrato
+                {isEditing ? 'Editar Contrato' : 'Novo Contrato'}
               </h2>
               <p style={{
                 fontSize: 14,
                 color: '#6b7280',
                 fontFamily: "'Poppins',sans-serif"
               }}>
-                Preencha os dados do contrato abaixo
+                {isEditing ? 'Altere os dados do contrato abaixo' : 'Preencha os dados do contrato abaixo'}
               </p>
             </div>
             <div style={{ display: 'flex', gap: 12 }}>

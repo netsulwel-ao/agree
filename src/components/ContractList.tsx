@@ -7,12 +7,15 @@ import {
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { supabase } from '../lib/supabase';
 import { intelligentSearch } from '../services/gemini';
 import { exportContractListToPdf } from '../services/exportPdf';
 import { toast } from 'sonner';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function ContractList() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { data: contracts = [], isLoading } = useContracts();
   const [searchTerm, setSearchTerm] = useState('');
   const [isAiSearching, setIsAiSearching] = useState(false);
@@ -216,8 +219,15 @@ export default function ContractList() {
                       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4 }} onClick={e => e.stopPropagation()}>
                         {[
                           { icon: <Eye size={15} />, hoverColor: '#0d1117', onClick: () => navigate(`/contracts/${contract.id}`) },
-                          //{ icon: <FileEdit size={15} />, hoverColor: '#0d1117', onClick: () => {} },
-                          //{ icon: <Trash2 size={15} />, hoverColor: '#ef4444', onClick: () => {} },
+                          { icon: <FileEdit size={15} />, hoverColor: '#0d1117', onClick: () => navigate(`/contracts/${contract.id}/edit`) },
+                          { icon: <Trash2 size={15} />, hoverColor: '#ef4444', onClick: () => {
+                            if (window.confirm('Tens a certeza que pretendes eliminar este contrato? Esta acção é irreversível.')) {
+                              supabase.from('contracts').delete().eq('id', contract.id).eq('owner_id', user?.id).then(({ error }) => {
+                                if (error) { toast.error('Erro ao eliminar contrato'); return; }
+                                toast.success('Contrato eliminado com sucesso');
+                              });
+                            }
+                          }},
                         ].map((btn, bi) => (
                           <button
                             key={bi}

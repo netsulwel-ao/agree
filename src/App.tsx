@@ -40,6 +40,7 @@ function AppRoutes() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/contracts" element={<ContractList />} />
         <Route path="/contracts/new" element={<ContractForm />} />
+        <Route path="/contracts/:id/edit" element={<ContractForm />} />
         <Route path="/contracts/:id" element={<ContractDetail />} />
         <Route path="/analytics" element={<Analytics />} />
         <Route path="/compliance" element={<Compliance />} />

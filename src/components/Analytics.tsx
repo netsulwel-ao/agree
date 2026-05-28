@@ -29,7 +29,8 @@ import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval, parseISO
 import { ptBR } from 'date-fns/locale';
 import { useAuth } from '../contexts/AuthContext';
 
-const COLORS = ['#0d1117', '#f59e0b', '#ef4444', '#6b7280'];
+const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#6366f1'];
+const VIBRANT = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
 export default function Analytics() {
   const { user } = useAuth();
@@ -368,8 +369,8 @@ export default function Analytics() {
               <AreaChart data={financialData}>
                 <defs>
                   <linearGradient id="colorFinancial" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#0d1117" stopOpacity={0.1} />
-                    <stop offset="95%" stopColor="#0d1117" stopOpacity={0} />
+                    <stop offset="0%" stopColor="#10b981" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e5e9" />
@@ -404,7 +405,7 @@ export default function Analytics() {
                 <Area
                   type="monotone"
                   dataKey="value"
-                  stroke="#0d1117"
+                  stroke="#10b981"
                   strokeWidth={2}
                   fillOpacity={1}
                   fill="url(#colorFinancial)"
@@ -519,7 +520,7 @@ export default function Analytics() {
                   {riskData.map((entry, index) => (
                     <Cell 
                       key={`cell-${index}`} 
-                      fill={entry.name === 'Alto' ? '#ef4444' : entry.name === 'Médio' ? '#f59e0b' : '#0d1117'} 
+                      fill={entry.name === 'Alto' ? '#ef4444' : entry.name === 'Médio' ? '#f59e0b' : '#10b981'} 
                     />
                   ))}
                 </Bar>
@@ -577,10 +578,10 @@ export default function Analytics() {
                     fontFamily: "'Poppins',sans-serif"
                   }}
                 />
-                <Bar dataKey="total" name="Total" stackId="a" fill="#0d1117" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="total" name="Total" stackId="a" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="alto" name="Risco Alto" stackId="a" fill="#ef4444" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="medio" name="Risco Médio" stackId="a" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="baixo" name="Risco Baixo" stackId="a" fill="#6b7280" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="baixo" name="Risco Baixo" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]} />
                 <Legend verticalAlign="bottom" height={36} />
               </BarChart>
             </ResponsiveContainer>

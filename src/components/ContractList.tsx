@@ -191,7 +191,14 @@ export default function ContractList() {
                   >
                     <td style={{ padding: '14px 24px' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                        <span style={{ fontWeight: 600, color: '#0d1117' }}>{contract.title}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontWeight: 600, color: '#0d1117' }}>{contract.title}</span>
+                          {contract.owner_id !== user?.id && (
+                            <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', background: 'rgba(13,17,23,0.08)', color: '#0d1117', borderRadius: 20, whiteSpace: 'nowrap' }}>
+                              Partilhado
+                            </span>
+                          )}
+                        </div>
                         <span style={{ fontSize: 11, color: '#6b7280', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {contract.description || 'Sem descrição'}
                         </span>

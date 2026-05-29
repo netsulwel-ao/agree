@@ -38,6 +38,45 @@ function simpleHash(str: string): string {
   return Math.abs(hash).toString(16).padStart(8, '0').toUpperCase();
 }
 
+const APP_URL = import.meta.env.VITE_APP_URL || window.location.origin;
+
+async function sendNotificationEmail(to: string, name: string, contractTitle: string, ownerName: string, type: 'invite' | 'reminder' | 'signed') {
+  const contractUrl = `${APP_URL}/contracts/${contract.id}`;
+  const subject = type === 'invite'
+    ? `Foste convidado(a) para assinar: ${contractTitle}`
+    : type === 'reminder'
+    ? `Lembrete: assina o contrato ${contractTitle}`
+    : `Contrato assinado: ${contractTitle}`;
+
+  const html = `
+    <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:32px 24px">
+      <h2 style="font-size:20px;color:#0d1117;margin-bottom:16px">${subject}</h2>
+      ${type === 'invite' ? `<p style="font-size:14px;color:#374151">Olá <strong>${name}</strong>,</p>
+      <p style="font-size:14px;color:#374151;line-height:1.6"><strong>${ownerName}</strong> convidou-te para assinar o contrato <strong>"${contractTitle}"</strong> na plataforma Agree.</p>` : ''}
+      ${type === 'reminder' ? `<p style="font-size:14px;color:#374151">Olá <strong>${name}</strong>,</p>
+      <p style="font-size:14px;color:#374151;line-height:1.6">Ainda não assinaste o contrato <strong>"${contractTitle}"</strong>. O <strong>${ownerName}</strong> solicita a tua assinatura.</p>` : ''}
+      ${type === 'signed' ? `<p style="font-size:14px;color:#374151;line-height:1.6"><strong>${name}</strong> assinou o contrato <strong>"${contractTitle}"</strong>.</p>` : ''}
+      <p style="font-size:14px;color:#374151">Acede ao link abaixo para ver o contrato:</p>
+      <a href="${contractUrl}" style="display:inline-block;padding:12px 24px;font-size:14px;font-weight:700;color:#fff;background:#0d1117;text-decoration:none;border-radius:10px;margin:16px 0">Ver Contrato</a>
+      <hr style="border:none;border-top:1px solid #e2e5e9;margin:24px 0">
+      <p style="font-size:12px;color:#9ca3af">Plataforma Agree — Gestão de Contratos</p>
+    </div>
+  `;
+
+  try {
+    const res = await fetch('/api/send-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to, subject, html }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return true;
+  } catch (e: any) {
+    console.warn('Email não enviado (SMTP configurado?):', e.message);
+    return false;
+  }
+}
+
 export default function SignaturePanel({ contract, user, onUpdate }: SignaturePanelProps) {
   const [signatures, setSignatures] = useState<Signature[]>(contract.signatures || []);
   const [addingSignatory, setAddingSignatory] = useState(false);
@@ -97,6 +136,17 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
       setNewEmail('');
       setAddingSignatory(false);
       toast.success(`${newSig.name} adicionado como signatário`);
+
+      // Enviar email de notificação
+      const sent = await sendNotificationEmail(
+        newSig.email, newSig.name, contract.title,
+        user.user_metadata?.name || user.email || 'Owner',
+        'invite'
+      );
+      if (!sent) {
+        toast.warning('Signatário adicionado, mas não foi possível enviar o email (SMTP não configurado)');
+      }
+
       onUpdate();
     } catch (e) {
       toast.error('Erro ao adicionar signatário');
@@ -515,20 +565,44 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
                   {sig.signed ? 'Assinado' : 'Pendente'}
                 </span>
 
-                {/* Remover (só owner, só não assinados) */}
+                {/* Ações (só owner, só não assinados) */}
                 {isOwner && !sig.signed && (
-                  <button
-                    onClick={() => handleRemoveSignatory(sig.id)}
-                    style={{
-                      width: 32, height: 32, display: 'flex', alignItems: 'center',
-                      justifyContent: 'center', background: 'transparent', border: 'none',
-                      color: '#9ca3af', cursor: 'pointer', borderRadius: 8, transition: 'all .2s'
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; e.currentTarget.style.color = '#ef4444'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#9ca3af'; }}
-                  >
-                    <Trash2 size={15} />
-                  </button>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button
+                      onClick={async () => {
+                        const sent = await sendNotificationEmail(
+                          sig.email, sig.name, contract.title,
+                          user.user_metadata?.name || user.email || 'Owner',
+                          'reminder'
+                        );
+                        if (sent) toast.success('Lembrete enviado para ' + sig.email);
+                        else toast.warning('Não foi possível enviar o email (SMTP não configurado)');
+                      }}
+                      title="Enviar lembrete"
+                      style={{
+                        width: 32, height: 32, display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', background: 'transparent', border: 'none',
+                        color: '#9ca3af', cursor: 'pointer', borderRadius: 8, transition: 'all .2s'
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(13,17,23,0.08)'; e.currentTarget.style.color = '#0d1117'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#9ca3af'; }}
+                    >
+                      <Mail size={14} />
+                    </button>
+                    <button
+                      onClick={() => handleRemoveSignatory(sig.id)}
+                      title="Remover signatário"
+                      style={{
+                        width: 32, height: 32, display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', background: 'transparent', border: 'none',
+                        color: '#9ca3af', cursor: 'pointer', borderRadius: 8, transition: 'all .2s'
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; e.currentTarget.style.color = '#ef4444'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#9ca3af'; }}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 )}
               </div>
             ))}

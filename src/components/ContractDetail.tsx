@@ -17,7 +17,12 @@ import {
   Eye,
   FileEdit,
   Trash2,
-  Sparkles
+  Sparkles,
+  ThumbsUp,
+  ThumbsDown,
+  Send,
+  RotateCcw,
+  MessageSquare
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -27,6 +32,7 @@ import AgreeLogo from '../Agree-logo.svg';
 import { exportContractToPdf } from '../services/exportPdf';
 import { analyzeContractRisks } from '../services/gemini';
 import SignaturePanel from './SignaturePanel';
+import NegotiationRoom from './NegotiationRoom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -45,13 +51,16 @@ export default function ContractDetail() {
   });
   const [savingNote, setSavingNote] = useState(false);
   const [activeTab, setActiveTab] = useState<'details' | 'versions' | 'notes' | 'files' | 'signatures'>('details');
+  const [workflowLoading, setWorkflowLoading] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
 
   useEffect(() => {
     if (user) {
       const init = async () => {
         try {
           const [contractRes, versionsRes, notesRes] = await Promise.all([
-            supabase.from('contracts').select('*').eq('id', contractId).eq('owner_id', user.id).single(),
+            supabase.from('contracts').select('*').eq('id', contractId).single(),
             supabase.from('contract_versions').select('*').eq('contract_id', contractId).order('version_number', { ascending: false }),
             supabase.from('meeting_notes').select('*').eq('contract_id', contractId).order('date', { ascending: false })
           ]);
@@ -97,7 +106,7 @@ export default function ContractDetail() {
     if (!user) return;
     try {
       const [contractRes, versionsRes, notesRes] = await Promise.all([
-        supabase.from('contracts').select('*').eq('id', contractId).eq('owner_id', user.id).single(),
+        supabase.from('contracts').select('*').eq('id', contractId).single(),
         supabase.from('contract_versions').select('*').eq('contract_id', contractId).order('version_number', { ascending: false }),
         supabase.from('meeting_notes').select('*').eq('contract_id', contractId).order('date', { ascending: false })
       ]);
@@ -146,6 +155,94 @@ export default function ContractDetail() {
       toast.error('Erro ao salvar nota');
     } finally {
       setSavingNote(false);
+    }
+  };
+
+  const handleSubmitForReview = async () => {
+    if (!user || !contract) return;
+    setWorkflowLoading(true);
+    try {
+      const { error } = await supabase
+        .from('contracts')
+        .update({ status: 'pending', updated_at: new Date().toISOString() })
+        .eq('id', contract.id)
+        .eq('owner_id', user.id);
+      if (error) throw error;
+      setContract({ ...contract, status: 'pending' });
+      toast.success('Contrato submetido para revisão');
+    } catch (e: any) {
+      toast.error(e.message || 'Erro ao submeter para revisão');
+    } finally {
+      setWorkflowLoading(false);
+    }
+  };
+
+  const handleApprove = async () => {
+    if (!user || !contract) return;
+    setWorkflowLoading(true);
+    try {
+      const { error } = await supabase
+        .from('contracts')
+        .update({
+          status: 'approved',
+          reviewed_by: user.id,
+          reviewed_at: new Date().toISOString(),
+          rejection_reason: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', contract.id);
+      if (error) throw error;
+      setContract({ ...contract, status: 'approved', reviewed_by: user.id, reviewed_at: new Date().toISOString(), rejection_reason: null });
+      toast.success('Contrato aprovado! Já pode ser assinado.');
+    } catch (e: any) {
+      toast.error(e.message || 'Erro ao aprovar contrato');
+    } finally {
+      setWorkflowLoading(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!user || !contract || !rejectReason.trim()) return;
+    setWorkflowLoading(true);
+    try {
+      const { error } = await supabase
+        .from('contracts')
+        .update({
+          status: 'rejected',
+          reviewed_by: user.id,
+          reviewed_at: new Date().toISOString(),
+          rejection_reason: rejectReason.trim(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', contract.id);
+      if (error) throw error;
+      setContract({ ...contract, status: 'rejected', reviewed_by: user.id, reviewed_at: new Date().toISOString(), rejection_reason: rejectReason.trim() });
+      setShowRejectModal(false);
+      setRejectReason('');
+      toast.success('Contrato rejeitado');
+    } catch (e: any) {
+      toast.error(e.message || 'Erro ao rejeitar contrato');
+    } finally {
+      setWorkflowLoading(false);
+    }
+  };
+
+  const handleResubmit = async () => {
+    if (!user || !contract) return;
+    setWorkflowLoading(true);
+    try {
+      const { error } = await supabase
+        .from('contracts')
+        .update({ status: 'pending', updated_at: new Date().toISOString() })
+        .eq('id', contract.id)
+        .eq('owner_id', user.id);
+      if (error) throw error;
+      setContract({ ...contract, status: 'pending' });
+      toast.success('Contrato re-submetido para revisão');
+    } catch (e: any) {
+      toast.error(e.message || 'Erro ao re-submeter contrato');
+    } finally {
+      setWorkflowLoading(false);
     }
   };
 
@@ -358,6 +455,150 @@ export default function ContractDetail() {
         </div>
       </div>
 
+      {/* Workflow de aprovação — só visível para o owner */}
+      {contract.owner_id === user?.id && contract.status === 'draft' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 24px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 16 }}>
+          <Send size={20} color="#f59e0b" />
+          <p style={{ flex: 1, fontSize: 13, color: '#92400e', fontFamily: "'Poppins',sans-serif" }}>
+            Este contrato está em <strong>rascunho</strong>. Submete para revisão quando estiver pronto.
+          </p>
+          <button onClick={handleSubmitForReview} disabled={workflowLoading} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            padding: '10px 20px', fontSize: 13, fontWeight: 700,
+            background: '#0d1117', border: 'none', color: '#fff',
+            cursor: workflowLoading ? 'not-allowed' : 'pointer', borderRadius: 10,
+            opacity: workflowLoading ? 0.7 : 1, fontFamily: "'Poppins',sans-serif"
+          }}>
+            {workflowLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+            Submeter para Revisão
+          </button>
+        </div>
+      )}
+
+      {contract.owner_id === user?.id && contract.status === 'pending' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 24px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 16 }}>
+          <Clock size={20} color="#f59e0b" />
+          <p style={{ flex: 1, fontSize: 13, color: '#92400e', fontFamily: "'Poppins',sans-serif" }}>
+            Este contrato está <strong>em aprovação</strong>. Aprova ou rejeita com justificação.
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={handleApprove} disabled={workflowLoading} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '10px 20px', fontSize: 13, fontWeight: 700,
+              background: '#16a34a', border: 'none', color: '#fff',
+              cursor: workflowLoading ? 'not-allowed' : 'pointer', borderRadius: 10,
+              opacity: workflowLoading ? 0.7 : 1, fontFamily: "'Poppins',sans-serif"
+            }}>
+              {workflowLoading ? <Loader2 size={14} className="animate-spin" /> : <ThumbsUp size={14} />}
+              Aprovar
+            </button>
+            <button onClick={() => setShowRejectModal(true)} disabled={workflowLoading} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '10px 20px', fontSize: 13, fontWeight: 700,
+              background: '#ef4444', border: 'none', color: '#fff',
+              cursor: workflowLoading ? 'not-allowed' : 'pointer', borderRadius: 10,
+              opacity: workflowLoading ? 0.7 : 1, fontFamily: "'Poppins',sans-serif"
+            }}>
+              <ThumbsDown size={14} />
+              Rejeitar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {contract.owner_id === user?.id && contract.status === 'rejected' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '16px 24px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <ThumbsDown size={20} color="#ef4444" style={{ flexShrink: 0, marginTop: 2 }} />
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#dc2626', fontFamily: "'Poppins',sans-serif" }}>
+                Contrato rejeitado
+              </p>
+              {contract.rejection_reason && (
+                <p style={{ fontSize: 13, color: '#b91c1c', marginTop: 4, fontFamily: "'Poppins',sans-serif", lineHeight: 1.5 }}>
+                  Motivo: {contract.rejection_reason}
+                </p>
+              )}
+            </div>
+          </div>
+          <button onClick={handleResubmit} disabled={workflowLoading} style={{
+            alignSelf: 'flex-end', display: 'inline-flex', alignItems: 'center', gap: 8,
+            padding: '10px 20px', fontSize: 13, fontWeight: 700,
+            background: '#0d1117', border: 'none', color: '#fff',
+            cursor: workflowLoading ? 'not-allowed' : 'pointer', borderRadius: 10,
+            opacity: workflowLoading ? 0.7 : 1, fontFamily: "'Poppins',sans-serif"
+          }}>
+            {workflowLoading ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
+            Re-submeter para Revisão
+          </button>
+        </div>
+      )}
+
+      {contract.status === 'approved' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 24px', background: 'rgba(13,17,23,0.06)', border: '1px solid rgba(13,17,23,0.2)', borderRadius: 16 }}>
+          <CheckCircle2 size={20} color="#0d1117" />
+          <p style={{ flex: 1, fontSize: 13, color: '#374151', fontFamily: "'Poppins',sans-serif" }}>
+            Contrato <strong>aprovado</strong> e pronto para ser assinado pelas partes.
+          </p>
+        </div>
+      )}
+
+      {/* Modal de rejeição */}
+      {showRejectModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20
+        }}
+          onClick={() => setShowRejectModal(false)}
+        >
+          <div style={{
+            background: '#fff', borderRadius: 20, padding: 28, maxWidth: 480, width: '100%',
+            boxShadow: '0 24px 64px rgba(0,0,0,0.2)', fontFamily: "'Poppins',sans-serif"
+          }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 style={{ fontSize: 18, fontWeight: 700, color: '#0d1117', marginBottom: 8 }}>
+              Rejeitar Contrato
+            </h3>
+            <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 16 }}>
+              Indica o motivo da rejeição para que o autor possa corrigir.
+            </p>
+            <textarea
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              placeholder="Motivo da rejeição..."
+              rows={4}
+              style={{
+                width: '100%', padding: '12px 16px', fontSize: 14,
+                border: '1.5px solid #e2e5e9', outline: 'none', resize: 'vertical',
+                fontFamily: "'Poppins',sans-serif", borderRadius: 10
+              }}
+              autoFocus
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 16 }}>
+              <button onClick={() => setShowRejectModal(false)} style={{
+                padding: '10px 20px', fontSize: 14, fontWeight: 600,
+                background: '#fff', border: '1.5px solid #e2e5e9', color: '#6b7280',
+                cursor: 'pointer', borderRadius: 10, fontFamily: "'Poppins',sans-serif"
+              }}>
+                Cancelar
+              </button>
+              <button onClick={handleReject} disabled={workflowLoading || !rejectReason.trim()} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                padding: '10px 20px', fontSize: 14, fontWeight: 700,
+                background: '#ef4444', border: 'none', color: '#fff',
+                cursor: (workflowLoading || !rejectReason.trim()) ? 'not-allowed' : 'pointer', borderRadius: 10,
+                opacity: (workflowLoading || !rejectReason.trim()) ? 0.6 : 1,
+                fontFamily: "'Poppins',sans-serif"
+              }}>
+                {workflowLoading ? <Loader2 size={14} className="animate-spin" /> : null}
+                Rejeitar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tabs */}
       <div style={{
         display: 'flex',
@@ -374,6 +615,7 @@ export default function ContractDetail() {
           { id: 'versions', label: 'Versões', icon: History },
           { id: 'notes', label: 'Notas de Reunião', icon: FileText },
           { id: 'files', label: 'Anexos', icon: Paperclip },
+          { id: 'negotiation', label: 'Negociação', icon: MessageSquare },
           { id: 'signatures', label: 'Assinaturas', icon: CheckCircle2 }
         ].map(tab => (
           <button
@@ -1186,6 +1428,15 @@ export default function ContractDetail() {
             )}
           </div>
         </div>
+      )}
+
+      {activeTab === 'negotiation' && (
+        <NegotiationRoom
+          contract={contract}
+          user={user}
+          isOwner={contract.owner_id === user?.id}
+          onUpdate={fetchContractData}
+        />
       )}
 
       {activeTab === 'signatures' && (

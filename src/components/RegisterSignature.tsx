@@ -5,7 +5,7 @@ import { encryptSignature } from '../services/signatureEncryption';
 import QRCode from 'qrcode';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from '../contexts/AuthContext';
-import { ArrowLeft, Camera, Upload, QrCode, Smartphone, CheckCircle2, Loader2, RotateCcw, SlidersHorizontal } from 'lucide-react';
+import { ArrowLeft, Camera, Upload, QrCode, Smartphone, CheckCircle2, Loader2, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 
@@ -28,9 +28,7 @@ export default function RegisterSignature() {
   const [saved, setSaved] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [hasCamera, setHasCamera] = useState(true);
-  const [threshold, setThreshold] = useState(0);
-  const [useAdaptive, setUseAdaptive] = useState(true);
-  const [showRefine, setShowRefine] = useState(false);
+  const [lightLevel, setLightLevel] = useState(0);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -140,14 +138,11 @@ const isLocalhost = window.location.hostname === 'localhost' || window.location.
     }
   }, [method, sessionId, pollForSessionImage]);
 
-  const processAndPreview = async (blob: Blob, opts?: ProcessOptions) => {
+  const processAndPreview = async (blob: Blob) => {
     setIsProcessing(true);
     try {
       const file = new File([blob], 'signature.png', { type: 'image/png' });
-      const options: ProcessOptions = opts || (useAdaptive
-        ? { adaptive: true, noiseRemoval: true, smoothEdges: true }
-        : { threshold: threshold || undefined, noiseRemoval: true, smoothEdges: true });
-      const { blob: processed } = await processSignatureFile(file, options);
+      const { blob: processed } = await processSignatureFile(file);
       setFinalBlob(processed);
       const url = URL.createObjectURL(processed);
       if (processedPreview) URL.revokeObjectURL(processedPreview);
@@ -158,17 +153,6 @@ const isLocalhost = window.location.hostname === 'localhost' || window.location.
     } finally {
       setIsProcessing(false);
     }
-  };
-
-  const handleThresholdChange = (val: number) => {
-    setThreshold(val);
-    setUseAdaptive(false);
-    if (rawBlob) processAndPreview(rawBlob, { threshold: val, noiseRemoval: true, smoothEdges: true });
-  };
-
-  const toggleAdaptive = () => {
-    setUseAdaptive(prev => !prev);
-    if (rawBlob) processAndPreview(rawBlob);
   };
 
   const reprocess = () => {
@@ -316,21 +300,14 @@ const isLocalhost = window.location.hostname === 'localhost' || window.location.
       )}
 
       {step === 'capture' && method === 'camera' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center' }}>
-          <div style={{ position: 'relative', width: '100%', maxWidth: 500, borderRadius: 16, overflow: 'hidden', background: '#000' }}>
-            <video ref={videoRef} autoPlay playsInline style={{ width: '100%', display: 'block' }} />
-            <canvas ref={canvasRef} style={{ display: 'none' }} />
-          </div>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <button onClick={capturePhoto} disabled={isProcessing} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 24px', fontSize: 14, fontWeight: 700, background: '#0d1117', border: 'none', color: '#fff', cursor: 'pointer', borderRadius: 12, fontFamily: "'Poppins',sans-serif", opacity: isProcessing ? 0.7 : 1 }}>
-              {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
-              {isProcessing ? 'A processar...' : 'Capturar'}
-            </button>
-            <button onClick={() => { cameraStream?.getTracks().forEach(t => t.stop()); setCameraStream(null); setStep('choose-method'); }} style={{ padding: '12px 24px', fontSize: 14, fontWeight: 600, background: '#fff', border: '1px solid #e2e5e9', color: '#6b7280', cursor: 'pointer', borderRadius: 12, fontFamily: "'Poppins',sans-serif" }}>
-              Cancelar
-            </button>
-          </div>
-        </div>
+        <CameraView
+          videoRef={videoRef}
+          canvasRef={canvasRef}
+          cameraStream={cameraStream}
+          isProcessing={isProcessing}
+          onCapture={capturePhoto}
+          onCancel={() => { cameraStream?.getTracks().forEach(t => t.stop()); setCameraStream(null); setStep('choose-method'); }}
+        />
       )}
 
       {step === 'capture' && method === 'qr' && (
@@ -377,44 +354,6 @@ const isLocalhost = window.location.hostname === 'localhost' || window.location.
             </div>
           </div>
 
-          {/* Refine controls */}
-          <div style={{ background: '#fff', border: '1px solid #e2e5e9', borderRadius: 12, overflow: 'hidden' }}>
-            <button onClick={() => setShowRefine(!showRefine)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '14px 18px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Poppins',sans-serif", fontSize: 13, fontWeight: 600, color: '#374151' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <SlidersHorizontal size={16} />
-                Ajustar processamento
-              </span>
-              <span style={{ fontSize: 16, color: '#9ca3af' }}>{showRefine ? '−' : '+'}</span>
-            </button>
-            {showRefine && (
-              <div style={{ padding: '0 18px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {/* Adaptive toggle */}
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: 13, color: '#374151', fontFamily: "'Poppins',sans-serif" }}>
-                  <input type="checkbox" checked={useAdaptive} onChange={toggleAdaptive} style={{ width: 16, height: 16, accentColor: '#0d1117' }} />
-                  Limiar adaptativo (melhor para iluminação irregular)
-                </label>
-
-                {/* Manual threshold slider */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#6b7280', fontFamily: "'Poppins',sans-serif" }}>
-                    <span>Limiar: {threshold}</span>
-                    <span>{useAdaptive ? 'Automático' : 'Manual'}</span>
-                  </div>
-                  <input
-                    type="range" min="1" max="100" value={threshold || 50}
-                    onChange={e => handleThresholdChange(Number(e.target.value))}
-                    disabled={useAdaptive}
-                    style={{ width: '100%', accentColor: '#0d1117', opacity: useAdaptive ? 0.4 : 1 }}
-                  />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#9ca3af', fontFamily: "'Poppins',sans-serif" }}>
-                    <span>Mais tinta</span>
-                    <span>Menos tinta</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
           {/* Name */}
           <div>
             <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 6, letterSpacing: 0.5, fontFamily: "'Poppins',sans-serif" }}>NOME DA ASSINATURA</label>
@@ -448,4 +387,116 @@ function blobToBase64(blob: Blob): Promise<string> {
     reader.onerror = reject;
     reader.readAsDataURL(blob);
   });
+}
+
+function CameraView({ videoRef, canvasRef, cameraStream, isProcessing, onCapture, onCancel }: {
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+  canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  cameraStream: MediaStream | null;
+  isProcessing: boolean;
+  onCapture: () => void;
+  onCancel: () => void;
+}) {
+  const [light, setLight] = useState(0);
+  const lightTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    lightTimer.current = setInterval(() => {
+      const video = videoRef.current;
+      if (!video || video.readyState < 2) return;
+      const c = document.createElement('canvas');
+      c.width = 100;
+      c.height = 100;
+      const ctx = c.getContext('2d');
+      if (!ctx) return;
+      ctx.drawImage(video, 0, 0, 100, 100);
+      const d = ctx.getImageData(0, 0, 100, 100).data;
+      let sum = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      }
+      setLight(Math.round(sum / (d.length / 4)));
+    }, 500);
+    return () => { if (lightTimer.current) clearInterval(lightTimer.current); };
+  }, [videoRef]);
+
+  const lightPct = Math.min(100, Math.round((light / 255) * 100));
+  const lightOk = lightPct > 30 && lightPct < 85;
+  const lightTooBright = lightPct >= 85;
+  const lightTooDark = lightPct <= 30;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center' }}>
+      {/* Luminosity meter */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '8px 16px', borderRadius: 10,
+        background: lightTooDark ? 'rgba(239,68,68,0.1)' : lightTooBright ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)',
+        border: `1px solid ${lightTooDark || lightTooBright ? 'rgba(239,68,68,0.3)' : 'rgba(34,197,94,0.3)'}`,
+        fontFamily: "'Poppins',sans-serif", fontSize: 12, fontWeight: 600,
+        color: lightTooDark || lightTooBright ? '#ef4444' : '#16a34a'
+      }}>
+        <div style={{
+          width: 8, height: 8, borderRadius: '50%',
+          background: lightTooDark || lightTooBright ? '#ef4444' : lightOk ? '#16a34a' : '#f59e0b',
+          flexShrink: 0
+        }} />
+        {lightTooDark ? 'Pouca luz — acende mais luz' :
+         lightTooBright ? 'Muita luz — afasta a luz' :
+         lightPct === 0 ? 'A medir luz...' : 'Iluminação boa ✓'}
+        <span style={{ fontSize: 10, color: '#9ca3af', marginLeft: 'auto' }}>{lightPct}%</span>
+      </div>
+
+      {/* Video with guide lines overlay */}
+      <div style={{ position: 'relative', width: '100%', maxWidth: 500, borderRadius: 16, overflow: 'hidden', background: '#000' }}>
+        <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', display: 'block' }} />
+        <canvas ref={canvasRef} style={{ display: 'none' }} />
+        {/* Guide lines overlay */}
+        <svg
+          viewBox="0 0 100 100"
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+        >
+          {/* Center horizontal line */}
+          <line x1="10" y1="50" x2="90" y2="50" stroke="rgba(255,255,255,0.5)" strokeWidth="0.5" strokeDasharray="4,3" />
+          {/* Upper guide line */}
+          <line x1="15" y1="35" x2="85" y2="35" stroke="rgba(255,255,255,0.3)" strokeWidth="0.3" strokeDasharray="2,4" />
+          {/* Lower guide line */}
+          <line x1="15" y1="65" x2="85" y2="65" stroke="rgba(255,255,255,0.3)" strokeWidth="0.3" strokeDasharray="2,4" />
+          {/* Center vertical line */}
+          <line x1="50" y1="15" x2="50" y2="85" stroke="rgba(255,255,255,0.15)" strokeWidth="0.3" strokeDasharray="2,4" />
+          {/* Corner brackets */}
+          <path d="M15,30 L15,20 L25,20" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1" />
+          <path d="M85,30 L85,20 L75,20" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1" />
+          <path d="M15,70 L15,80 L25,80" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1" />
+          <path d="M85,70 L85,80 L75,80" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1" />
+        </svg>
+        <p style={{
+          position: 'absolute', bottom: 10, left: 0, right: 0, textAlign: 'center',
+          fontSize: 10, color: 'rgba(255,255,255,0.5)', fontFamily: "'Poppins',sans-serif",
+          margin: 0, pointerEvents: 'none'
+        }}>
+          Alinha a assinatura dentro das guias
+        </p>
+      </div>
+
+      <div style={{ display: 'flex', gap: 12 }}>
+        <button onClick={onCapture} disabled={isProcessing || !lightOk} style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 24px',
+          fontSize: 14, fontWeight: 700, background: '#0d1117', border: 'none', color: '#fff',
+          cursor: (isProcessing || !lightOk) ? 'not-allowed' : 'pointer', borderRadius: 12,
+          fontFamily: "'Poppins',sans-serif", opacity: (isProcessing || !lightOk) ? 0.5 : 1
+        }}>
+          {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
+          {isProcessing ? 'A processar...' : 'Capturar'}
+        </button>
+        <button onClick={onCancel} style={{
+          padding: '12px 24px', fontSize: 14, fontWeight: 600,
+          background: '#fff', border: '1px solid #e2e5e9', color: '#6b7280',
+          cursor: 'pointer', borderRadius: 12, fontFamily: "'Poppins',sans-serif"
+        }}>
+          Cancelar
+        </button>
+      </div>
+    </div>
+  );
 }

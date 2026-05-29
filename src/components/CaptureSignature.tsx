@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useParams } from 'react-router-dom';
 import { Camera, CheckCircle2, Loader2, AlertCircle, RotateCcw, Upload } from 'lucide-react';
@@ -213,18 +213,12 @@ export default function CaptureSignature() {
           <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handleFilePick} style={{ display: 'none' }} />
         </div>
       ) : step === 'camera' ? (
-        <>
-          <div style={{ position: 'relative', width: '100%', maxWidth: 500, borderRadius: 16, overflow: 'hidden', background: '#000' }}>
-            <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', display: 'block' }} />
-            <canvas ref={canvasRef} style={{ display: 'none' }} />
-          </div>
-          <button onClick={capturePhoto} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '16px 40px', fontSize: 16, fontWeight: 700, background: '#0d1117', border: 'none', color: '#fff', cursor: 'pointer', borderRadius: 14, fontFamily: "'Poppins',sans-serif" }}>
-            <Camera size={18} /> Capturar
-          </button>
-          <button onClick={() => { stopCamera(); retry(); }} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: 13, textDecoration: 'underline', fontFamily: "'Poppins',sans-serif" }}>
-            Cancelar
-          </button>
-        </>
+        <MobileCameraView
+          videoRef={videoRef}
+          canvasRef={canvasRef}
+          onCapture={capturePhoto}
+          onCancel={() => { stopCamera(); retry(); }}
+        />
       ) : step === 'uploading' ? (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: 40 }}>
           <Loader2 size={32} className="animate-spin" color="#0d1117" />
@@ -237,5 +231,84 @@ export default function CaptureSignature() {
         <pre style={{ fontSize: 9, color: '#9ca3af', maxWidth: '100%', overflow: 'auto', padding: 8, background: '#f5f5f5', borderRadius: 8, marginTop: 16, alignSelf: 'stretch' }}>{debug}</pre>
       )}
     </div>
+  );
+}
+
+function MobileCameraView({ videoRef, canvasRef, onCapture, onCancel }: {
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+  canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  onCapture: () => void;
+  onCancel: () => void;
+}) {
+  const [light, setLight] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const video = videoRef.current;
+      if (!video || video.readyState < 2) return;
+      const c = document.createElement('canvas');
+      c.width = 80;
+      c.height = 80;
+      const ctx = c.getContext('2d');
+      if (!ctx) return;
+      ctx.drawImage(video, 0, 0, 80, 80);
+      const d = ctx.getImageData(0, 0, 80, 80).data;
+      let sum = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      }
+      setLight(Math.round(sum / (d.length / 4)));
+    }, 500);
+    return () => clearInterval(timer);
+  }, [videoRef]);
+
+  const pct = Math.min(100, Math.round((light / 255) * 100));
+  const bad = pct <= 30 || pct >= 85;
+
+  return (
+    <>
+      {/* Luminosity */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', borderRadius: 10,
+        background: bad ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)',
+        border: `1px solid ${bad ? 'rgba(239,68,68,0.3)' : 'rgba(34,197,94,0.3)'}`,
+        fontSize: 12, fontWeight: 600,
+        color: bad ? '#ef4444' : '#16a34a', fontFamily: "'Poppins',sans-serif"
+      }}>
+        <div style={{ width: 8, height: 8, borderRadius: '50%', background: bad ? '#ef4444' : '#16a34a', flexShrink: 0 }} />
+        {pct <= 30 ? 'Pouca luz' : pct >= 85 ? 'Muita luz' : pct === 0 ? 'A medir...' : 'Luz boa ✓'}
+      </div>
+
+      {/* Video + guides */}
+      <div style={{ position: 'relative', width: '100%', maxWidth: 500, borderRadius: 16, overflow: 'hidden', background: '#000' }}>
+        <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', display: 'block' }} />
+        <canvas ref={canvasRef} style={{ display: 'none' }} />
+        <svg viewBox="0 0 100 100" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
+          <line x1="10" y1="50" x2="90" y2="50" stroke="rgba(255,255,255,0.5)" strokeWidth="0.5" strokeDasharray="4,3" />
+          <line x1="15" y1="35" x2="85" y2="35" stroke="rgba(255,255,255,0.3)" strokeWidth="0.3" strokeDasharray="2,4" />
+          <line x1="15" y1="65" x2="85" y2="65" stroke="rgba(255,255,255,0.3)" strokeWidth="0.3" strokeDasharray="2,4" />
+          <line x1="50" y1="15" x2="50" y2="85" stroke="rgba(255,255,255,0.15)" strokeWidth="0.3" strokeDasharray="2,4" />
+          <path d="M15,30 L15,20 L25,20" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1" />
+          <path d="M85,30 L85,20 L75,20" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1" />
+          <path d="M15,70 L15,80 L25,80" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1" />
+          <path d="M85,70 L85,80 L75,80" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1" />
+        </svg>
+        <p style={{ position: 'absolute', bottom: 10, left: 0, right: 0, textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.5)', fontFamily: "'Poppins',sans-serif", margin: 0, pointerEvents: 'none' }}>
+          Alinha a assinatura nas guias
+        </p>
+      </div>
+
+      <button onClick={onCapture} disabled={bad} style={{
+        display: 'inline-flex', alignItems: 'center', gap: 8, padding: '16px 40px',
+        fontSize: 16, fontWeight: 700, background: bad ? '#6b7280' : '#0d1117',
+        border: 'none', color: '#fff', cursor: bad ? 'not-allowed' : 'pointer',
+        borderRadius: 14, fontFamily: "'Poppins',sans-serif", opacity: bad ? 0.5 : 1
+      }}>
+        <Camera size={18} /> Capturar e Enviar
+      </button>
+      <button onClick={onCancel} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: 13, textDecoration: 'underline', fontFamily: "'Poppins',sans-serif" }}>
+        Cancelar
+      </button>
+    </>
   );
 }

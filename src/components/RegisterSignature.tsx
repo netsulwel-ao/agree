@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { processSignatureFile, processSignatureImage, cropToSignature, fileToImageData, imageDataToBlob } from '../services/signatureProcessor';
+import { processSignatureFile, type ProcessOptions } from '../services/signatureProcessor';
 import { encryptSignature } from '../services/signatureEncryption';
 import QRCode from 'qrcode';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from '../contexts/AuthContext';
-import { ArrowLeft, Camera, Upload, QrCode, Smartphone, Laptop, CheckCircle2, Loader2, RotateCcw, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, Camera, Upload, QrCode, Smartphone, CheckCircle2, Loader2, RotateCcw, SlidersHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 
@@ -28,6 +28,9 @@ export default function RegisterSignature() {
   const [saved, setSaved] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [hasCamera, setHasCamera] = useState(true);
+  const [threshold, setThreshold] = useState(0);
+  const [useAdaptive, setUseAdaptive] = useState(true);
+  const [showRefine, setShowRefine] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -137,13 +140,17 @@ const isLocalhost = window.location.hostname === 'localhost' || window.location.
     }
   }, [method, sessionId, pollForSessionImage]);
 
-  const processAndPreview = async (blob: Blob) => {
+  const processAndPreview = async (blob: Blob, opts?: ProcessOptions) => {
     setIsProcessing(true);
     try {
       const file = new File([blob], 'signature.png', { type: 'image/png' });
-      const { blob: processed } = await processSignatureFile(file);
+      const options: ProcessOptions = opts || (useAdaptive
+        ? { adaptive: true, noiseRemoval: true, smoothEdges: true }
+        : { threshold: threshold || undefined, noiseRemoval: true, smoothEdges: true });
+      const { blob: processed } = await processSignatureFile(file, options);
       setFinalBlob(processed);
       const url = URL.createObjectURL(processed);
+      if (processedPreview) URL.revokeObjectURL(processedPreview);
       setProcessedPreview(url);
       setStep('preview');
     } catch {
@@ -151,6 +158,17 @@ const isLocalhost = window.location.hostname === 'localhost' || window.location.
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleThresholdChange = (val: number) => {
+    setThreshold(val);
+    setUseAdaptive(false);
+    if (rawBlob) processAndPreview(rawBlob, { threshold: val, noiseRemoval: true, smoothEdges: true });
+  };
+
+  const toggleAdaptive = () => {
+    setUseAdaptive(prev => !prev);
+    if (rawBlob) processAndPreview(rawBlob);
   };
 
   const reprocess = () => {
@@ -345,15 +363,59 @@ const isLocalhost = window.location.hostname === 'localhost' || window.location.
       )}
 
       {step === 'preview' && processedPreview && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 500, margin: '0 auto' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 520, margin: '0 auto' }}>
+          {/* Preview */}
           <div style={{ background: '#fff', border: '1px solid #e2e5e9', borderRadius: 16, padding: 32, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
             <p style={{ fontSize: 14, fontWeight: 700, color: '#0d1117', margin: 0 }}>Pré-visualização</p>
             <p style={{ fontSize: 12, color: '#6b7280', margin: 0 }}>A tua assinatura após processamento digital</p>
             <div style={{ border: '2px dashed #e2e5e9', borderRadius: 12, padding: 24, minWidth: 200, minHeight: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.5)' }}>
-              <img src={processedPreview} alt="Assinatura processada" style={{ maxWidth: 300, maxHeight: 120, objectFit: 'contain' }} />
+              {isProcessing ? (
+                <Loader2 size={24} className="animate-spin" color="#0d1117" />
+              ) : (
+                <img src={processedPreview} alt="Assinatura processada" style={{ maxWidth: 300, maxHeight: 120, objectFit: 'contain' }} />
+              )}
             </div>
           </div>
 
+          {/* Refine controls */}
+          <div style={{ background: '#fff', border: '1px solid #e2e5e9', borderRadius: 12, overflow: 'hidden' }}>
+            <button onClick={() => setShowRefine(!showRefine)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '14px 18px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Poppins',sans-serif", fontSize: 13, fontWeight: 600, color: '#374151' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <SlidersHorizontal size={16} />
+                Ajustar processamento
+              </span>
+              <span style={{ fontSize: 16, color: '#9ca3af' }}>{showRefine ? '−' : '+'}</span>
+            </button>
+            {showRefine && (
+              <div style={{ padding: '0 18px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {/* Adaptive toggle */}
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: 13, color: '#374151', fontFamily: "'Poppins',sans-serif" }}>
+                  <input type="checkbox" checked={useAdaptive} onChange={toggleAdaptive} style={{ width: 16, height: 16, accentColor: '#0d1117' }} />
+                  Limiar adaptativo (melhor para iluminação irregular)
+                </label>
+
+                {/* Manual threshold slider */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#6b7280', fontFamily: "'Poppins',sans-serif" }}>
+                    <span>Limiar: {threshold}</span>
+                    <span>{useAdaptive ? 'Automático' : 'Manual'}</span>
+                  </div>
+                  <input
+                    type="range" min="1" max="100" value={threshold || 50}
+                    onChange={e => handleThresholdChange(Number(e.target.value))}
+                    disabled={useAdaptive}
+                    style={{ width: '100%', accentColor: '#0d1117', opacity: useAdaptive ? 0.4 : 1 }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#9ca3af', fontFamily: "'Poppins',sans-serif" }}>
+                    <span>Mais tinta</span>
+                    <span>Menos tinta</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Name */}
           <div>
             <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 6, letterSpacing: 0.5, fontFamily: "'Poppins',sans-serif" }}>NOME DA ASSINATURA</label>
             <input type="text" value={sigName} onChange={e => setSigName(e.target.value)} placeholder="Ex: Minha Assinatura" style={{ width: '100%', padding: '12px 16px', fontSize: 14, background: '#fff', border: '1.5px solid #e2e5e9', outline: 'none', fontFamily: "'Poppins',sans-serif", borderRadius: 10 }}
@@ -362,12 +424,13 @@ const isLocalhost = window.location.hostname === 'localhost' || window.location.
             />
           </div>
 
+          {/* Actions */}
           <div style={{ display: 'flex', gap: 12 }}>
-            <button onClick={handleSave} disabled={isSaving} style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 24px', fontSize: 15, fontWeight: 700, background: '#0d1117', border: 'none', color: '#fff', cursor: isSaving ? 'not-allowed' : 'pointer', borderRadius: 12, fontFamily: "'Poppins',sans-serif", opacity: isSaving ? 0.7 : 1 }}>
+            <button onClick={handleSave} disabled={isSaving || isProcessing} style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 24px', fontSize: 15, fontWeight: 700, background: '#0d1117', border: 'none', color: '#fff', cursor: (isSaving || isProcessing) ? 'not-allowed' : 'pointer', borderRadius: 12, fontFamily: "'Poppins',sans-serif", opacity: (isSaving || isProcessing) ? 0.7 : 1 }}>
               {isSaving ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle2 size={18} />}
               {isSaving ? 'A salvar...' : 'Salvar Assinatura'}
             </button>
-            <button onClick={reprocess} style={{ padding: '14px 20px', fontSize: 14, fontWeight: 600, background: '#fff', border: '1px solid #e2e5e9', color: '#6b7280', cursor: 'pointer', borderRadius: 12, fontFamily: "'Poppins',sans-serif", display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button onClick={reprocess} disabled={isProcessing} style={{ padding: '14px 20px', fontSize: 14, fontWeight: 600, background: '#fff', border: '1px solid #e2e5e9', color: '#6b7280', cursor: isProcessing ? 'not-allowed' : 'pointer', borderRadius: 12, fontFamily: "'Poppins',sans-serif", display: 'flex', alignItems: 'center', gap: 6, opacity: isProcessing ? 0.5 : 1 }}>
               <RotateCcw size={16} />
               Refazer
             </button>

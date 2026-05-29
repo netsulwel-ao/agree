@@ -26,6 +26,7 @@ export default function RegisterSignature() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [hasCamera, setHasCamera] = useState(true);
   const [lightLevel, setLightLevel] = useState(0);
@@ -167,7 +168,9 @@ const isLocalhost = window.location.hostname === 'localhost' || window.location.
   };
 
   const handleSave = async () => {
-    if (!finalBlob || !user) return;
+    setSaveError('');
+    if (!user) { toast.error('Sessão expirada. Faz login novamente.'); return; }
+    if (!finalBlob) { toast.error('Nenhuma assinatura processada. Tenta de novo.'); return; }
     const name = sigName.trim() || `Assinatura ${new Date().toLocaleDateString()}`;
     setIsSaving(true);
     try {
@@ -196,7 +199,9 @@ const isLocalhost = window.location.hostname === 'localhost' || window.location.
       setSaved(true);
       toast.success('Assinatura digital registada com sucesso!');
     } catch (e: any) {
-      toast.error(e.message || 'Erro ao salvar a assinatura');
+      const msg = e.message || 'Erro ao salvar a assinatura';
+      setSaveError(msg);
+      toast.error(msg);
     } finally {
       setIsSaving(false);
     }
@@ -353,6 +358,13 @@ const isLocalhost = window.location.hostname === 'localhost' || window.location.
               )}
             </div>
           </div>
+
+          {/* Error */}
+          {saveError && (
+            <div style={{ padding: '12px 16px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, fontSize: 13, color: '#ef4444', fontWeight: 600, textAlign: 'center' }}>
+              {saveError}
+            </div>
+          )}
 
           {/* Name */}
           <div>

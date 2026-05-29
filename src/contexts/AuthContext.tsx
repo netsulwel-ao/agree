@@ -36,12 +36,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchProfile = useCallback(async (userId: string) => {
     const { data } = await supabase
       .from('profiles')
-      .select('role, is_blocked')
+      .select('role')
       .eq('id', userId)
       .maybeSingle();
     if (data) {
       setRole(data.role || 'user');
-      const blocked = !!data.is_blocked;
+    }
+    // Tenta is_blocked separadamente (pode não existir até a migration correr)
+    const { data: blockedData } = await supabase
+      .from('profiles')
+      .select('is_blocked')
+      .eq('id', userId)
+      .maybeSingle();
+    if (blockedData && typeof blockedData.is_blocked === 'boolean') {
+      const blocked = blockedData.is_blocked;
       setIsBlocked(blocked);
       if (blocked) {
         await supabase.auth.signOut();

@@ -30,6 +30,7 @@ CREATE POLICY "Users can update their own profile"
     WITH CHECK (auth.uid()::text = id OR public.is_admin());
 
 -- Política: admins podem eliminar perfis (apenas se não for eles próprios)
+DROP POLICY IF EXISTS "Admins can delete profiles" ON profiles;
 CREATE POLICY "Admins can delete profiles"
     ON profiles FOR DELETE
     USING (public.is_admin() AND auth.uid()::text != id);
@@ -46,6 +47,7 @@ CREATE POLICY "Blocked users cannot view contracts"
     ));
 
 -- Política: utilizadores bloqueados não podem inserir contratos
+DROP POLICY IF EXISTS "Blocked users cannot insert contracts" ON contracts;
 CREATE POLICY "Blocked users cannot insert contracts"
     ON contracts FOR INSERT
     WITH CHECK (NOT EXISTS (
@@ -54,6 +56,7 @@ CREATE POLICY "Blocked users cannot insert contracts"
     ));
 
 -- Política: utilizadores bloqueados não podem atualizar contratos
+DROP POLICY IF EXISTS "Blocked users cannot update contracts" ON contracts;
 CREATE POLICY "Blocked users cannot update contracts"
     ON contracts FOR UPDATE
     USING (NOT EXISTS (

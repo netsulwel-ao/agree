@@ -3,3 +3,4 @@ dist/
 .env
 client_secret_*.json
 .vscode/
+check-rls.mjs

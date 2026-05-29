@@ -11,7 +11,9 @@ import {
   File,
   Loader2,
   Wand2,
-  FileUp
+  FileUp,
+  BookTemplate,
+  Library
 } from 'lucide-react';
 import { analyzeContractRisks, generateContractSuggestions, extractContractFromText } from '../services/gemini';
 import { extractTextFromPdf } from '../services/pdf';
@@ -19,6 +21,11 @@ import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import TemplateLibrary from './TemplateLibrary';
+import TemplateFieldForm from './TemplateFieldForm';
+import AIContractGenerator from './AIContractGenerator';
+import type { FieldDef } from './TemplateFieldForm';
+import { exportContractToPdf } from '../services/exportPdf';
 
 export default function ContractForm() {
   const { user } = useAuth();
@@ -31,6 +38,16 @@ export default function ContractForm() {
   const [analysis, setAnalysis] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [loadingContract, setLoadingContract] = useState(isEditing);
+  const [showTemplateLibrary, setShowTemplateLibrary] = useState(false);
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [templateCategory, setTemplateCategory] = useState('');
+  const [templateDesc, setTemplateDesc] = useState('');
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [showAIGenerator, setShowAIGenerator] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
+  const [exportingPdf, setExportingPdf] = useState(false);
   
   const [formData, setFormData] = useState({
     title: '',
@@ -269,6 +286,87 @@ export default function ContractForm() {
       toast.error("Erro ao salvar contrato");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!formData.content || !templateName.trim() || !templateCategory.trim()) {
+      toast.error('Preenche o nome e categoria do modelo');
+      return;
+    }
+    setSavingTemplate(true);
+    try {
+      const { error } = await supabase.from('contract_templates').insert({
+        name: templateName.trim(),
+        description: templateDesc.trim(),
+        category: templateCategory.trim(),
+        content: formData.content,
+        user_id: user?.id,
+        is_system: false
+      });
+      if (error) throw error;
+      toast.success('Modelo guardado com sucesso!');
+      setShowSaveTemplate(false);
+      setTemplateName('');
+      setTemplateCategory('');
+      setTemplateDesc('');
+    } catch (e) {
+      toast.error('Erro ao guardar modelo');
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
+
+  const handleSelectTemplate = (template: any) => {
+    setSelectedTemplate(template);
+    const initial: Record<string, string> = {};
+    (template.fields || []).forEach((f: FieldDef) => { initial[f.name] = ''; });
+    setFieldValues(initial);
+    setFormData(prev => ({ ...prev, content: '' }));
+    toast.success(`Modelo "${template.name}" aplicado — preenche os campos e exporta`);
+  };
+
+  const handleAIGenerated = (html: string, title: string) => {
+    setFormData(prev => ({ ...prev, content: html, title: prev.title || title }));
+    setShowAIGenerator(false);
+    toast.success('Contrato gerado com sucesso!');
+  };
+
+  const handleFieldChange = (name: string, value: string) => {
+    setFieldValues(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleGeneratePdf = async () => {
+    if (!selectedTemplate) return;
+    const missing = (selectedTemplate.fields || [])
+      .filter((f: FieldDef) => f.required && !fieldValues[f.name]?.trim())
+      .map((f: FieldDef) => f.label);
+    if (missing.length > 0) {
+      toast.error(`Campos obrigat\u00f3rios: ${missing.join(', ')}`);
+      return;
+    }
+    setExportingPdf(true);
+    try {
+      let html = selectedTemplate.content;
+      (selectedTemplate.fields || []).forEach((f: FieldDef) => {
+        const val = fieldValues[f.name] || '';
+        html = html.replace(new RegExp(`\\{\\{${f.name}\\}\\}`, 'g'), val);
+      });
+      await exportContractToPdf({
+        title: formData.title || selectedTemplate.name,
+        content: html,
+        status: 'draft',
+        value: fieldValues.valor_total || fieldValues.honorarios || fieldValues.salario_base || fieldValues.valor_renda || '',
+        risk_level: 'low',
+        description: `Gerado do modelo: ${selectedTemplate.name}`,
+        start_date: fieldValues.data_inicio || fieldValues.data_admissao || fieldValues.data_celebracao || '',
+        end_date: fieldValues.prazo_execucao || fieldValues.duracao_arrendamento || '',
+      });
+      toast.success('PDF exportado com sucesso');
+    } catch (err) {
+      toast.error('Erro ao exportar PDF');
+    } finally {
+      setExportingPdf(false);
     }
   };
 
@@ -580,86 +678,208 @@ export default function ContractForm() {
                   color: '#374151',
                   fontFamily: "'Poppins',sans-serif"
                 }}>
-                  Conteúdo do Contrato
+                  {selectedTemplate ? 'Campos do Modelo' : 'Conte\u00fado do Contrato'}
                 </label>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <input
-                    type="file"
-                    accept=".pdf"
-                    onChange={handlePdfUpload}
-                    style={{ display: 'none' }}
-                    id="pdf-upload"
-                  />
-                  <label htmlFor="pdf-upload" style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                    padding: '6px 12px', fontSize: 12, fontWeight: 600,
-                    background: '#fff', border: '1px solid #e2e5e9',
-                    color: extractingPdf ? '#0d1117' : '#6b7280',
-                    cursor: extractingPdf ? 'not-allowed' : 'pointer',
-                    transition: 'all .2s', fontFamily: "'Poppins',sans-serif",
-                    opacity: extractingPdf ? 0.8 : 1
-                  }}>
-                    {extractingPdf ? <Loader2 size={14} className="animate-spin" /> : <FileUp size={14} />}
-                    {extractingPdf ? 'Extraindo...' : 'Upload PDF'}
-                  </label>
                   <button
                     type="button"
-                    onClick={handleGenerate}
-                    disabled={generating}
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 6,
-                      padding: '6px 12px', fontSize: 12, fontWeight: 600,
-                      background: generating ? '#f0f0f0' : 'linear-gradient(135deg, #0d1117, #000000)',
-                      border: 'none', color: generating ? '#0d1117' : '#fff',
-                      cursor: generating ? 'not-allowed' : 'pointer',
-                      transition: 'all .2s', fontFamily: "'Poppins',sans-serif",
-                      borderRadius: 8, opacity: generating ? 0.8 : 1
+                    onClick={() => {
+                      setSelectedTemplate(null);
+                      setFieldValues({});
                     }}
+                    style={{
+                      display: selectedTemplate ? 'inline-flex' : 'none',
+                      alignItems: 'center', gap: 6,
+                      padding: '6px 12px', fontSize: 12, fontWeight: 600,
+                      background: '#fff', border: '1px solid #e2e5e9',
+                      color: '#6b7280', cursor: 'pointer',
+                      transition: 'all .2s', fontFamily: "'Poppins',sans-serif"
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#f7f9fb'; e.currentTarget.style.color = '#0d1117'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#6b7280'; }}
                   >
-                    {generating ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
-                    {generating ? 'Gerando...' : 'Gerar com IA'}
+                    <X size={14} />
+                    Limpar Modelo
                   </button>
                   <button
                     type="button"
-                    onClick={handleAnalyze}
-                    disabled={analyzing}
+                    onClick={() => setShowTemplateLibrary(true)}
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: 6,
                       padding: '6px 12px', fontSize: 12, fontWeight: 600,
                       background: '#fff', border: '1px solid #e2e5e9',
-                      color: analyzing ? '#0d1117' : '#6b7280',
-                      cursor: analyzing ? 'not-allowed' : 'pointer',
+                      color: '#6b7280', cursor: 'pointer',
                       transition: 'all .2s', fontFamily: "'Poppins',sans-serif"
                     }}
-                    onMouseEnter={e => { if (!analyzing) { e.currentTarget.style.background = '#f7f9fb'; e.currentTarget.style.color = '#0d1117'; } }}
-                    onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = analyzing ? '#0d1117' : '#6b7280'; }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#f7f9fb'; e.currentTarget.style.color = '#0d1117'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#6b7280'; }}
                   >
-                    {analyzing ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                    {analyzing ? 'Analisando...' : 'Analisar Riscos'}
+                    <Library size={14} />
+                    Modelos
                   </button>
+                  {!selectedTemplate && (
+                    <>
+                      <input
+                        type="file"
+                        accept=".pdf"
+                        onChange={handlePdfUpload}
+                        style={{ display: 'none' }}
+                        id="pdf-upload"
+                      />
+                      <label htmlFor="pdf-upload" style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        padding: '6px 12px', fontSize: 12, fontWeight: 600,
+                        background: '#fff', border: '1px solid #e2e5e9',
+                        color: extractingPdf ? '#0d1117' : '#6b7280',
+                        cursor: extractingPdf ? 'not-allowed' : 'pointer',
+                        transition: 'all .2s', fontFamily: "'Poppins',sans-serif",
+                        opacity: extractingPdf ? 0.8 : 1
+                      }}>
+                        {extractingPdf ? <Loader2 size={14} className="animate-spin" /> : <FileUp size={14} />}
+                        {extractingPdf ? 'Extraindo...' : 'Upload PDF'}
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowAIGenerator(true)}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 6,
+                          padding: '6px 12px', fontSize: 12, fontWeight: 600,
+                          background: 'linear-gradient(135deg, #0d1117, #000000)',
+                          border: 'none', color: '#fff',
+                          cursor: 'pointer',
+                          transition: 'all .2s', fontFamily: "'Poppins',sans-serif",
+                          borderRadius: 8
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.opacity = '0.85'; }}
+                        onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
+                      >
+                        <Wand2 size={14} />
+                        Gerar com IA
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleAnalyze}
+                        disabled={analyzing}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 6,
+                          padding: '6px 12px', fontSize: 12, fontWeight: 600,
+                          background: '#fff', border: '1px solid #e2e5e9',
+                          color: analyzing ? '#0d1117' : '#6b7280',
+                          cursor: analyzing ? 'not-allowed' : 'pointer',
+                          transition: 'all .2s', fontFamily: "'Poppins',sans-serif"
+                        }}
+                        onMouseEnter={e => { if (!analyzing) { e.currentTarget.style.background = '#f7f9fb'; e.currentTarget.style.color = '#0d1117'; } }}
+                        onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = analyzing ? '#0d1117' : '#6b7280'; }}
+                      >
+                        {analyzing ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                        {analyzing ? 'Analisando...' : 'Analisar Riscos'}
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
-              <textarea
-                required
-                value={formData.content}
-                onChange={e => setFormData({ ...formData, content: e.target.value })}
-                rows={16}
-                style={{
-                  width: '100%',
-                  padding: '12px 14px',
-                  fontSize: 14,
-                  fontFamily: "'Poppins',sans-serif",
+              {selectedTemplate ? (
+                <div style={{
                   background: '#fff',
                   border: '1.5px solid #e2e5e9',
-                  color: '#0d1117',
-                  outline: 'none',
-                  resize: 'vertical',
-                  transition: 'all .2s'
-                }}
-                onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
-                onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
-                placeholder="Cole o conteúdo completo do contrato aqui..."
-              />
+                  padding: 24
+                }}>
+                  <TemplateFieldForm
+                    fields={selectedTemplate.fields || []}
+                    values={fieldValues}
+                    onChange={handleFieldChange}
+                    templateName={selectedTemplate.name}
+                  />
+                  <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      onClick={handleGeneratePdf}
+                      disabled={exportingPdf}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 8,
+                        padding: '12px 28px',
+                        fontSize: 14, fontWeight: 700,
+                        background: exportingPdf ? '#e2e5e9' : '#0d1117',
+                        border: 'none', color: exportingPdf ? '#6b7280' : '#fff',
+                        cursor: exportingPdf ? 'not-allowed' : 'pointer',
+                        fontFamily: "'Poppins',sans-serif",
+                        transition: 'all .2s'
+                      }}
+                      onMouseEnter={e => { if (!exportingPdf) e.currentTarget.style.background = '#000'; }}
+                      onMouseLeave={e => { if (!exportingPdf) e.currentTarget.style.background = '#0d1117'; }}
+                    >
+                      {exportingPdf ? <Loader2 size={16} className="animate-spin" /> : <FileUp size={16} />}
+                      {exportingPdf ? 'A exportar...' : 'Exportar PDF'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <textarea
+                    value={formData.content}
+                    onChange={e => setFormData({ ...formData, content: e.target.value })}
+                    placeholder="Escreve ou cola o conte\u00fado completo do contrato aqui..."
+                    rows={16}
+                    style={{
+                      width: '100%',
+                      padding: '14px 16px',
+                      fontSize: 14,
+                      fontFamily: "'Poppins',sans-serif",
+                      background: '#fff',
+                      border: '1.5px solid #e2e5e9',
+                      color: '#0d1117',
+                      outline: 'none',
+                      resize: 'vertical',
+                      lineHeight: 1.7,
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                  {formData.content && (
+                    <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowSaveTemplate(true)}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 6,
+                          padding: '6px 12px', fontSize: 12, fontWeight: 600,
+                          background: 'transparent', border: 'none',
+                          color: '#6b7280', cursor: 'pointer',
+                          fontFamily: "'Poppins',sans-serif", transition: 'all .2s'
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.color = '#0d1117'; }}
+                        onMouseLeave={e => { e.currentTarget.style.color = '#6b7280'; }}
+                      >
+                        <BookTemplate size={14} />
+                        Guardar como Modelo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await exportContractToPdf({
+                            title: formData.title || 'contrato',
+                            content: formData.content,
+                            status: 'draft',
+                            value: formData.value,
+                            risk_level: 'low',
+                            description: formData.description,
+                            start_date: formData.startDate,
+                            end_date: formData.endDate,
+                          });
+                        }}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 6,
+                          padding: '6px 14px', fontSize: 12, fontWeight: 600,
+                          background: '#0d1117', border: 'none', color: '#fff',
+                          cursor: 'pointer', fontFamily: "'Poppins',sans-serif"
+                        }}
+                      >
+                        <FileUp size={14} />
+                        Exportar PDF
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
 
             {analysis && (
@@ -889,6 +1109,126 @@ export default function ContractForm() {
           </div>
         </div>
       </form>
+
+      {/* Template Library Modal */}
+      {showTemplateLibrary && (
+        <TemplateLibrary
+          onSelectTemplate={handleSelectTemplate}
+          onClose={() => setShowTemplateLibrary(false)}
+        />
+      )}
+
+      {/* AI Contract Generator Modal */}
+      {showAIGenerator && (
+        <AIContractGenerator
+          onGenerated={handleAIGenerated}
+          onClose={() => setShowAIGenerator(false)}
+        />
+      )}
+
+      {/* Save as Template Dialog */}
+      {showSaveTemplate && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 24, fontFamily: "'Poppins', sans-serif"
+        }} onClick={(e) => { if (e.target === e.currentTarget) setShowSaveTemplate(false); }}>
+          <div style={{
+            background: '#fff', width: '100%', maxWidth: 480,
+            boxShadow: '0 24px 64px rgba(0,0,0,0.2)'
+          }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e5e9' }}>
+              <h2 style={{ fontSize: 18, fontWeight: 700, color: '#0d1117', fontFamily: "'Poppins',sans-serif" }}>
+                Guardar como Modelo
+              </h2>
+              <p style={{ fontSize: 13, color: '#6b7280', fontFamily: "'Poppins',sans-serif" }}>
+                O conteúdo actual do contrato será guardado como modelo reutilizável
+              </p>
+            </div>
+            <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 6, fontFamily: "'Poppins',sans-serif" }}>
+                  NOME DO MODELO
+                </label>
+                <input
+                  type="text"
+                  value={templateName}
+                  onChange={e => setTemplateName(e.target.value)}
+                  placeholder="Ex: Contrato de Serviços - Padrão"
+                  style={{
+                    width: '100%', padding: '10px 14px', fontSize: 14,
+                    border: '1.5px solid #e2e5e9', outline: 'none',
+                    fontFamily: "'Poppins',sans-serif", color: '#0d1117'
+                  }}
+                  onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
+                  onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 6, fontFamily: "'Poppins',sans-serif" }}>
+                  CATEGORIA
+                </label>
+                <input
+                  type="text"
+                  value={templateCategory}
+                  onChange={e => setTemplateCategory(e.target.value)}
+                  placeholder="Ex: Serviços, Recursos Humanos, Comercial..."
+                  style={{
+                    width: '100%', padding: '10px 14px', fontSize: 14,
+                    border: '1.5px solid #e2e5e9', outline: 'none',
+                    fontFamily: "'Poppins',sans-serif", color: '#0d1117'
+                  }}
+                  onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
+                  onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 6, fontFamily: "'Poppins',sans-serif" }}>
+                  DESCRIÇÃO (OPCIONAL)
+                </label>
+                <input
+                  type="text"
+                  value={templateDesc}
+                  onChange={e => setTemplateDesc(e.target.value)}
+                  placeholder="Breve descrição do modelo"
+                  style={{
+                    width: '100%', padding: '10px 14px', fontSize: 14,
+                    border: '1.5px solid #e2e5e9', outline: 'none',
+                    fontFamily: "'Poppins',sans-serif", color: '#0d1117'
+                  }}
+                  onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
+                  onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
+                />
+              </div>
+            </div>
+            <div style={{ padding: '16px 24px', borderTop: '1px solid #e2e5e9', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button
+                onClick={() => setShowSaveTemplate(false)}
+                style={{
+                  padding: '10px 20px', fontSize: 14, fontWeight: 600,
+                  background: '#fff', border: '1px solid #e2e5e9', color: '#6b7280',
+                  cursor: 'pointer', fontFamily: "'Poppins',sans-serif"
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveTemplate}
+                disabled={savingTemplate}
+                style={{
+                  padding: '10px 20px', fontSize: 14, fontWeight: 600,
+                  background: '#0d1117', border: 'none', color: '#fff',
+                  cursor: savingTemplate ? 'not-allowed' : 'pointer',
+                  fontFamily: "'Poppins',sans-serif", opacity: savingTemplate ? 0.7 : 1
+                }}
+              >
+                {savingTemplate ? 'Guardando...' : 'Guardar Modelo'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

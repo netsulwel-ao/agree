@@ -152,14 +152,14 @@ export default function Dashboard() {
 
       {/* Welcome */}
       <div style={{
-        background: 'linear-gradient(135deg, #0d1117 0%, #000000 100%)',
+        background: 'linear-gradient(135deg, #1a1f2e 0%, #2d3548 100%)',
         padding: 32, color: '#fff', position: 'relative', overflow: 'hidden'
       }}>
-        <div style={{ position: 'absolute', right: -32, top: -32, width: 200, height: 200, background: 'rgba(255,255,255,0.1)', borderRadius: '50%', filter: 'blur(48px)' }} />
-        <div style={{ position: 'absolute', left: 200, bottom: -64, width: 180, height: 180, background: 'rgba(0,0,0,0.1)', borderRadius: '50%', filter: 'blur(40px)' }} />
+        <div style={{ position: 'absolute', right: -32, top: -32, width: 200, height: 200, background: 'rgba(255,255,255,0.08)', borderRadius: '50%', filter: 'blur(48px)' }} />
+        <div style={{ position: 'absolute', left: 200, bottom: -64, width: 180, height: 180, background: 'rgba(255,255,255,0.05)', borderRadius: '50%', filter: 'blur(40px)' }} />
         <div style={{ position: 'relative', zIndex: 1 }}>
           <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 8, fontFamily: "'Poppins',sans-serif" }}>
-            Olá, {user?.user_metadata?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'Usuário'}! 👋
+            Olá, {user?.user_metadata?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'Usuário'}!
           </h1>
           <p style={{ fontSize: 15, opacity: 0.9, marginBottom: 24, fontFamily: "'Poppins',sans-serif" }}>
             Gerencie os seus contratos com total segurança e inteligência.

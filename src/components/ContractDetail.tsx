@@ -23,6 +23,7 @@ import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
+import AgreeLogo from '../Agree-logo.svg';
 import { exportContractToPdf } from '../services/exportPdf';
 import { analyzeContractRisks } from '../services/gemini';
 import SignaturePanel from './SignaturePanel';
@@ -330,7 +331,7 @@ export default function ContractDetail() {
             Eliminar
           </button>
           <button
-            onClick={() => exportContractToPdf(contract)}
+            onClick={async () => { await exportContractToPdf(contract); }}
             style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -576,19 +577,38 @@ export default function ContractDetail() {
               </h3>
               
               {contract.content ? (
-                <div style={{
-                  maxHeight: 400,
-                  overflowY: 'auto',
-                  padding: 16,
-                  background: '#f7f9fb',
-                  border: '1px solid #e2e5e9',
-                  fontFamily: "'Poppins',sans-serif",
-                  fontSize: 13,
-                  lineHeight: 1.8,
-                  color: '#374151',
-                  whiteSpace: 'pre-wrap'
-                }}>
-                  {contract.content}
+                <div style={{ position: 'relative' }}>
+                  <div className="contract-content" style={{
+                    maxHeight: 400,
+                    overflowY: 'auto',
+                    padding: 24,
+                    background: '#fff',
+                    border: '1px solid #e8e8e8',
+                    fontFamily: "Georgia, 'Times New Roman', serif",
+                    fontSize: 12.5,
+                    lineHeight: 1.65,
+                    color: '#1a1a1a'
+                  }}
+                    dangerouslySetInnerHTML={{ __html: contract.content }}
+                  />
+                  <div style={{
+                    position: 'absolute',
+                    bottom: 8,
+                    right: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    fontSize: 9,
+                    color: 'rgba(0,0,0,0.15)',
+                    fontFamily: "'Poppins',sans-serif",
+                    fontWeight: 700,
+                    letterSpacing: 0.5,
+                    pointerEvents: 'none',
+                    userSelect: 'none'
+                  }}>
+                    <img src={AgreeLogo} alt="" style={{ height: 12, display: 'block', opacity: 0.5 }} />
+                    Agree — free plan
+                  </div>
                 </div>
               ) : (
                 <p style={{

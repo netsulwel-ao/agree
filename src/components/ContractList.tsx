@@ -149,7 +149,7 @@ export default function ContractList() {
             Contratos em Gestão
           </h2>
           <button
-            onClick={() => exportContractListToPdf(filteredContracts)}
+            onClick={async () => { await exportContractListToPdf(filteredContracts); }}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 6,
               fontSize: 12, fontWeight: 600, color: '#0d1117',

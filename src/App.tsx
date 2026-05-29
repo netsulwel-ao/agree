@@ -13,6 +13,7 @@ import LoadingScreen from './components/LoadingScreen';
 import RegisterSignature from './components/RegisterSignature';
 import SignatureList from './components/SignatureList';
 import CaptureSignature from './components/CaptureSignature';
+import AdminUsers from './components/AdminUsers';
 import { GlobalLoadingProvider, useGlobalLoading } from './contexts/GlobalLoadingContext';
 import { useAuth } from './contexts/AuthContext';
 
@@ -49,6 +50,7 @@ function AppRoutes() {
         <Route path="/compliance" element={<Compliance />} />
         <Route path="/signatures" element={<SignatureList />} />
         <Route path="/signatures/register" element={<RegisterSignature />} />
+        <Route path="/admin/users" element={<AdminUsers />} />
       </Route>
       
       {/* Signature capture via QR scan — standalone, no layout */}

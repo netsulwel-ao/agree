@@ -6,7 +6,7 @@ import { Toaster } from 'sonner';
 import {
   LayoutDashboard, FileText, PlusCircle, LogOut,
   Bell, Menu, X, BarChart3, ShieldCheck,
-  AlertTriangle, PenLine
+  AlertTriangle, PenLine, Shield
 } from 'lucide-react';
 import { addDays, isBefore, isAfter, parseISO } from 'date-fns';
 import AgreeLogo from '../Agree-logo.svg';
@@ -23,7 +23,7 @@ export default function Layout() {
   const [alertCount, setAlertCount] = useState(0);
   const [alerts, setAlerts] = useState<AlertContract[]>([]);
   const [alertsOpen, setAlertsOpen] = useState(false);
-  const { user, signOut } = useAuth();
+  const { user, signOut, isAdmin } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -65,6 +65,10 @@ export default function Layout() {
     { id: 'compliance', label: 'Segurança', icon: ShieldCheck, path: '/compliance' },
     { id: 'create', label: 'Novo Contrato', icon: PlusCircle, path: '/contracts/new' },
   ];
+
+  if (isAdmin) {
+    navItems.push({ id: 'admin', label: 'Admin', icon: Shield, path: '/admin/users' });
+  }
 
   const displayName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'Usuário';
   const avatarLetter = displayName.charAt(0).toUpperCase();

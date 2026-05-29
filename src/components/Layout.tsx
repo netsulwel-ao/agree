@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import {
   LayoutDashboard, FileText, PlusCircle, LogOut,
   Bell, Menu, X, BarChart3, ShieldCheck,
-  AlertTriangle
+  AlertTriangle, PenLine
 } from 'lucide-react';
 import { addDays, isBefore, isAfter, parseISO } from 'date-fns';
 import AgreeLogo from '../Agree-logo.svg';
@@ -60,6 +60,7 @@ export default function Layout() {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { id: 'contracts', label: 'Meus Contratos', icon: FileText, path: '/contracts' },
     { id: 'analytics', label: 'Analytics', icon: BarChart3, path: '/analytics' },
+    { id: 'signatures', label: 'Assinaturas', icon: PenLine, path: '/signatures' },
     { id: 'compliance', label: 'Segurança', icon: ShieldCheck, path: '/compliance' },
     { id: 'create', label: 'Novo Contrato', icon: PlusCircle, path: '/contracts/new' },
   ];

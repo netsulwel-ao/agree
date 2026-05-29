@@ -393,6 +393,7 @@ Foro: ${answers.foro}
 Data de Celebração: ${answers.data_celebracao}
 Local: ${answers.local_celebracao}
 Detalhes Adicionais: ${answers.detalhes_adicionais}
+${Object.entries(answers.extraFields || {}).filter(([,v]) => v).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join('\n')}
 
 Header color: ${headerColor}${isWhiteHeader ? ' (texto escuro)' : ' (texto branco)'}
 Accent color: ${accentColor}

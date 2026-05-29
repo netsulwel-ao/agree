@@ -222,6 +222,7 @@ export default function AIContractGenerator({ onGenerated, onClose }: AIContract
     objecto: '', obrigacoes_a: '', obrigacoes_b: '',
     penalidade: '', foro: '', data_celebracao: '', local_celebracao: '',
     detalhes_adicionais: '',
+    extraFields: {},
   });
 
   const update = (field: keyof ContractAnswers, value: string) => {
@@ -569,94 +570,67 @@ export default function AIContractGenerator({ onGenerated, onClose }: AIContract
             </div>
           )}
 
-          {/* Step 3: Valor */}
+          {/* Step 3: Dynamic fields per tipo */}
           {step === 3 && (
             <div>
               <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, fontFamily: "'Poppins',sans-serif" }}>
-                Condições Financeiras
+                Detalhes do Contrato
               </h3>
               <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 20, fontFamily: "'Poppins',sans-serif" }}>
-                Define o valor e condições de pagamento
+                Preencha os detalhes específicos para <strong>{answers.tipo}</strong>
               </p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                <div>
-                  <label style={labelStyle}>Valor do Contrato (Kz) *</label>
-                  <input style={inputBase} placeholder="Ex: 5.000.000,00" value={answers.valor} onChange={e => update('valor', e.target.value)} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Valor por Extenso</label>
-                  <input style={inputBase} placeholder="Ex: Cinco milhões de kwanzas" value={answers.valor_extenso} onChange={e => update('valor_extenso', e.target.value)} />
-                </div>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={labelStyle}>Penalidade por Incumprimento</label>
-                  <input style={inputBase} placeholder="Ex: 10% do valor total" value={answers.penalidade} onChange={e => update('penalidade', e.target.value)} />
-                </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {(typeFields[answers.tipo] || []).map(f => {
+                  const isExtra = f.key.startsWith('extra.');
+                  const actualKey = isExtra ? f.key.slice(6) : f.key;
+                  const value = isExtra
+                    ? (answers.extraFields?.[actualKey] || '')
+                    : (answers[f.key as keyof ContractAnswers] || '');
+                  const onChange = (v: string) => {
+                    if (isExtra) updateExtra(actualKey, v);
+                    else update(f.key as keyof ContractAnswers, v);
+                  };
+                  const fieldStyle = f.type === 'textarea'
+                    ? { ...inputBase, resize: 'vertical' as const, gridColumn: '1 / -1' as const }
+                    : inputBase;
+
+                  if (f.type === 'textarea') {
+                    return (
+                      <div key={f.key} style={{ gridColumn: '1 / -1' }}>
+                        <label style={labelStyle}>{f.label}{f.required ? ' *' : ''}</label>
+                        <textarea
+                          style={{ ...inputBase, resize: 'vertical' }}
+                          rows={3}
+                          placeholder={f.placeholder || ''}
+                          value={value}
+                          onChange={e => onChange(e.target.value)}
+                        />
+                      </div>
+                    );
+                  }
+
+                  if (f.type === 'date') {
+                    return (
+                      <div key={f.key}>
+                        <label style={labelStyle}>{f.label}{f.required ? ' *' : ''}</label>
+                        <input type="date" style={inputBase} value={value} onChange={e => onChange(e.target.value)} />
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div key={f.key}>
+                      <label style={labelStyle}>{f.label}{f.required ? ' *' : ''}</label>
+                      <input style={inputBase} placeholder={f.placeholder || ''} value={value} onChange={e => onChange(e.target.value)} />
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
 
-          {/* Step 4: Prazo */}
+          {/* Step 4: Gerar */}
           {step === 4 && (
-            <div>
-              <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, fontFamily: "'Poppins',sans-serif" }}>
-                Prazo e Vigência
-              </h3>
-              <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 20, fontFamily: "'Poppins',sans-serif" }}>
-                Define a duração do contrato
-              </p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                <div>
-                  <label style={labelStyle}>Prazo / Duração *</label>
-                  <input style={inputBase} placeholder="Ex: 12 meses" value={answers.prazo} onChange={e => update('prazo', e.target.value)} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Data de Celebração</label>
-                  <input type="date" style={inputBase} value={answers.data_celebracao} onChange={e => update('data_celebracao', e.target.value)} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Local de Celebração</label>
-                  <input style={inputBase} placeholder="Ex: Luanda" value={answers.local_celebracao} onChange={e => update('local_celebracao', e.target.value)} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Foro / Tribunal Competente</label>
-                  <input style={inputBase} placeholder="Ex: Comarca de Luanda" value={answers.foro} onChange={e => update('foro', e.target.value)} />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Step 5: Objecto e Detalhes */}
-          {step === 5 && (
-            <div>
-              <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, fontFamily: "'Poppins',sans-serif" }}>
-                Objecto e Detalhes
-              </h3>
-              <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 20, fontFamily: "'Poppins',sans-serif" }}>
-                Descreve o objecto do contrato e obrigações
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div>
-                  <label style={labelStyle}>Objecto do Contrato *</label>
-                  <textarea style={{ ...inputBase, resize: 'vertical' }} rows={3} placeholder="Descreve o objecto principal do contrato..." value={answers.objecto} onChange={e => update('objecto', e.target.value)} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Obrigações da Parte A (Contratante)</label>
-                  <textarea style={{ ...inputBase, resize: 'vertical' }} rows={2} placeholder="Ex: Pagar o valor acordado, fornecer informações..." value={answers.obrigacoes_a} onChange={e => update('obrigacoes_a', e.target.value)} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Obrigações da Parte B (Contratado)</label>
-                  <textarea style={{ ...inputBase, resize: 'vertical' }} rows={2} placeholder="Ex: Executar o serviço, entregar relatórios..." value={answers.obrigacoes_b} onChange={e => update('obrigacoes_b', e.target.value)} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Detalhes Adicionais</label>
-                  <textarea style={{ ...inputBase, resize: 'vertical' }} rows={2} placeholder="Outras cláusulas ou informações relevantes..." value={answers.detalhes_adicionais} onChange={e => update('detalhes_adicionais', e.target.value)} />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Step 6: Gerar */}
-          {step === 6 && (
             <div style={{ textAlign: 'center', padding: '40px 20px' }}>
               <FileText size={48} color="#0d1117" style={{ marginBottom: 16, opacity: 0.3 }} />
               <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, fontFamily: "'Poppins',sans-serif" }}>
@@ -673,8 +647,16 @@ export default function AIContractGenerator({ onGenerated, onClose }: AIContract
                 <p style={{ margin: '0 0 4px' }}><strong>Tipo:</strong> {answers.tipo}</p>
                 <p style={{ margin: '0 0 4px' }}><strong>País:</strong> {answers.pais}</p>
                 <p style={{ margin: '0 0 4px' }}><strong>Partes:</strong> {answers.parte_a_nome} & {answers.parte_b_nome}</p>
+                {Object.entries(answers.extraFields || {}).length > 0 && (
+                  <div style={{ marginTop: 8, borderTop: '1px solid #e2e5e9', paddingTop: 8 }}>
+                    <p style={{ margin: '0 0 4px', fontWeight: 600, fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 }}>Detalhes Específicos</p>
+                    {Object.entries(answers.extraFields).map(([k, v]) =>
+                      v ? <p key={k} style={{ margin: '0 0 2px', fontSize: 12 }}><strong>{k.replace(/_/g, ' ')}:</strong> {v}</p> : null
+                    )}
+                  </div>
+                )}
                 {answers.valor && <p style={{ margin: '0 0 4px' }}><strong>Valor:</strong> {answers.valor} Kz</p>}
-                <p style={{ margin: 0 }}><strong>Prazo:</strong> {answers.prazo}</p>
+                {answers.prazo && <p style={{ margin: '0 0 4px' }}><strong>Prazo:</strong> {answers.prazo}</p>}
               </div>
               <button
                 onClick={handleGenerate}
@@ -714,7 +696,7 @@ export default function AIContractGenerator({ onGenerated, onClose }: AIContract
             <ArrowLeft size={16} />
             {step === 0 ? 'Cancelar' : 'Anterior'}
           </button>
-          {step < 6 ? (
+          {step < 4 ? (
             <button
               onClick={() => setStep(s => s + 1)}
               disabled={!canProceed()}
@@ -727,7 +709,7 @@ export default function AIContractGenerator({ onGenerated, onClose }: AIContract
                 fontFamily: "'Poppins',sans-serif"
               }}
             >
-              {step === 5 ? 'Rever & Gerar' : 'Próximo'}
+              {step === 3 ? 'Rever & Gerar' : 'Próximo'}
               <ArrowRight size={16} />
             </button>
           ) : null}

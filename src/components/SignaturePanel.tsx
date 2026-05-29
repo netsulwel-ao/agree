@@ -1,13 +1,15 @@
-﻿import React, { useState } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import {
   PenLine, CheckCircle2, Clock, Plus, Trash2,
-  Mail, Shield, AlertCircle, Loader2
+  Mail, Shield, AlertCircle, Loader2, Image as ImageIcon
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import type { User } from '@supabase/supabase-js';
+import { decryptSignature } from '../services/signatureEncryption';
+import { Link } from 'react-router-dom';
 
 interface Signature {
   id: string;
@@ -16,6 +18,7 @@ interface Signature {
   signed: boolean;
   signedAt?: string;
   hash?: string;
+  signatureUrl?: string;
 }
 
 interface SignaturePanelProps {
@@ -42,6 +45,20 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
   const [newEmail, setNewEmail] = useState('');
   const [signing, setSigning] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [userSignature, setUserSignature] = useState<{ id: string; image_url: string; name: string } | null>(null);
+
+  useEffect(() => {
+    const fetchSignature = async () => {
+      const { data } = await supabase
+        .from('user_signatures')
+        .select('id, image_url, name')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .single();
+      if (data) setUserSignature(data);
+    };
+    fetchSignature();
+  }, [user]);
 
   const isOwner = contract.owner_id === user.id;
   const currentUserSignature = signatures.find(s => s.email === user.email);
@@ -129,7 +146,7 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
       const hash = simpleHash(`${contract.id}|${contract.content || ''}|${user.email}|${Date.now()}`);
       const updated = signatures.map(s =>
         s.email === user.email
-          ? { ...s, signed: true, signedAt: new Date().toISOString(), hash }
+          ? { ...s, signed: true, signedAt: new Date().toISOString(), hash, signatureUrl: userSignature?.image_url || undefined }
           : s
       );
 
@@ -231,7 +248,7 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
         <div style={{
           background: 'linear-gradient(135deg, #0d1117, #262626)',
           borderRadius: 16, padding: 20,
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16
+          display: 'flex', flexDirection: 'column', gap: 16
         }}>
           <div>
             <p style={{ fontSize: 14, fontWeight: 700, color: '#fff', fontFamily: "'Poppins',sans-serif", marginBottom: 4 }}>
@@ -241,23 +258,57 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
               Ao assinar, confirmas que leste e concordas com os termos deste contrato.
             </p>
           </div>
-          <button
-            onClick={handleSign}
-            disabled={signing}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 8,
-              padding: '12px 24px', fontSize: 14, fontWeight: 700,
-              background: '#0d1117', border: 'none', color: '#fff',
-              cursor: signing ? 'not-allowed' : 'pointer',
-              borderRadius: 12, transition: 'all .2s', flexShrink: 0,
-              opacity: signing ? 0.7 : 1, fontFamily: "'Poppins',sans-serif"
-            }}
-            onMouseEnter={e => { if (!signing) e.currentTarget.style.background = '#000000'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#0d1117'; }}
-          >
-            {signing ? <Loader2 size={16} className="animate-spin" /> : <PenLine size={16} />}
-            {signing ? 'A assinar...' : 'Assinar Contrato'}
-          </button>
+
+          {userSignature ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <div style={{
+                flex: 1, background: 'rgba(255,255,255,0.08)', borderRadius: 10,
+                padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12
+              }}>
+                <div style={{ width: 60, height: 40, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.05)' }}>
+                  <img src={userSignature.image_url} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                </div>
+                <div>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: '#fff', margin: 0 }}>{userSignature.name}</p>
+                  <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', margin: 0 }}>Assinatura digital</p>
+                </div>
+              </div>
+              <button
+                onClick={handleSign}
+                disabled={signing}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                  padding: '12px 24px', fontSize: 14, fontWeight: 700,
+                  background: '#fff', border: 'none', color: '#0d1117',
+                  cursor: signing ? 'not-allowed' : 'pointer',
+                  borderRadius: 12, transition: 'all .2s', flexShrink: 0,
+                  opacity: signing ? 0.7 : 1, fontFamily: "'Poppins',sans-serif"
+                }}
+              >
+                {signing ? <Loader2 size={16} className="animate-spin" /> : <PenLine size={16} />}
+                {signing ? 'A assinar...' : 'Assinar Contrato'}
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', fontFamily: "'Poppins',sans-serif", flex: 1 }}>
+                Ainda não tens uma assinatura digital registada.
+              </p>
+              <Link
+                to="/signatures/register"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                  padding: '12px 24px', fontSize: 14, fontWeight: 700,
+                  background: '#fff', border: 'none', color: '#0d1117',
+                  cursor: 'pointer', borderRadius: 12, textDecoration: 'none',
+                  fontFamily: "'Poppins',sans-serif"
+                }}
+              >
+                <PenLine size={16} />
+                Registar Assinatura
+              </Link>
+            </div>
+          )}
         </div>
       )}
 
@@ -431,7 +482,20 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
                       </span>
                     )}
                   </div>
-                  {sig.signed && sig.hash && (
+                  {sig.signed && sig.signatureUrl && (
+                    <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 64, height: 32, borderRadius: 4, border: '1px solid #e2e5e9', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff' }}>
+                        <img src={sig.signatureUrl} alt="Assinatura" style={{ maxWidth: '90%', maxHeight: '90%', objectFit: 'contain' }} />
+                      </div>
+                      {sig.hash && (
+                        <span style={{ fontSize: 10, color: '#9ca3af', fontFamily: "'Poppins',sans-serif", display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <Shield size={10} />
+                          Hash: {sig.hash}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {sig.signed && !sig.signatureUrl && sig.hash && (
                     <p style={{ fontSize: 10, color: '#9ca3af', fontFamily: "'Poppins',sans-serif", marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
                       <Shield size={10} />
                       Hash: {sig.hash}

@@ -32,7 +32,9 @@ export default function RegisterSignature() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const APP_URL = import.meta.env.VITE_APP_URL || window.location.origin;
+const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
   useEffect(() => {
     navigator.mediaDevices?.getUserMedia({ video: true })
@@ -51,7 +53,7 @@ export default function RegisterSignature() {
   const generateQrCode = useCallback(async () => {
     const id = uuidv4();
     setSessionId(id);
-    const url = `${window.location.origin}/capture-signature/${id}`;
+    const url = `${APP_URL}/capture-signature/${id}`;
     const dataUrl = await QRCode.toDataURL(url, { width: 280, margin: 2, color: { dark: '#0d1117', light: '#ffffff' } });
     setQrDataUrl(dataUrl);
 
@@ -283,6 +285,11 @@ export default function RegisterSignature() {
                 <div style={{ textAlign: 'center' }}>
                   <p style={{ fontSize: 16, fontWeight: 700, color: '#0d1117', margin: 0 }}>Escanear QR Code com o Telemóvel</p>
                   <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0' }}>Gera um código QR único para fotografares a assinatura com o telemóvel</p>
+                  {isLocalhost && (
+                    <p style={{ fontSize: 11, color: '#f59e0b', marginTop: 8, background: 'rgba(245,158,11,0.1)', padding: '6px 12px', borderRadius: 8 }}>
+                      ⚠ Em localhost o QR não funciona no telemóvel. Usa o link da produção (Render) ou envia uma foto diretamente.
+                    </p>
+                  )}
                 </div>
               </button>
             )}

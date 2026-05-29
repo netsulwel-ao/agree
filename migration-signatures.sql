@@ -13,6 +13,14 @@ END $$;
 
 DO $$
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND policyname = 'Anon pode enviar para sessions') THEN
+    CREATE POLICY "Anon pode enviar para sessions" ON storage.objects FOR INSERT
+      WITH CHECK (bucket_id = 'signatures' AND name LIKE 'sessions/%');
+  END IF;
+END $$;
+
+DO $$
+BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND policyname = 'Qualquer um pode ler signatures') THEN
     CREATE POLICY "Qualquer um pode ler signatures" ON storage.objects FOR SELECT
       USING (bucket_id = 'signatures');

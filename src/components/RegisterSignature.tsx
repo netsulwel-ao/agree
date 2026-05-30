@@ -6,7 +6,7 @@ import QRCode from 'qrcode';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from '../contexts/AuthContext';
 import { useCheckoutModal } from '../contexts/CheckoutModalContext';
-import { ArrowLeft, ArrowUpRight, Camera, Upload, QrCode, Smartphone, CheckCircle2, Loader2, RotateCcw } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, Camera, Upload, QrCode, Smartphone, CheckCircle2, Loader2, RotateCcw, PenLine } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { checkPlan, getLimits, canUpgrade } from '../lib/plans';

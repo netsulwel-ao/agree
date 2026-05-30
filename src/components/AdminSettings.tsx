@@ -32,6 +32,9 @@ export default function AdminSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pending, setPending] = useState<PaymentSettings | null>(null);
+  const [code, setCode] = useState('');
+  const [codeVerifying, setCodeVerifying] = useState(false);
+  const [codeError, setCodeError] = useState('');
 
   const doSave = useCallback(async (data: PaymentSettings) => {
     setSaving(true);
@@ -47,6 +50,27 @@ export default function AdminSettings() {
     }
   }, [user]);
 
+  const verifyWithCode = async () => {
+    if (!code.trim()) return;
+    setCodeVerifying(true);
+    setCodeError('');
+    const { error } = await supabase.auth.verifyOtp({
+      email: user?.email!,
+      token: code.trim(),
+      type: 'reauthentication',
+    });
+    if (error) {
+      setCodeError('Código inválido ou expirado');
+      setCodeVerifying(false);
+      return;
+    }
+    const stored = localStorage.getItem(PENDING_KEY);
+    if (stored) {
+      await doSave(JSON.parse(stored));
+    }
+    setCodeVerifying(false);
+  };
+
   useEffect(() => {
     try {
       const stored = localStorage.getItem(PENDING_KEY);
@@ -59,6 +83,8 @@ export default function AdminSettings() {
   const handleSaveClick = () => {
     localStorage.setItem(PENDING_KEY, JSON.stringify(settings));
     setPending(settings);
+    setCode('');
+    setCodeError('');
     supabase.auth.reauthenticate();
     toast.success('Email de confirmação enviado! Verifica a tua caixa de entrada.');
   };
@@ -73,6 +99,8 @@ export default function AdminSettings() {
   const handleDiscardPending = () => {
     setPending(null);
     localStorage.removeItem(PENDING_KEY);
+    setCode('');
+    setCodeError('');
     toast.info('Alterações canceladas');
   };
 
@@ -162,38 +190,76 @@ export default function AdminSettings() {
       {pending ? (
         <div style={{
           background: '#f0f9ff', borderRadius: 16, border: '1.5px solid #bae6fd',
-          padding: 24, textAlign: 'center',
+          padding: 24,
         }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: 28, background: '#e0f2fe',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 16px',
+            }}>
+              <Mail size={24} color="#0284c7" />
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Confirma a alteração</div>
+            <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 20, maxWidth: 360, margin: '0 auto 20px' }}>
+              Enviámos um email com um código para <strong>{user?.email}</strong>.
+              Insere o código abaixo ou clica no link do email.
+            </div>
+          </div>
           <div style={{
-            width: 56, height: 56, borderRadius: 28, background: '#e0f2fe',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 16px',
+            display: 'flex', gap: 12, alignItems: 'center',
+            justifyContent: 'center', marginBottom: 12,
           }}>
-            <Mail size={24} color="#0284c7" />
-          </div>
-          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Confirma a alteração</div>
-          <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 20, maxWidth: 360, margin: '0 auto 20px' }}>
-            Enviámos um email de confirmação para <strong>{user?.email}</strong>.
-            Clica no link do email e depois volta aqui para concluir.
-          </div>
-          <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+            <input
+              value={code}
+              onChange={e => { setCode(e.target.value); setCodeError(''); }}
+              placeholder="Código"
+              maxLength={6}
+              style={{
+                width: 120, padding: '10px 14px', borderRadius: 12,
+                border: codeError ? '1.5px solid #ef4444' : '1px solid #bae6fd',
+                fontSize: 16, outline: 'none',
+                textAlign: 'center', letterSpacing: 4, fontFamily: "'JetBrains Mono', monospace",
+              }}
+              onKeyDown={e => e.key === 'Enter' && verifyWithCode()}
+            />
             <button
-              onClick={handleCompleteReauth}
-              disabled={saving}
+              onClick={verifyWithCode}
+              disabled={codeVerifying || !code.trim()}
               className="btn-primary"
               style={{ whiteSpace: 'nowrap' }}
             >
-              {saving ? (
-                <><RotateCw size={16} style={{ animation: 'spin 1s linear infinite' }} /> A guardar...</>
+              {codeVerifying ? (
+                <><RotateCw size={16} style={{ animation: 'spin 1s linear infinite' }} /> Verificando...</>
               ) : (
-                <><Check size={16} /> Já cliquei no link, concluir</>
+                'Verificar'
               )}
+            </button>
+          </div>
+          {codeError && (
+            <div style={{ textAlign: 'center', fontSize: 12, color: '#ef4444', marginBottom: 12 }}>
+              {codeError}
+            </div>
+          )}
+          <div style={{
+            borderTop: '1px solid #e0f2fe', paddingTop: 16, marginTop: 4,
+            display: 'flex', gap: 12, justifyContent: 'center',
+          }}>
+            <button
+              onClick={handleCompleteReauth}
+              disabled={saving}
+              style={{
+                padding: '8px 16px', borderRadius: 10, border: '1px solid #bae6fd',
+                background: 'transparent', cursor: 'pointer', fontSize: 13, color: '#0284c7',
+              }}
+            >
+              {saving ? 'A guardar...' : 'Já cliquei no link do email'}
             </button>
             <button
               onClick={handleDiscardPending}
               disabled={saving}
               style={{
-                padding: '10px 18px', borderRadius: 12, border: '1px solid #e2e5e9',
+                padding: '8px 16px', borderRadius: 10, border: '1px solid #e2e5e9',
                 background: '#fff', cursor: 'pointer', fontSize: 13, color: '#6b7280',
               }}
             >

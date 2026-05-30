@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="pt">
-<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/></head>
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Verificação de identidade</title>
+</head>
 <body style="margin:0;padding:0;background:#f5f5f5;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:40px 20px;">
 <tr><td align="center">
@@ -23,28 +25,20 @@
 <p style="margin:0;font-size:14px;color:#6b7280;line-height:1.7;">
 Olá <strong>{{ .Data.name }}</strong>,<br/><br/>
 Por motivos de segurança, precisamos de verificar a tua identidade no <strong>Agree</strong>.<br/>
-Clica no botão abaixo para confirmares que és tu.
+Insere o código abaixo na aplicação para continuares.
 </p>
 </td></tr>
 
-<tr><td style="padding-bottom:32px;">
-<table cellpadding="0" cellspacing="0" style="margin:0 auto;"><tr>
-<td align="center" style="background:#0d1117;padding:14px 36px;">
-<a href="{{ .ConfirmationURL }}" target="_blank" style="color:#fff;font-size:15px;font-weight:700;text-decoration:none;display:inline-block;">Verificar identidade</a>
-</td>
-</tr></table>
+<tr><td style="padding-bottom:24px;">
+<table cellpadding="0" cellspacing="0" style="margin:0 auto;">
+<tr><td style="background:#f5f5f5;padding:20px 40px;border-radius:12px;letter-spacing:8px;font-size:32px;font-weight:700;color:#0d1117;font-family:'Courier New',monospace;">
+{{ .Token }}
+</td></tr></table>
 </td></tr>
 
 <tr><td style="padding-bottom:32px;">
 <p style="margin:0;font-size:12px;color:#9ca3af;line-height:1.6;">
-Se o botão não funcionar, copia e cola este link:<br/>
-<a href="{{ .ConfirmationURL }}" style="color:#0d1117;word-break:break-all;font-size:11px;">{{ .ConfirmationURL }}</a>
-</p>
-</td></tr>
-
-<tr><td style="border-top:1px solid #f0f0f0;padding-top:24px;">
-<p style="margin:0;font-size:11px;color:#9ca3af;line-height:1.6;">
-Este link expira em 24 horas.<br/>
+Este código expira em 10 minutos.<br/>
 Se não solicitaste esta verificação, contacta o suporte: <strong>apoio.sulfatur@netsulwel.tech</strong>
 </p>
 </td></tr>

@@ -95,7 +95,7 @@ export default function CheckoutModal() {
         position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.5)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
       }}>
-        <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 24, padding: 48, maxWidth: 500, width: '100%', textAlign: 'center', position: 'relative' }}>
+        <div onClick={e => e.stopPropagation()} style={{ background: '#fff', padding: 48, maxWidth: 500, width: '100%', textAlign: 'center', position: 'relative' }}>
           <button onClick={closeCheckout} style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', zIndex: 1 }}><X size={20} /></button>
           <div style={{ position: 'absolute', top: 24, right: 56, display: 'flex', alignItems: 'center', gap: 4 }}>
             <img src={AgreeLogo} alt="" style={{ height: 22, display: 'block' }} />
@@ -123,7 +123,7 @@ export default function CheckoutModal() {
         position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.5)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
       }}>
-        <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 24, padding: 48, maxWidth: 500, width: '100%', textAlign: 'center', position: 'relative' }}>
+        <div onClick={e => e.stopPropagation()} style={{ background: '#fff', padding: 48, maxWidth: 500, width: '100%', textAlign: 'center', position: 'relative' }}>
           <button onClick={closeCheckout} style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', zIndex: 1 }}><X size={20} /></button>
           <div style={{ position: 'absolute', top: 24, right: 56, display: 'flex', alignItems: 'center', gap: 4 }}>
             <img src={AgreeLogo} alt="" style={{ height: 22, display: 'block' }} />
@@ -162,7 +162,7 @@ export default function CheckoutModal() {
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, overflowY: 'auto',
     }}>
       <div onClick={e => e.stopPropagation()} style={{
-        background: '#fff', borderRadius: 24, maxWidth: 860, width: '100%', position: 'relative',
+        background: '#fff', maxWidth: 860, width: '100%', position: 'relative',
         display: 'flex', flexDirection: 'row', overflow: 'hidden',
       }}>
         <button onClick={closeCheckout} style={{ position: 'absolute', top: 14, right: 14, background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', zIndex: 10 }}>

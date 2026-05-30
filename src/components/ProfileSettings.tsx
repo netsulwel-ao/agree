@@ -86,7 +86,10 @@ export default function ProfileSettings() {
         </p>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 28, maxWidth: 560 }}>
+      <div style={{
+        display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 28,
+        maxWidth: 720,
+      }}>
         {/* Change Email */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
@@ -245,6 +248,7 @@ export default function ProfileSettings() {
           style={{
             background: '#f9fafb', borderRadius: 16,
             border: '1px solid #e2e5e9', padding: 24,
+            gridColumn: '1 / -1',
           }}
         >
           {reauthRequired ? (

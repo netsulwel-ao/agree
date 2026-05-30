@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { Save, RotateCw, Landmark, Wallet } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Save, RotateCw, Landmark, Wallet, Mail, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface PaymentSettings {
@@ -26,9 +26,39 @@ const defaults: PaymentSettings = {
 export default function AdminSettings() {
   const { user, isAdmin, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [settings, setSettings] = useState<PaymentSettings>(defaults);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+
+  const confirmSave = useCallback(async (data: PaymentSettings) => {
+    setSaving(true);
+    setVerifying(false);
+    const payload = { ...data, updated_by: user?.id };
+    const { error } = await supabase.from('payment_settings').upsert(payload, { onConflict: 'id' });
+    setSaving(false);
+    if (error) {
+      toast.error('Erro ao guardar: ' + error.message);
+    } else {
+      toast.success('Definições guardadas com sucesso');
+    }
+  }, [user]);
+
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem('pendingPaymentSettings');
+      if (stored) {
+        sessionStorage.removeItem('pendingPaymentSettings');
+        const parsed = JSON.parse(stored) as PaymentSettings;
+        const hash = location.hash.replace('#', '');
+        const params = new URLSearchParams(hash);
+        if (params.get('type') === 'reauthentication' || params.has('access_token')) {
+          confirmSave(parsed);
+        }
+      }
+    } catch { /* ignore */ }
+  }, []);
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -51,15 +81,15 @@ export default function AdminSettings() {
   }, [user, isAdmin, authLoading, navigate, fetch]);
 
   const handleSave = async () => {
-    setSaving(true);
-    const payload = { ...settings, updated_by: user?.id };
-    const { error } = await supabase.from('payment_settings').upsert(payload, { onConflict: 'id' });
-    setSaving(false);
+    sessionStorage.setItem('pendingPaymentSettings', JSON.stringify(settings));
+    const { error } = await supabase.auth.reauthenticate();
     if (error) {
-      toast.error('Erro ao guardar: ' + error.message);
-    } else {
-      toast.success('Definições guardadas com sucesso');
+      sessionStorage.removeItem('pendingPaymentSettings');
+      toast.error('Erro ao enviar email de verificação: ' + error.message);
+      return;
     }
+    setVerifying(true);
+    toast.success('Email de verificação enviado! Verifica a tua caixa de entrada.');
   };
 
   if (authLoading || loading) {
@@ -125,18 +155,42 @@ export default function AdminSettings() {
         {field('Email PayPal', settings.paypal_email, v => setSettings(s => ({ ...s, paypal_email: v })), { placeholder: 'Ex: payments@agree.ao' })}
       </div>
 
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        className="btn-primary"
-        style={{ width: '100%', justifyContent: 'space-between' }}
-      >
-        {saving ? (
-          <><RotateCw size={16} style={{ animation: 'spin 1s linear infinite' }} /> A guardar...</>
-        ) : (
-          <><Save size={16} /> Guardar Definições</>
-        )}
-      </button>
+      {verifying ? (
+        <div style={{
+          background: '#f0f9ff', borderRadius: 16, border: '1.5px solid #bae6fd',
+          padding: 24, textAlign: 'center',
+        }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: 28, background: '#e0f2fe',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 16px',
+          }}>
+            <Mail size={24} color="#0284c7" />
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Verifica o teu email</div>
+          <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 16 }}>
+            Enviámos um email de confirmação para <strong>{user?.email}</strong>.
+            Clica no link do email para concluir a alteração.
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
+            <RotateCw size={16} style={{ animation: 'spin 1s linear infinite' }} />
+            <span style={{ fontSize: 13, color: '#6b7280' }}>A aguardar confirmação...</span>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="btn-primary"
+          style={{ width: '100%', justifyContent: 'space-between' }}
+        >
+          {saving ? (
+            <><RotateCw size={16} style={{ animation: 'spin 1s linear infinite' }} /> A guardar...</>
+          ) : (
+            <><Shield size={16} /> Guardar Definições</>
+          )}
+        </button>
+      )}
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }

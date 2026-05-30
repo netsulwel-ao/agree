@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS payment_requests (
   payment_method TEXT CHECK (payment_method IN ('bank_transfer', 'paypal')),
   receipt_url TEXT,
   user_paypal_email TEXT,
+  paypal_order_id TEXT,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),

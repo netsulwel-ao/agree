@@ -36,7 +36,7 @@ export default function AdminPayments() {
     setLoading(true);
     const { data, error } = await supabase
       .from('payment_requests')
-      .select('*, profiles!inner(name, email)')
+      .select('*, profiles!payment_requests_user_id_fkey(name, email)')
       .order('created_at', { ascending: false });
 
     if (error) {

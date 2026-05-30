@@ -2,6 +2,8 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { useCheckoutModal } from '../contexts/CheckoutModalContext';
+import CheckoutModal from './CheckoutModal';
 import { Toaster } from 'sonner';
 import {
   LayoutDashboard, FileText, PlusCircle, LogOut,
@@ -24,8 +26,18 @@ export default function Layout() {
   const [alerts, setAlerts] = useState<AlertContract[]>([]);
   const [alertsOpen, setAlertsOpen] = useState(false);
   const { user, signOut, isAdmin, plan } = useAuth();
+  const { openCheckout } = useCheckoutModal();
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Abrir checkout modal se vindo da landing page
+  useEffect(() => {
+    const planParam = sessionStorage.getItem('openCheckoutOnLogin');
+    if (planParam) {
+      sessionStorage.removeItem('openCheckoutOnLogin');
+      openCheckout(planParam as any);
+    }
+  }, [user]);
 
   // Buscar alertas críticos para o badge
   useEffect(() => {
@@ -297,7 +309,7 @@ export default function Layout() {
               {plan === 'enterprise' ? 'Enterprise' : plan === 'pro' ? 'Pro' : 'Free'}
             </span>
             {(plan === 'free' || plan === 'pro') && (
-              <span onClick={() => navigate('/checkout')} style={{ fontSize: 10, color: '#60a5fa', fontWeight: 600, cursor: 'pointer' }}>
+              <span onClick={() => openCheckout()} style={{ fontSize: 10, color: '#60a5fa', fontWeight: 600, cursor: 'pointer' }}>
                 Upgrade
               </span>
             )}
@@ -429,6 +441,7 @@ export default function Layout() {
           <Outlet />
         </div>
       </main>
+      <CheckoutModal />
     </div>
   );
 }

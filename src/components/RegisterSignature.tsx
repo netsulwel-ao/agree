@@ -5,6 +5,7 @@ import { encryptSignature } from '../services/signatureEncryption';
 import QRCode from 'qrcode';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from '../contexts/AuthContext';
+import { useCheckoutModal } from '../contexts/CheckoutModalContext';
 import { ArrowLeft, ArrowUpRight, Camera, Upload, QrCode, Smartphone, CheckCircle2, Loader2, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -14,6 +15,7 @@ type Step = 'choose-method' | 'capture' | 'preview' | 'saving';
 
 export default function RegisterSignature() {
   const { user, plan, isAdmin } = useAuth();
+  const { openCheckout } = useCheckoutModal();
   const navigate = useNavigate();
 
   const [step, setStep] = useState<Step>('choose-method');
@@ -92,9 +94,15 @@ const isLocalhost = window.location.hostname === 'localhost' || window.location.
     if (!videoRef.current || !canvasRef.current || !cameraStream) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext('2d')!.drawImage(video, 0, 0);
+    // Recortar apenas a área das guias (match com SVG viewBox: x 15-85, y 35-65)
+    const GX = 0.15, GY = 0.35, GW = 0.70, GH = 0.30;
+    const sx = Math.round(video.videoWidth * GX);
+    const sy = Math.round(video.videoHeight * GY);
+    const sw = Math.round(video.videoWidth * GW);
+    const sh = Math.round(video.videoHeight * GH);
+    canvas.width = sw;
+    canvas.height = sh;
+    canvas.getContext('2d')!.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
     canvas.toBlob(b => {
       if (b) {
         setRawBlob(b);
@@ -227,7 +235,7 @@ const isLocalhost = window.location.hostname === 'localhost' || window.location.
         <p style={{ fontSize: 14, color: '#6b7280', maxWidth: 400 }}>
           Assinaturas digitais estão disponíveis apenas nos planos Pro e Enterprise.
         </p>
-        <button onClick={() => navigate('/upgrade')} style={{
+        <button onClick={() => openCheckout('pro')} style={{
           display: 'inline-flex', alignItems: 'center', gap: 8,
           padding: '12px 24px', fontSize: 14, fontWeight: 700,
           background: '#0d1117', border: 'none', color: '#fff',

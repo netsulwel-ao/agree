@@ -28,6 +28,7 @@ import {
 import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useAuth } from '../contexts/AuthContext';
+import { useCheckoutModal } from '../contexts/CheckoutModalContext';
 import { checkPlan, getLimits, canUpgrade } from '../lib/plans';
 
 const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#6366f1'];
@@ -35,6 +36,7 @@ const VIBRANT = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899
 
 export default function Analytics() {
   const { user, plan, isAdmin } = useAuth();
+  const { openCheckout } = useCheckoutModal();
   const [contracts, setContracts] = useState<any[]>([]);
 
   useEffect(() => {
@@ -167,7 +169,7 @@ export default function Analytics() {
         <p style={{ fontSize: 14, color: '#6b7280', maxWidth: 400 }}>
           Analytics está disponível apenas nos planos Pro e Enterprise.
         </p>
-        <button onClick={() => window.location.href = '/upgrade'} style={{
+        <button onClick={() => openCheckout('pro')} style={{
           display: 'inline-flex', alignItems: 'center', gap: 8,
           padding: '12px 24px', fontSize: 14, fontWeight: 700,
           background: '#0d1117', border: 'none', color: '#fff',

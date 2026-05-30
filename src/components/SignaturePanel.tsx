@@ -11,6 +11,7 @@ import type { User } from '@supabase/supabase-js';
 import { decryptSignature } from '../services/signatureEncryption';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useCheckoutModal } from '../contexts/CheckoutModalContext';
 import { checkPlan, getLimits, canUpgrade } from '../lib/plans';
 
 interface Signature {
@@ -81,6 +82,7 @@ async function sendNotificationEmail(to: string, name: string, contractTitle: st
 
 export default function SignaturePanel({ contract, user, onUpdate }: SignaturePanelProps) {
   const { plan, isAdmin } = useAuth();
+  const { openCheckout } = useCheckoutModal();
   const [signatures, setSignatures] = useState<Signature[]>(contract.signatures || []);
   const [addingSignatory, setAddingSignatory] = useState(false);
   const [newName, setNewName] = useState('');
@@ -247,19 +249,17 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
             Disponível no plano Pro e Enterprise
           </p>
         </div>
-        <Link
-          to="/upgrade"
+        <button onClick={() => openCheckout('pro')}
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
             padding: '8px 16px', fontSize: 12, fontWeight: 700,
             background: '#0d1117', border: 'none', color: '#fff',
-            cursor: 'pointer', borderRadius: 10, textDecoration: 'none',
-            fontFamily: "'Poppins',sans-serif"
+            cursor: 'pointer', borderRadius: 10, fontFamily: "'Poppins',sans-serif"
           }}
         >
           <ArrowUpRight size={14} />
           Upgrade
-        </Link>
+        </button>
       </div>
     );
   }

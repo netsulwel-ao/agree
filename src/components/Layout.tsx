@@ -224,6 +224,10 @@ export default function Layout() {
           color: #fca5a5 !important;
           background: rgba(239,68,68,0.2) !important;
         }
+        .sidebar-nav::-webkit-scrollbar { width: 4px; }
+        .sidebar-nav::-webkit-scrollbar-track { background: transparent; }
+        .sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+        .sidebar-nav::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
       `}</style>
 
       {/* Background blobs */}
@@ -242,35 +246,39 @@ export default function Layout() {
           boxShadow: '4px 0 24px rgba(0,0,0,0.15)',
           display: 'flex',
           flexDirection: 'column',
-          padding: '24px',
-          gap: 32,
           position: 'fixed',
           left: 0,
+          top: 0,
+          bottom: 0,
           zIndex: 40,
-          overflowY: 'auto',
-          height: '100%',
         }}
       >
-        {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }} aria-label="Agree">
-          <img
-            src={AgreeLogo}
-            alt=""
-            style={{ height: 36, display: 'block', filter: 'brightness(0) invert(1)' }}
-          />
-          <span style={{
-            fontFamily: "'Poppins', sans-serif",
-            fontSize: 23,
-            fontWeight: 800,
-            color: '#ffffff',
-            letterSpacing: -0.5,
-            lineHeight: 1,
-            marginLeft: -2,
-          }}>Agree</span>
+        {/* Topo fixo — Logo */}
+        <div style={{ padding: '24px 24px 0', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} aria-label="Agree">
+            <img
+              src={AgreeLogo}
+              alt=""
+              style={{ height: 36, display: 'block', filter: 'brightness(0) invert(1)' }}
+            />
+            <span style={{
+              fontFamily: "'Poppins', sans-serif",
+              fontSize: 23,
+              fontWeight: 800,
+              color: '#ffffff',
+              letterSpacing: -0.5,
+              lineHeight: 1,
+              marginLeft: -2,
+            }}>Agree</span>
+          </div>
         </div>
 
-        {/* Nav */}
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
+        {/* Meio scrollável — Nav */}
+        <nav className="sidebar-nav" style={{
+          display: 'flex', flexDirection: 'column', gap: 8,
+          flex: 1, overflowY: 'auto', minHeight: 0,
+          padding: '24px',
+        }}>
           {navItems.map((item) => (
             <Link
               key={item.id}
@@ -300,88 +308,90 @@ export default function Layout() {
           ))}
         </nav>
 
-        {/* User + Logout */}
-        <div style={{
-          background: 'rgba(255,255,255,0.06)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          borderRadius: 16,
-          padding: 16,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-            <div style={{
-              width: 44, height: 44, borderRadius: 12,
-              background: '#ffffff',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 15, fontWeight: 800, color: '#0d1117',
-            }}>
-              {avatarLetter}
-            </div>
-            <div style={{ flex: 1, overflow: 'hidden' }}>
-              <p style={{ fontSize: 14, fontWeight: 600, color: '#ffffff', fontFamily: "'Poppins',sans-serif", marginBottom: 2 }}>
-                {displayName}
-              </p>
-              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', fontFamily: "'Poppins',sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {user?.email}
-              </p>
-            </div>
-          </div>
+        {/* Fundo fixo — User + Logout */}
+        <div style={{ padding: '0 24px 24px', flexShrink: 0 }}>
           <div style={{
-            display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
-            padding: '6px 10px', borderRadius: 8,
-            background: plan === 'enterprise' ? 'rgba(250,204,21,0.15)' : plan === 'pro' ? 'rgba(59,130,246,0.15)' : 'rgba(255,255,255,0.05)',
-            border: `1px solid ${
-              plan === 'enterprise' ? 'rgba(250,204,21,0.3)' : plan === 'pro' ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.08)'
-            }`,
+            background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: 16,
+            padding: 16,
           }}>
-            <span style={{
-              fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em',
-              color: plan === 'enterprise' ? '#facc15' : plan === 'pro' ? '#60a5fa' : 'rgba(255,255,255,0.4)',
-              flex: 1,
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: 12,
+                background: '#ffffff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 15, fontWeight: 800, color: '#0d1117',
+              }}>
+                {avatarLetter}
+              </div>
+              <div style={{ flex: 1, overflow: 'hidden' }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: '#ffffff', fontFamily: "'Poppins',sans-serif", marginBottom: 2 }}>
+                  {displayName}
+                </p>
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', fontFamily: "'Poppins',sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {user?.email}
+                </p>
+              </div>
+            </div>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
+              padding: '6px 10px', borderRadius: 8,
+              background: plan === 'enterprise' ? 'rgba(250,204,21,0.15)' : plan === 'pro' ? 'rgba(59,130,246,0.15)' : 'rgba(255,255,255,0.05)',
+              border: `1px solid ${
+                plan === 'enterprise' ? 'rgba(250,204,21,0.3)' : plan === 'pro' ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.08)'
+              }`,
             }}>
-              {plan === 'enterprise' ? 'Enterprise' : plan === 'pro' ? 'Pro' : 'Free'}
-            </span>
-            {plan === 'free' && (
-              <span onClick={() => openCheckout()} style={{ fontSize: 10, color: '#60a5fa', fontWeight: 600, cursor: 'pointer' }}>
-                Upgrade
+              <span style={{
+                fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em',
+                color: plan === 'enterprise' ? '#facc15' : plan === 'pro' ? '#60a5fa' : 'rgba(255,255,255,0.4)',
+                flex: 1,
+              }}>
+                {plan === 'enterprise' ? 'Enterprise' : plan === 'pro' ? 'Pro' : 'Free'}
               </span>
-            )}
-            {plan === 'pro' && (
-              <div style={{ display: 'flex', gap: 8 }}>
+              {plan === 'free' && (
                 <span onClick={() => openCheckout()} style={{ fontSize: 10, color: '#60a5fa', fontWeight: 600, cursor: 'pointer' }}>
                   Upgrade
                 </span>
-                <span onClick={() => openRenewal('pro')} style={{ fontSize: 10, color: '#22c55e', fontWeight: 600, cursor: 'pointer' }}>
+              )}
+              {plan === 'pro' && (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <span onClick={() => openCheckout()} style={{ fontSize: 10, color: '#60a5fa', fontWeight: 600, cursor: 'pointer' }}>
+                    Upgrade
+                  </span>
+                  <span onClick={() => openRenewal('pro')} style={{ fontSize: 10, color: '#22c55e', fontWeight: 600, cursor: 'pointer' }}>
+                    Renovar
+                  </span>
+                </div>
+              )}
+              {plan === 'enterprise' && (
+                <span onClick={() => openRenewal('enterprise')} style={{ fontSize: 10, color: '#22c55e', fontWeight: 600, cursor: 'pointer' }}>
                   Renovar
                 </span>
+              )}
+              </div>
+            {planExpiresAt && (plan === 'pro' || plan === 'enterprise') && (
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', textAlign: 'center', marginBottom: 12 }}>
+                Expira em {new Date(planExpiresAt).toLocaleDateString('pt-PT')}
               </div>
             )}
-            {plan === 'enterprise' && (
-              <span onClick={() => openRenewal('enterprise')} style={{ fontSize: 10, color: '#22c55e', fontWeight: 600, cursor: 'pointer' }}>
-                Renovar
-              </span>
-            )}
-            </div>
-          {planExpiresAt && (plan === 'pro' || plan === 'enterprise') && (
-            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', textAlign: 'center', marginBottom: 12 }}>
-              Expira em {new Date(planExpiresAt).toLocaleDateString('pt-PT')}
-            </div>
-          )}
-          <Link
-            to="/profile"
-            className="nav-link nav-link-logout"
-            style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 10, textDecoration: 'none', marginBottom: 6 }}
-          >
-            <Settings size={18} />
-            Perfil
-          </Link>
-          <button
-            onClick={() => signOut()}
-            className="nav-link nav-link-logout"
-            style={{ background: 'rgba(239,68,68,0.12)', borderRadius: 10 }}
-          >
-            <LogOut size={18} />
-            Sair
-          </button>
+            <Link
+              to="/profile"
+              className="nav-link nav-link-logout"
+              style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 10, textDecoration: 'none', marginBottom: 6 }}
+            >
+              <Settings size={18} />
+              Perfil
+            </Link>
+            <button
+              onClick={() => signOut()}
+              className="nav-link nav-link-logout"
+              style={{ background: 'rgba(239,68,68,0.12)', borderRadius: 10 }}
+            >
+              <LogOut size={18} />
+              Sair
+            </button>
+          </div>
         </div>
       </aside>
 

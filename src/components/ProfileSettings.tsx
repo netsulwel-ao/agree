@@ -109,9 +109,21 @@ export default function ProfileSettings() {
           </div>
 
           {emailSent ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 16, background: '#f0fdf4', borderRadius: 12, border: '1px solid #22c55e' }}>
-              <CheckCircle size={18} color="#22c55e" />
-              <span style={{ fontSize: 13, color: '#166534' }}>Email de confirmação enviado! Verifica a tua caixa de entrada e clica no link para confirmar a alteração.</span>
+            <div style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
+              padding: 32, textAlign: 'center',
+              background: '#f9fafb', borderRadius: 16, border: '1px solid #e2e5e9',
+            }}>
+              <div style={{ width: 48, height: 48, borderRadius: 14, background: '#0d1117', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Mail size={22} color="#fff" />
+              </div>
+              <div>
+                <p style={{ fontSize: 15, fontWeight: 600, color: '#0d1117', marginBottom: 4 }}>Verifica o teu email</p>
+                <p style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.6 }}>
+                  Enviámos um email de confirmação para o novo endereço.<br />
+                  Clica no link do email para concluir a alteração.
+                </p>
+              </div>
             </div>
           ) : (
             <form onSubmit={handleChangeEmail} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -235,6 +247,31 @@ export default function ProfileSettings() {
             border: '1px solid #e2e5e9', padding: 24,
           }}
         >
+          {reauthRequired ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center', padding: 8 }}>
+              <div style={{ width: 48, height: 48, borderRadius: 14, background: '#0d1117', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Mail size={22} color="#fff" />
+              </div>
+              <div>
+                <p style={{ fontSize: 15, fontWeight: 600, color: '#0d1117', marginBottom: 4 }}>Verifica o teu email</p>
+                <p style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.6 }}>
+                  Enviámos um email de verificação para <strong>{user?.email}</strong>.<br />
+                  Clica no link do email para confirmares a tua identidade.
+                </p>
+              </div>
+              <button
+                onClick={() => setReauthRequired(false)}
+                style={{
+                  padding: '8px 16px', fontSize: 12, fontWeight: 600,
+                  background: 'transparent', border: '1px solid #e2e5e9',
+                  borderRadius: 8, color: '#374151', cursor: 'pointer',
+                  fontFamily: "'Poppins', sans-serif", marginTop: 4,
+                }}
+              >
+                Fechar
+              </button>
+            </div>
+          ) : (
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
             <div style={{ width: 40, height: 40, borderRadius: 10, background: '#0d1117', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <Shield size={18} color="#fff" />
@@ -247,6 +284,7 @@ export default function ProfileSettings() {
               </p>
             </div>
           </div>
+          )}
         </motion.div>
       </div>
 

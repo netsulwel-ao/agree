@@ -6,10 +6,12 @@ import { motion } from 'framer-motion';
 import {
   ArrowRight, ArrowLeft, Shield,
   Bell, Zap, CheckCircle, BarChart3,
-  FileSignature
+  Mail, RotateCw
 } from 'lucide-react';
 import { useGlobalLoading } from '../contexts/GlobalLoadingContext';
 import AgreeLogo from '../Agree-logo.svg';
+
+type SentReason = 'signup' | 'magic' | 'recovery' | null;
 
 export default function AuthenticationScreen() {
   const [mode, setMode] = useState<'login' | 'signup' | 'recovery' | 'magic'>('login');
@@ -17,6 +19,7 @@ export default function AuthenticationScreen() {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [sentReason, setSentReason] = useState<SentReason>(null);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirectTo = searchParams.get('redirect') || '/dashboard';
@@ -48,15 +51,13 @@ export default function AuthenticationScreen() {
           options: { emailRedirectTo: window.location.origin + '/login' },
         });
         if (error) throw error;
-        toast.success('Link mágico enviado! Verifica a tua caixa de entrada.');
-        setMode('login');
+        setSentReason('magic');
       } else if (mode === 'recovery') {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: window.location.origin + '/reset-password',
         });
         if (error) throw error;
-        toast.success('Email de recuperação enviado! Verifica a tua caixa de entrada.');
-        setMode('login');
+        setSentReason('recovery');
       } else {
         const { data, error } = await supabase.auth.signUp({
           email,
@@ -71,8 +72,7 @@ export default function AuthenticationScreen() {
         if (error) throw error;
 
         if (data?.session === null) {
-          toast.success('Verifica o teu email (incluindo o Spam) para confirmares a conta antes de entrar!');
-          setMode('login');
+          setSentReason('signup');
         } else {
           toast.success('Conta criada com sucesso!');
           navigate(redirectTo);
@@ -192,19 +192,83 @@ export default function AuthenticationScreen() {
           </div>
 
           <motion.div
-            key={mode}
+            key={sentReason || mode}
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4 }}
           >
+            {sentReason ? (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.4 }}
+              >
+                <div style={{
+                  width: 64, height: 64, background: '#0d1117',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  margin: '0 auto 24px',
+                }}>
+                  <Mail size={28} color="#fff" />
+                </div>
+                <h2 className="text-2xl font-extrabold text-slate-900 mb-3 tracking-tight" style={{ textAlign: 'center' }}>
+                  Verifica o teu email
+                </h2>
+                <div style={{
+                  background: '#f9fafb', border: '1px solid #e2e5e9',
+                  padding: 24, marginBottom: 24, textAlign: 'center',
+                }}>
+                  <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, marginBottom: 12 }}>
+                    Enviámos um email para <strong>{email}</strong>
+                  </p>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    fontSize: 13, color: '#6b7280', lineHeight: 1.6,
+                  }}>
+                    <CheckCircle size={16} color="#22c55e" />
+                    <span>
+                      {sentReason === 'signup' && 'Clica no link de confirmação para ativares a tua conta.'}
+                      {sentReason === 'magic' && 'Clica no link para entrares automaticamente na plataforma.'}
+                      {sentReason === 'recovery' && 'Clica no link para redefinires a tua senha.'}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 12 }}>
+                    Não recebeste? Verifica a pasta de Spam ou{' '}
+                    <button
+                      onClick={() => setSentReason(null)}
+                      style={{
+                        background: 'transparent', border: 'none', color: '#0d1117',
+                        fontWeight: 600, cursor: 'pointer', fontSize: 12,
+                        fontFamily: "'Poppins', sans-serif", textDecoration: 'underline',
+                      }}
+                    >
+                      tenta novamente
+                    </button>
+                  </p>
+                </div>
+                <button
+                  onClick={() => { setSentReason(null); setMode('login'); }}
+                  style={{
+                    width: '100%', padding: '14px 24px', fontSize: 15, fontWeight: 700,
+                    background: '#0d1117', border: 'none', color: '#fff', cursor: 'pointer',
+                    fontFamily: "'Poppins', sans-serif",
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  }}
+                >
+                  Voltar ao login <ArrowLeft size={16} />
+                </button>
+              </motion.div>
+            ) : (
+            <>
             <h2 className="text-2xl font-extrabold text-slate-900 mb-1.5 tracking-tight">
-              {mode === 'login' ? 'Entrar na tua conta' : mode === 'signup' ? 'Criar a tua conta' : 'Recuperar senha'}
+              {mode === 'login' ? 'Entrar na tua conta' : mode === 'signup' ? 'Criar a tua conta' : mode === 'magic' ? 'Link mágico' : 'Recuperar senha'}
             </h2>
             <p className="text-sm text-slate-500 mb-7 leading-relaxed">
               {mode === 'login'
                 ? 'Escolhe o método de autenticação que preferes.'
                 : mode === 'signup'
                 ? 'Escolhe o método para criares a tua conta.'
+                : mode === 'magic'
+                ? 'Insere o teu email e receberás um link para entrares sem senha.'
                 : 'Insere o teu e-mail e enviaremos um link de recuperação.'
               }
             </p>
@@ -337,6 +401,8 @@ export default function AuthenticationScreen() {
               <a href="#" className="text-slate-900 hover:underline font-medium">Política de Privacidade</a> do Agree.
               {/** TODO: add actual pages for Terms and Privacy */}
             </p>
+            </>
+            )}
           </motion.div>
         </div>
       </div>

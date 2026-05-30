@@ -31,6 +31,8 @@ export default function AdminSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [code, setCode] = useState('');
+  const [codeVerifying, setCodeVerifying] = useState(false);
 
   const confirmSave = useCallback(async (data: PaymentSettings) => {
     setSaving(true);
@@ -90,6 +92,28 @@ export default function AdminSettings() {
     }
     setVerifying(true);
     toast.success('Email de verificação enviado! Verifica a tua caixa de entrada.');
+  };
+
+  const verifyWithCode = async () => {
+    if (!code.trim()) return;
+    setCodeVerifying(true);
+    const pending = sessionStorage.getItem('pendingPaymentSettings');
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: user?.email!,
+      token: code.trim(),
+      type: 'email',
+    });
+    if (error) {
+      toast.error('Código inválido: ' + error.message);
+      setCodeVerifying(false);
+      return;
+    }
+    if (pending) {
+      sessionStorage.removeItem('pendingPaymentSettings');
+      const parsed = JSON.parse(pending) as PaymentSettings;
+      await confirmSave(parsed);
+    }
+    setCodeVerifying(false);
   };
 
   if (authLoading || loading) {
@@ -158,23 +182,54 @@ export default function AdminSettings() {
       {verifying ? (
         <div style={{
           background: '#f0f9ff', borderRadius: 16, border: '1.5px solid #bae6fd',
-          padding: 24, textAlign: 'center',
+          padding: 24,
         }}>
-          <div style={{
-            width: 56, height: 56, borderRadius: 28, background: '#e0f2fe',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 16px',
-          }}>
-            <Mail size={24} color="#0284c7" />
+          <div style={{ textAlign: 'center' }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: 28, background: '#e0f2fe',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 16px',
+            }}>
+              <Mail size={24} color="#0284c7" />
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Verifica o teu email</div>
+            <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 16 }}>
+              Enviámos um email de confirmação para <strong>{user?.email}</strong>.
+              Clica no link do email ou insere o código abaixo.
+            </div>
           </div>
-          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Verifica o teu email</div>
-          <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 16 }}>
-            Enviámos um email de confirmação para <strong>{user?.email}</strong>.
-            Clica no link do email para concluir a alteração.
+          <div style={{
+            display: 'flex', gap: 12, alignItems: 'center',
+            justifyContent: 'center', marginBottom: 12,
+          }}>
+            <input
+              value={code}
+              onChange={e => setCode(e.target.value)}
+              placeholder="Código de verificação"
+              maxLength={6}
+              style={{
+                width: 180, padding: '10px 14px', borderRadius: 12,
+                border: '1px solid #bae6fd', fontSize: 16, outline: 'none',
+                textAlign: 'center', letterSpacing: 4, fontFamily: "'JetBrains Mono', monospace",
+              }}
+              onKeyDown={e => e.key === 'Enter' && verifyWithCode()}
+            />
+            <button
+              onClick={verifyWithCode}
+              disabled={codeVerifying || !code.trim()}
+              className="btn-primary"
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              {codeVerifying ? (
+                <><RotateCw size={16} style={{ animation: 'spin 1s linear infinite' }} /> Verificando...</>
+              ) : (
+                'Verificar'
+              )}
+            </button>
           </div>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
             <RotateCw size={16} style={{ animation: 'spin 1s linear infinite' }} />
-            <span style={{ fontSize: 13, color: '#6b7280' }}>A aguardar confirmação...</span>
+            <span style={{ fontSize: 13, color: '#6b7280' }}>A aguardar confirmação pelo link do email...</span>
           </div>
         </div>
       ) : (

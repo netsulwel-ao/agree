@@ -11,7 +11,7 @@ interface Profile {
   email: string | null;
   role: string;
   is_blocked: boolean;
-  created_at?: string;
+  updated_at?: string;
 }
 
 export default function AdminUsers() {
@@ -28,7 +28,7 @@ export default function AdminUsers() {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('updated_at', { ascending: false });
 
     if (error) {
       toast.error('Erro ao carregar utilizadores: ' + error.message);

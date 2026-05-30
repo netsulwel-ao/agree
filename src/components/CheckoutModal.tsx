@@ -97,9 +97,9 @@ export default function CheckoutModal() {
       }}>
         <div onClick={e => e.stopPropagation()} style={{ background: '#fff', padding: 48, maxWidth: 500, width: '100%', textAlign: 'center', position: 'relative' }}>
           <button onClick={closeCheckout} style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', zIndex: 1 }}><X size={20} /></button>
-          <div style={{ position: 'absolute', top: 24, right: 56, display: 'flex', alignItems: 'center', gap: 4 }}>
-            <img src={AgreeLogo} alt="" style={{ height: 22, display: 'block' }} />
-            <span style={{ fontSize: 15, fontWeight: 800, color: '#0d1117', letterSpacing: -0.3 }}>Agree</span>
+          <div style={{ position: 'absolute', top: 24, right: 56, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <img src={AgreeLogo} alt="" style={{ height: 28, display: 'block' }} />
+            <span style={{ fontSize: 20, fontWeight: 800, color: '#0d1117', letterSpacing: -0.5 }}>Agree</span>
           </div>
           <CheckCircle size={48} color="#22c55e" style={{ marginBottom: 16 }} />
           <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Já estás no plano {PLAN_INFO[currentPlan].label}</h2>
@@ -125,9 +125,9 @@ export default function CheckoutModal() {
       }}>
         <div onClick={e => e.stopPropagation()} style={{ background: '#fff', padding: 48, maxWidth: 500, width: '100%', textAlign: 'center', position: 'relative' }}>
           <button onClick={closeCheckout} style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', zIndex: 1 }}><X size={20} /></button>
-          <div style={{ position: 'absolute', top: 24, right: 56, display: 'flex', alignItems: 'center', gap: 4 }}>
-            <img src={AgreeLogo} alt="" style={{ height: 22, display: 'block' }} />
-            <span style={{ fontSize: 15, fontWeight: 800, color: '#0d1117', letterSpacing: -0.3 }}>Agree</span>
+          <div style={{ position: 'absolute', top: 24, right: 56, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <img src={AgreeLogo} alt="" style={{ height: 28, display: 'block' }} />
+            <span style={{ fontSize: 20, fontWeight: 800, color: '#0d1117', letterSpacing: -0.5 }}>Agree</span>
           </div>
           <div style={{ width: 56, height: 56, borderRadius: 16, background: '#0d1117', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
             <CheckCircle size={24} color="#fff" />
@@ -172,12 +172,10 @@ export default function CheckoutModal() {
         {/* Left column */}
         <div style={{ flex: 1, padding: '36px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
           {/* Logo + Agree */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <img src={AgreeLogo} alt="" style={{ height: 24, display: 'block' }} />
-            <span style={{ fontSize: 16, fontWeight: 800, color: '#0d1117', letterSpacing: -0.3 }}>Agree</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <img src={AgreeLogo} alt="" style={{ height: 32, display: 'block' }} />
+            <span style={{ fontSize: 22, fontWeight: 800, color: '#0d1117', letterSpacing: -0.5 }}>Agree</span>
           </div>
-
-          {/* Title */}
           <div>
             <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, marginBottom: 2 }}>Checkout</h2>
             <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>Escolhe o plano e a forma de pagamento.</p>

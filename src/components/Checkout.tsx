@@ -3,8 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { PLAN_INFO } from '../lib/plans';
-import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js';
-import { ArrowUpRight, CheckCircle, Loader, Upload, Landmark, Wallet, FileText, AlertCircle, ExternalLink } from 'lucide-react';
+import { ArrowUpRight, CheckCircle, Loader, Upload, Landmark, Wallet, FileText, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 type PlanOption = 'pro' | 'enterprise';
@@ -18,12 +17,8 @@ interface PaymentSettings {
   paypal_email: string;
 }
 
-const paypalClientId = import.meta.env.VITE_PAYPAL_CLIENT_ID || '';
-
-const AMOUNTS = { pro: 39.9, enterprise: 99.9 };
-
 export default function Checkout() {
-  const { user, plan: currentPlan, refreshProfile } = useAuth();
+  const { user, plan: currentPlan } = useAuth();
   const navigate = useNavigate();
   const [selectedPlan, setSelectedPlan] = useState<PlanOption>('pro');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('bank_transfer');
@@ -33,7 +28,6 @@ export default function Checkout() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [settings, setSettings] = useState<PaymentSettings | null>(null);
-  const [loadingSettings, setLoadingSettings] = useState(true);
 
   const amount = selectedPlan === 'pro' ? 39900 : 99900;
 
@@ -41,7 +35,6 @@ export default function Checkout() {
     supabase.from('payment_settings').select('*').limit(1).maybeSingle()
       .then(({ data }) => {
         if (data) setSettings(data);
-        setLoadingSettings(false);
       });
   }, []);
 
@@ -78,19 +71,21 @@ export default function Checkout() {
     setSuccess(true);
   };
 
-  const handlePayPalApprove = async (orderId: string) => {
+  const handlePayPalSubmit = async () => {
     if (!user) return;
-    const res = await fetch('/api/paypal/capture-order', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ orderId, userId: user.id, plan: selectedPlan }),
+    if (!settings?.paypal_email) { toast.error('PayPal não configurado. Contacta o administrador.'); return; }
+    if (!userPaypalEmail.trim()) { toast.error('Indica o teu email do PayPal'); return; }
+
+    setSubmitting(true);
+    const { error } = await supabase.from('payment_requests').insert({
+      user_id: user.id, plan: selectedPlan, amount,
+      payment_method: 'paypal',
+      user_paypal_email: userPaypalEmail.trim(),
+      notes: notes.trim() || null,
+      status: 'pending',
     });
-    const data = await res.json();
-    if (!res.ok) {
-      toast.error('Erro no pagamento: ' + (data.error || 'Erro desconhecido'));
-      return;
-    }
-    await refreshProfile();
+    setSubmitting(false);
+    if (error) { toast.error('Erro ao criar pedido: ' + error.message); return; }
     setSuccess(true);
   };
 
@@ -111,19 +106,13 @@ export default function Checkout() {
         <div style={{ width: 64, height: 64, borderRadius: 16, background: '#0d1117', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
           <CheckCircle size={28} color="#fff" />
         </div>
-        <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>
-          {paymentMethod === 'paypal' ? 'Pagamento confirmado!' : 'Pedido enviado!'}
-        </h1>
+        <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>Pedido enviado!</h1>
         <p style={{ fontSize: 14, color: '#6b7280', maxWidth: 440, marginBottom: 8 }}>
-          {paymentMethod === 'paypal'
-            ? `O plano ${PLAN_INFO[selectedPlan].label} foi ativado com sucesso.`
-            : `O pedido de upgrade para ${PLAN_INFO[selectedPlan].label} foi registado.`}
+          O pedido de upgrade para <strong>{PLAN_INFO[selectedPlan].label}</strong> foi registado.
         </p>
-        {paymentMethod !== 'paypal' && (
-          <p style={{ fontSize: 14, color: '#6b7280', maxWidth: 440, marginBottom: 24 }}>
-            O administrador irá ativar o plano assim que o pagamento for confirmado.
-          </p>
-        )}
+        <p style={{ fontSize: 14, color: '#6b7280', maxWidth: 440, marginBottom: 24 }}>
+          O administrador irá ativar o plano assim que o pagamento for confirmado.
+        </p>
         <button className="btn-primary" onClick={() => navigate('/dashboard')}><ArrowUpRight size={15} /> Voltar ao Dashboard</button>
       </div>
     );
@@ -160,10 +149,8 @@ export default function Checkout() {
         <p style={{ fontSize: 14, color: '#6b7280' }}>Escolhe o plano e a forma de pagamento.</p>
       </div>
 
-      {/* Plan selector */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24 }}>{planCards}</div>
 
-      {/* Features */}
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid #e2e5e9', padding: 24, marginBottom: 24 }}>
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: '#0d1117' }}>
           Funcionalidades incluídas no plano {PLAN_INFO[selectedPlan].label}
@@ -177,7 +164,6 @@ export default function Checkout() {
         </div>
       </div>
 
-      {/* Payment method */}
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid #e2e5e9', padding: 24, marginBottom: 24 }}>
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 16, color: '#0d1117' }}>
           Forma de pagamento
@@ -185,7 +171,7 @@ export default function Checkout() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
           {([
             { value: 'bank_transfer' as PaymentMethod, label: 'Transferência Bancária', icon: Landmark, desc: 'Envia o comprovativo em PDF' },
-            { value: 'paypal' as PaymentMethod, label: 'PayPal', icon: Wallet, desc: 'Pagamento instantâneo' },
+            { value: 'paypal' as PaymentMethod, label: 'PayPal', icon: Wallet, desc: 'Paga com PayPal' },
           ]).map(m => {
             const isSel = paymentMethod === m.value;
             const Icon = m.icon;
@@ -219,7 +205,7 @@ export default function Checkout() {
               </div>
             ) : (
               <div style={{ background: '#fffbeb', borderRadius: 12, padding: 16, marginBottom: 16, fontSize: 12, color: '#92400e', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <AlertCircle size={16} /> Os dados bancários ainda não foram configurados. Contacta o administrador.
+                <AlertCircle size={16} /> Os dados bancários ainda não foram configurados.
               </div>
             )}
             <div>
@@ -260,38 +246,30 @@ export default function Checkout() {
         {/* PayPal */}
         {paymentMethod === 'paypal' && (
           <>
-            <div style={{ background: '#f0fdf4', borderRadius: 12, padding: 16, marginBottom: 16, fontSize: 12, color: '#166534', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Wallet size={16} />
-              Pagamento seguro via PayPal — {PLAN_INFO[selectedPlan].price} ({AMOUNTS[selectedPlan]} USD)
-            </div>
-
-            {!paypalClientId ? (
-              <div style={{ background: '#fffbeb', borderRadius: 12, padding: 16, fontSize: 12, color: '#92400e', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <AlertCircle size={16} /> PayPal não configurado (falta VITE_PAYPAL_CLIENT_ID). Contacta o administrador.
+            {settings?.paypal_email ? (
+              <div style={{ background: '#f0fdf4', borderRadius: 12, padding: 16, marginBottom: 16, fontSize: 12, color: '#166534', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Wallet size={16} /> Faz o pagamento para <strong>{settings.paypal_email}</strong>
               </div>
             ) : (
-              <PayPalScriptProvider options={{ clientId: paypalClientId, currency: 'USD' }}>
-                <PayPalButtons
-                  style={{ layout: 'vertical', shape: 'rect', color: 'black', label: 'pay', height: 45 }}
-                  createOrder={async () => {
-                    const res = await fetch('/api/paypal/create-order', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ plan: selectedPlan }),
-                    });
-                    const data = await res.json();
-                    if (!res.ok) throw new Error(data.error || 'Erro ao criar ordem');
-                    return data.orderId;
-                  }}
-                  onApprove={async (data) => {
-                    await handlePayPalApprove(data.orderID);
-                  }}
-                  onError={(err) => {
-                    toast.error('Erro no PayPal: ' + (err instanceof Error ? err.message : 'Erro desconhecido'));
-                  }}
-                />
-              </PayPalScriptProvider>
+              <div style={{ background: '#fffbeb', borderRadius: 12, padding: 16, marginBottom: 16, fontSize: 12, color: '#92400e', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <AlertCircle size={16} /> O email do PayPal ainda não foi configurado.
+              </div>
             )}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#0d1117', display: 'block', marginBottom: 6 }}>Teu email do PayPal</label>
+              <input value={userPaypalEmail} onChange={e => setUserPaypalEmail(e.target.value)}
+                placeholder="Email que usaste para fazer o pagamento"
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 12, border: '1px solid #e2e5e9', fontSize: 13, outline: 'none', fontFamily: "'Poppins', sans-serif" }} />
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#0d1117', display: 'block', marginBottom: 6 }}>Observações (opcional)</label>
+              <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="ID da transação PayPal, etc." rows={2}
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 12, border: '1px solid #e2e5e9', fontSize: 13, outline: 'none', fontFamily: "'Poppins', sans-serif", resize: 'vertical' }} />
+            </div>
+            <button onClick={handlePayPalSubmit} disabled={submitting} className="btn-primary" style={{ width: '100%', justifyContent: 'space-between' }}>
+              {submitting ? <><Loader size={16} style={{ animation: 'spin 1s linear infinite' }} /> A enviar...</>
+                : <>Solicitar Ativação — {PLAN_INFO[selectedPlan].price}<ArrowUpRight size={15} /></>}
+            </button>
           </>
         )}
       </div>

@@ -17,10 +17,10 @@ interface PaymentSettings {
   paypal_email: string;
 }
 
-const PayPalIcon = ({ color }: { color: string }) => (
+const PayPalIcon = () => (
   <svg viewBox="0 0 24 24" width="24" height="24" fill="none">
-    <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944.901C5.026.382 5.474 0 5.998 0h7.46c2.57 0 4.578.543 5.69 1.81 1.01 1.15 1.304 2.42 1.012 4.287-.023.143-.047.288-.077.437-.983 5.05-4.349 6.797-8.647 6.797h-2.19c-.524 0-.972.382-1.054.9l-1.016 6.106Z" fill={color}/>
-    <path d="M17.275 6.534c-.023.143-.047.288-.077.437-.983 5.05-4.349 6.797-8.647 6.797h-2.19c-.524 0-.972.382-1.054.9l-1.016 6.106H3.16l.003-.016c4.124 0 7.376-3.04 7.987-7.14.218-1.464.617-2.586 1.184-3.464.567-.878 1.34-1.499 2.33-1.868.67-.25 1.435-.394 2.294-.435.135-.006.27-.01.406-.01 1.527 0 2.717.205 3.604.646.527.262 1.017.633 1.416 1.125.001.001.003.003.004.005.036.045.07.091.104.137.36.49.578 1.128.562 1.896Z" fill={color}/>
+    <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944.901C5.026.382 5.474 0 5.998 0h7.46c2.57 0 4.578.543 5.69 1.81 1.01 1.15 1.304 2.42 1.012 4.287-.023.143-.047.288-.077.437-.983 5.05-4.349 6.797-8.647 6.797h-2.19c-.524 0-.972.382-1.054.9l-1.016 6.106Z" fill="#003087"/>
+    <path d="M17.275 6.534c-.023.143-.047.288-.077.437-.983 5.05-4.349 6.797-8.647 6.797h-2.19c-.524 0-.972.382-1.054.9l-1.016 6.106H3.16l.003-.016c4.124 0 7.376-3.04 7.987-7.14.218-1.464.617-2.586 1.184-3.464.567-.878 1.34-1.499 2.33-1.868.67-.25 1.435-.394 2.294-.435.135-.006.27-.01.406-.01 1.527 0 2.717.205 3.604.646.527.262 1.017.633 1.416 1.125.001.001.003.003.004.005.036.045.07.091.104.137.36.49.578 1.128.562 1.896Z" fill="#009CDE"/>
   </svg>
 );
 
@@ -107,7 +107,7 @@ export default function CheckoutModal() {
           <button onClick={closeCheckout} style={{
             width: '100%', padding: '14px 24px', fontSize: 15, fontWeight: 700,
             background: '#0d1117', border: 'none', color: '#fff', cursor: 'pointer',
-            borderRadius: 12, fontFamily: "'Poppins', sans-serif", display: 'flex', alignItems: 'center',
+             fontFamily: "'Poppins', sans-serif", display: 'flex', alignItems: 'center',
             justifyContent: 'center', gap: 6,
           }}>
             Fechar <ArrowUpRight size={15} />
@@ -129,7 +129,7 @@ export default function CheckoutModal() {
             <img src={AgreeLogo} alt="" style={{ height: 28, display: 'block' }} />
             <span style={{ fontSize: 20, fontWeight: 800, color: '#0d1117', letterSpacing: -0.5 }}>Agree</span>
           </div>
-          <div style={{ width: 56, height: 56, borderRadius: 16, background: '#0d1117', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+          <div style={{ width: 56, height: 56,  background: '#0d1117', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
             <CheckCircle size={24} color="#fff" />
           </div>
           <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Pedido enviado!</h2>
@@ -142,7 +142,7 @@ export default function CheckoutModal() {
           <button onClick={closeCheckout} style={{
             width: '100%', padding: '14px 24px', fontSize: 15, fontWeight: 700,
             background: '#0d1117', border: 'none', color: '#fff', cursor: 'pointer',
-            borderRadius: 12, fontFamily: "'Poppins', sans-serif", display: 'flex', alignItems: 'center',
+             fontFamily: "'Poppins', sans-serif", display: 'flex', alignItems: 'center',
             justifyContent: 'center', gap: 6,
           }}>
             Fechar <ArrowUpRight size={15} />
@@ -189,7 +189,7 @@ export default function CheckoutModal() {
               return (
                 <button key={p} onClick={() => setSelectedPlan(p)}
                   style={{
-                    padding: '18px 20px', borderRadius: 12, cursor: 'pointer', textAlign: 'left',
+                    padding: '18px 20px',  cursor: 'pointer', textAlign: 'left',
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     border: isSelected ? '2px solid #0d1117' : '1.5px solid #d1d5db',
                     background: isSelected ? '#f9fafb' : '#fff', fontFamily: "'Poppins', sans-serif", position: 'relative',
@@ -206,7 +206,7 @@ export default function CheckoutModal() {
           </div>
 
           {/* Features */}
-          <div style={{ background: '#f9fafb', borderRadius: 12, padding: 16 }}>
+          <div style={{ background: '#f9fafb',  padding: 16 }}>
             <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 10, color: '#0d1117', letterSpacing: 0.3 }}>FUNCIONALIDADES DO PLANO {PLAN_INFO[selectedPlan].label.toUpperCase()}</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px 12px' }}>
               {featuresList.map(f => (
@@ -217,10 +217,6 @@ export default function CheckoutModal() {
             </div>
           </div>
 
-          {/* Footer text */}
-          <p style={{ fontSize: 11, color: '#9ca3af', margin: 0, lineHeight: 1.5 }}>
-            Todas as assinaturas digitais são processadas e criptografadas com AES-GCM 256 bits.
-          </p>
         </div>
 
         {/* Vertical divider */}
@@ -238,7 +234,7 @@ export default function CheckoutModal() {
               return (
                 <button key={m.value} onClick={() => setPaymentMethod(m.value)}
                   style={{
-                    flex: 1, padding: '14px 8px', borderRadius: 12, cursor: 'pointer', textAlign: 'center',
+                    flex: 1, padding: '14px 8px',  cursor: 'pointer', textAlign: 'center',
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                     border: isSel ? '2px solid #0d1117' : '1.5px solid #d1d5db',
                     background: isSel ? '#f9fafb' : '#fff', fontFamily: "'Poppins', sans-serif",
@@ -247,7 +243,7 @@ export default function CheckoutModal() {
                   {m.value === 'bank_transfer' ? (
                     <Landmark size={20} color={isSel ? '#0d1117' : '#6b7280'} />
                   ) : (
-                    <PayPalIcon color={isSel ? '#0d1117' : '#9ca3af'} />
+                    <PayPalIcon />
                   )}
                   <div style={{ fontSize: 11, fontWeight: 600 }}>{m.label}</div>
                 </button>
@@ -259,21 +255,21 @@ export default function CheckoutModal() {
           {paymentMethod === 'bank_transfer' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1 }}>
               {settings?.bank_name || settings?.bank_iban ? (
-                <div style={{ background: '#f9fafb', borderRadius: 10, padding: 12, fontSize: 11, color: '#374151', lineHeight: 1.7 }}>
+                <div style={{ background: '#f9fafb',  padding: 12, fontSize: 11, color: '#374151', lineHeight: 1.7 }}>
                   {settings.bank_name && <div><strong>Banco:</strong> {settings.bank_name}</div>}
                   {settings.bank_iban && <div><strong>IBAN:</strong> {settings.bank_iban}</div>}
                   {settings.bank_nib && <div><strong>NIB:</strong> {settings.bank_nib}</div>}
                   {settings.bank_holder && <div><strong>Titular:</strong> {settings.bank_holder}</div>}
                 </div>
               ) : (
-                <div style={{ background: '#fffbeb', borderRadius: 10, padding: 12, fontSize: 11, color: '#92400e', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ background: '#fffbeb',  padding: 12, fontSize: 11, color: '#92400e', display: 'flex', alignItems: 'center', gap: 6 }}>
                   <AlertCircle size={14} /> Dados bancários não configurados.
                 </div>
               )}
               <label style={{ fontSize: 11, fontWeight: 600, color: '#0d1117', marginBottom: -4 }}>Comprovativo (PDF)</label>
               <label style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                padding: '14px 12px', borderRadius: 10, border: '1.5px dashed #d1d5db', cursor: 'pointer',
+                padding: '14px 12px',  border: '1.5px dashed #d1d5db', cursor: 'pointer',
                 background: receiptFile ? '#f9fafb' : '#fff',
               }}>
                 {receiptFile ? (
@@ -288,7 +284,7 @@ export default function CheckoutModal() {
                 <input type="file" accept=".pdf,application/pdf" onChange={e => { const f = e.target.files?.[0]; if (f) setReceiptFile(f); }} style={{ display: 'none' }} />
               </label>
               <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Referência da transferência (opcional)" rows={2}
-                style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #d1d5db', fontSize: 11, outline: 'none', fontFamily: "'Poppins', sans-serif", resize: 'none' }} />
+                style={{ width: '100%', padding: '10px 12px',  border: '1px solid #d1d5db', fontSize: 11, outline: 'none', fontFamily: "'Poppins', sans-serif", resize: 'none' }} />
             </div>
           )}
 
@@ -296,18 +292,18 @@ export default function CheckoutModal() {
           {paymentMethod === 'paypal' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1 }}>
               {settings?.paypal_email ? (
-                <div style={{ background: '#f0fdf4', borderRadius: 10, padding: 12, fontSize: 11, color: '#166534', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ background: '#f0fdf4',  padding: 12, fontSize: 11, color: '#166534', display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Wallet size={14} /> Pagar para <strong>{settings.paypal_email}</strong>
                 </div>
               ) : (
-                <div style={{ background: '#fffbeb', borderRadius: 10, padding: 12, fontSize: 11, color: '#92400e', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ background: '#fffbeb',  padding: 12, fontSize: 11, color: '#92400e', display: 'flex', alignItems: 'center', gap: 6 }}>
                   <AlertCircle size={14} /> PayPal não configurado.
                 </div>
               )}
               <input value={userPaypalEmail} onChange={e => setUserPaypalEmail(e.target.value)} placeholder="Teu email do PayPal"
-                style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #d1d5db', fontSize: 11, outline: 'none', fontFamily: "'Poppins', sans-serif" }} />
+                style={{ width: '100%', padding: '10px 12px',  border: '1px solid #d1d5db', fontSize: 11, outline: 'none', fontFamily: "'Poppins', sans-serif" }} />
               <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="ID da transação (opcional)" rows={2}
-                style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #d1d5db', fontSize: 11, outline: 'none', fontFamily: "'Poppins', sans-serif", resize: 'none' }} />
+                style={{ width: '100%', padding: '10px 12px',  border: '1px solid #d1d5db', fontSize: 11, outline: 'none', fontFamily: "'Poppins', sans-serif", resize: 'none' }} />
             </div>
           )}
 
@@ -323,7 +319,7 @@ export default function CheckoutModal() {
               style={{
                 width: '100%', padding: '16px 24px', fontSize: 16, fontWeight: 700,
                 background: '#0d1117', border: 'none', color: '#fff',
-                cursor: submitting ? 'not-allowed' : 'pointer', borderRadius: 12,
+                cursor: submitting ? 'not-allowed' : 'pointer', 
                 fontFamily: "'Poppins', sans-serif", display: 'flex', alignItems: 'center',
                 justifyContent: 'center', gap: 8, opacity: submitting ? 0.7 : 1,
               }}

@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { Save, RotateCw, Landmark, Wallet, Mail, Shield } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Save, RotateCw, Landmark, Wallet, Shield, Lock, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface PaymentSettings {
@@ -26,17 +26,17 @@ const defaults: PaymentSettings = {
 export default function AdminSettings() {
   const { user, isAdmin, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const [settings, setSettings] = useState<PaymentSettings>(defaults);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [verifying, setVerifying] = useState(false);
-  const [code, setCode] = useState('');
-  const [codeVerifying, setCodeVerifying] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordVerifying, setPasswordVerifying] = useState(false);
+  const passwordRef = useRef<HTMLInputElement>(null);
 
-  const confirmSave = useCallback(async (data: PaymentSettings) => {
+  const doSave = useCallback(async (data: PaymentSettings) => {
     setSaving(true);
-    setVerifying(false);
     const payload = { ...data, updated_by: user?.id };
     const { error } = await supabase.from('payment_settings').upsert(payload, { onConflict: 'id' });
     setSaving(false);
@@ -47,20 +47,36 @@ export default function AdminSettings() {
     }
   }, [user]);
 
+  const handleConfirmPassword = async () => {
+    if (!password) return;
+    setPasswordVerifying(true);
+    setPasswordError('');
+    const { error } = await supabase.auth.signInWithPassword({
+      email: user?.email!,
+      password,
+    });
+    if (error) {
+      setPasswordError('Password incorreta');
+      setPasswordVerifying(false);
+      return;
+    }
+    setPasswordVerifying(false);
+    setShowPasswordModal(false);
+    setPassword('');
+    await doSave(settings);
+  };
+
   useEffect(() => {
-    try {
-      const stored = sessionStorage.getItem('pendingPaymentSettings');
-      if (stored) {
-        sessionStorage.removeItem('pendingPaymentSettings');
-        const parsed = JSON.parse(stored) as PaymentSettings;
-        const hash = location.hash.replace('#', '');
-        const params = new URLSearchParams(hash);
-        if (params.get('type') === 'reauthentication' || params.has('access_token')) {
-          confirmSave(parsed);
-        }
-      }
-    } catch { /* ignore */ }
-  }, []);
+    if (showPasswordModal && passwordRef.current) {
+      passwordRef.current.focus();
+    }
+  }, [showPasswordModal]);
+
+  const handleSaveClick = () => {
+    setPassword('');
+    setPasswordError('');
+    setShowPasswordModal(true);
+  };
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -81,40 +97,6 @@ export default function AdminSettings() {
     }
     fetch();
   }, [user, isAdmin, authLoading, navigate, fetch]);
-
-  const handleSave = async () => {
-    sessionStorage.setItem('pendingPaymentSettings', JSON.stringify(settings));
-    const { error } = await supabase.auth.reauthenticate();
-    if (error) {
-      sessionStorage.removeItem('pendingPaymentSettings');
-      toast.error('Erro ao enviar email de verificação: ' + error.message);
-      return;
-    }
-    setVerifying(true);
-    toast.success('Email de verificação enviado! Verifica a tua caixa de entrada.');
-  };
-
-  const verifyWithCode = async () => {
-    if (!code.trim()) return;
-    setCodeVerifying(true);
-    const pending = sessionStorage.getItem('pendingPaymentSettings');
-    const { data, error } = await supabase.auth.verifyOtp({
-      email: user?.email!,
-      token: code.trim(),
-      type: 'reauthentication',
-    });
-    if (error) {
-      toast.error('Código inválido: ' + error.message);
-      setCodeVerifying(false);
-      return;
-    }
-    if (pending) {
-      sessionStorage.removeItem('pendingPaymentSettings');
-      const parsed = JSON.parse(pending) as PaymentSettings;
-      await confirmSave(parsed);
-    }
-    setCodeVerifying(false);
-  };
 
   if (authLoading || loading) {
     return (
@@ -179,72 +161,89 @@ export default function AdminSettings() {
         {field('Email PayPal', settings.paypal_email, v => setSettings(s => ({ ...s, paypal_email: v })), { placeholder: 'Ex: payments@agree.ao' })}
       </div>
 
-      {verifying ? (
+      <button
+        onClick={handleSaveClick}
+        disabled={saving}
+        className="btn-primary"
+        style={{ width: '100%', justifyContent: 'space-between' }}
+      >
+        {saving ? (
+          <><RotateCw size={16} style={{ animation: 'spin 1s linear infinite' }} /> A guardar...</>
+        ) : (
+          <><Shield size={16} /> Guardar Definições</>
+        )}
+      </button>
+
+      {showPasswordModal && (
         <div style={{
-          background: '#f0f9ff', borderRadius: 16, border: '1.5px solid #bae6fd',
-          padding: 24,
-        }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{
-              width: 56, height: 56, borderRadius: 28, background: '#e0f2fe',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              margin: '0 auto 16px',
-            }}>
-              <Mail size={24} color="#0284c7" />
-            </div>
-            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Verifica o teu email</div>
-            <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 16 }}>
-              Enviámos um email de confirmação para <strong>{user?.email}</strong>.
-              Clica no link do email ou insere o código abaixo.
-            </div>
-          </div>
+          position: 'fixed', inset: 0, zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(0,0,0,0.4)',
+        }} onClick={() => setShowPasswordModal(false)}>
           <div style={{
-            display: 'flex', gap: 12, alignItems: 'center',
-            justifyContent: 'center', marginBottom: 12,
-          }}>
+            background: '#fff', borderRadius: 20, padding: 32, width: 400,
+            maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              marginBottom: 20,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 44, height: 44, borderRadius: 12, background: '#f3f4f6',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Lock size={20} color="#0d1117" />
+                </div>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 700 }}>Confirmar identidade</div>
+                  <div style={{ fontSize: 12, color: '#6b7280' }}>Insere a tua password para continuar</div>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPasswordModal(false)}
+                style={{
+                  width: 36, height: 36, borderRadius: 10, border: 'none',
+                  background: '#f3f4f6', cursor: 'pointer', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                <X size={16} color="#6b7280" />
+              </button>
+            </div>
             <input
-              value={code}
-              onChange={e => setCode(e.target.value)}
-              placeholder="Código de verificação"
-              maxLength={6}
+              ref={passwordRef}
+              type="password"
+              value={password}
+              onChange={e => { setPassword(e.target.value); setPasswordError(''); }}
+              placeholder="Digita a tua password"
               style={{
-                width: 180, padding: '10px 14px', borderRadius: 12,
-                border: '1px solid #bae6fd', fontSize: 16, outline: 'none',
-                textAlign: 'center', letterSpacing: 4, fontFamily: "'JetBrains Mono', monospace",
+                width: '100%', padding: '12px 16px', borderRadius: 12,
+                border: passwordError ? '1.5px solid #ef4444' : '1px solid #e2e5e9',
+                fontSize: 14, outline: 'none', marginBottom: 4,
               }}
-              onKeyDown={e => e.key === 'Enter' && verifyWithCode()}
+              onKeyDown={e => e.key === 'Enter' && handleConfirmPassword()}
             />
+            {passwordError && (
+              <div style={{ fontSize: 12, color: '#ef4444', marginBottom: 4 }}>{passwordError}</div>
+            )}
+            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 20, marginTop: 8 }}>
+              Precisamos de confirmar a tua identidade antes de guardar as definições de pagamento.
+            </div>
             <button
-              onClick={verifyWithCode}
-              disabled={codeVerifying || !code.trim()}
+              onClick={handleConfirmPassword}
+              disabled={passwordVerifying || !password}
               className="btn-primary"
-              style={{ whiteSpace: 'nowrap' }}
+              style={{ width: '100%', justifyContent: 'space-between' }}
             >
-              {codeVerifying ? (
-                <><RotateCw size={16} style={{ animation: 'spin 1s linear infinite' }} /> Verificando...</>
+              {passwordVerifying ? (
+                <><RotateCw size={16} style={{ animation: 'spin 1s linear infinite' }} /> A verificar...</>
               ) : (
-                'Verificar'
+                <><Lock size={16} /> Confirmar e Guardar</>
               )}
             </button>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
-            <RotateCw size={16} style={{ animation: 'spin 1s linear infinite' }} />
-            <span style={{ fontSize: 13, color: '#6b7280' }}>A aguardar confirmação pelo link do email...</span>
-          </div>
         </div>
-      ) : (
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="btn-primary"
-          style={{ width: '100%', justifyContent: 'space-between' }}
-        >
-          {saving ? (
-            <><RotateCw size={16} style={{ animation: 'spin 1s linear infinite' }} /> A guardar...</>
-          ) : (
-            <><Shield size={16} /> Guardar Definições</>
-          )}
-        </button>
       )}
 
       <style>{`

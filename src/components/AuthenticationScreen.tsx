@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
@@ -18,6 +18,8 @@ export default function AuthenticationScreen() {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectTo = searchParams.get('redirect') || '/dashboard';
   const { setIsLoading: setGlobalLoading } = useGlobalLoading();
 
   const features = [
@@ -39,7 +41,7 @@ export default function AuthenticationScreen() {
         });
         if (error) throw error;
         toast.success('Login realizado com sucesso!');
-        navigate('/dashboard');
+        navigate(redirectTo);
       } else if (mode === 'recovery') {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: 'https://agree.netsulwel.tech/',
@@ -65,7 +67,7 @@ export default function AuthenticationScreen() {
           setMode('login');
         } else {
           toast.success('Conta criada com sucesso!');
-          navigate('/dashboard');
+          navigate(redirectTo);
         }
       }
     } catch (error: any) {

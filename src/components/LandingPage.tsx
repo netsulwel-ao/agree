@@ -624,7 +624,7 @@ const LandingPage = () => {
                   <span style={{ fontSize: 13, color: '#374151', fontWeight: 400 }}>{f}</span>
                 </div>
               ))}
-              <button className="btn-outline-teal" onClick={() => navigate('/login')} style={{ width: '100%', justifyContent: 'space-between', marginTop: 24 }}>
+              <button className="btn-outline-teal" onClick={() => navigate('/login?redirect=/checkout')} style={{ width: '100%', justifyContent: 'space-between', marginTop: 24 }}>
                 Começar grátis <ArrowUpRight size={15} />
               </button>
             </div>
@@ -652,7 +652,7 @@ const LandingPage = () => {
                   <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', fontWeight: 400 }}>{f}</span>
                 </div>
               ))}
-              <button className="btn-primary" onClick={() => navigate('/login')} style={{ width: '100%', justifyContent: 'space-between', marginTop: 24 }}>
+              <button className="btn-primary" onClick={() => navigate('/login?redirect=/checkout')} style={{ width: '100%', justifyContent: 'space-between', marginTop: 24 }}>
                 Começar agora <ArrowUpRight size={15} />
               </button>
             </div>
@@ -676,7 +676,7 @@ const LandingPage = () => {
                   <span style={{ fontSize: 13, color: '#374151', fontWeight: 400 }}>{f}</span>
                 </div>
               ))}
-              <button className="btn-outline-teal" onClick={() => navigate('/login')} style={{ width: '100%', justifyContent: 'space-between', marginTop: 24 }}>
+              <button className="btn-outline-teal" onClick={() => navigate('/login?redirect=/checkout')} style={{ width: '100%', justifyContent: 'space-between', marginTop: 24 }}>
                 Falar com vendas <ArrowUpRight size={15} />
               </button>
             </div>

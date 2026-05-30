@@ -297,7 +297,7 @@ export default function Layout() {
               {plan === 'enterprise' ? 'Enterprise' : plan === 'pro' ? 'Pro' : 'Free'}
             </span>
             {(plan === 'free' || plan === 'pro') && (
-              <span style={{ fontSize: 10, color: '#60a5fa', fontWeight: 600, cursor: 'pointer' }}>
+              <span onClick={() => navigate('/checkout')} style={{ fontSize: 10, color: '#60a5fa', fontWeight: 600, cursor: 'pointer' }}>
                 Upgrade
               </span>
             )}

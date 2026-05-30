@@ -6,7 +6,7 @@ import { Toaster } from 'sonner';
 import {
   LayoutDashboard, FileText, PlusCircle, LogOut,
   Bell, Menu, X, BarChart3, ShieldCheck,
-  AlertTriangle, PenLine, Shield
+  AlertTriangle, PenLine, Shield, CreditCard, Settings
 } from 'lucide-react';
 import { addDays, isBefore, isAfter, parseISO } from 'date-fns';
 import AgreeLogo from '../Agree-logo.svg';
@@ -68,6 +68,8 @@ export default function Layout() {
 
   if (isAdmin) {
     navItems.push({ id: 'admin', label: 'Admin', icon: Shield, path: '/admin/users' });
+    navItems.push({ id: 'payments', label: 'Pagamentos', icon: CreditCard, path: '/admin/payments' });
+    navItems.push({ id: 'settings', label: 'Definições', icon: Settings, path: '/admin/settings' });
   }
 
   const displayName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'Usuário';

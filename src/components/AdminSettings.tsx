@@ -101,7 +101,7 @@ export default function AdminSettings() {
     const { data, error } = await supabase.auth.verifyOtp({
       email: user?.email!,
       token: code.trim(),
-      type: 'email',
+      type: 'reauthentication',
     });
     if (error) {
       toast.error('Código inválido: ' + error.message);

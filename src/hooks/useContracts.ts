@@ -33,26 +33,20 @@ export function useContracts() {
         .eq('owner_id', user.id)
         .order('created_at', { ascending: false });
 
-      // Contratos onde sou colaborador
-      const { data: collab, error: err2 } = await supabase
+      // Contratos onde sou owner ou colaborador (numa query só)
+      const filter = JSON.stringify([{ user_id: user.id }]);
+      const { data, error } = await supabase
         .from('contracts')
         .select('*')
-        .contains('collaborators', [{ user_id: user.id }])
+        .or(`owner_id.eq.${user.id},collaborators.cs.${filter}`)
         .order('created_at', { ascending: false });
 
-      if (err1 || err2) {
-        console.error("Error fetching contracts:", err1 || err2);
-        throw new Error((err1 || err2)!.message);
+      if (error) {
+        console.error("Error fetching contracts:", error);
+        throw new Error(error.message);
       }
 
-      const all = [...(owned || [])];
-      // Add collaborator contracts not already owned
-      for (const c of (collab || [])) {
-        if (!all.find(x => x.id === c.id)) all.push(c);
-      }
-      all.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-      return all as Contract[];
+      return (data || []) as Contract[];
     },
     enabled: !!user,
   });

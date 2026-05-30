@@ -366,6 +366,14 @@ export default function Layout() {
               Expira em {new Date(planExpiresAt).toLocaleDateString('pt-PT')}
             </div>
           )}
+          <Link
+            to="/profile"
+            className="nav-link nav-link-logout"
+            style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 10, textDecoration: 'none', marginBottom: 6 }}
+          >
+            <Settings size={18} />
+            Perfil
+          </Link>
           <button
             onClick={() => signOut()}
             className="nav-link nav-link-logout"

@@ -18,6 +18,8 @@ import AdminUsers from './components/AdminUsers';
 import AdminPayments from './components/AdminPayments';
 import AdminSettings from './components/AdminSettings';
 import AdminPlanHistory from './components/AdminPlanHistory';
+import ProfileSettings from './components/ProfileSettings';
+import ResetPassword from './components/ResetPassword';
 
 import { GlobalLoadingProvider, useGlobalLoading } from './contexts/GlobalLoadingContext';
 import { useAuth } from './contexts/AuthContext';
@@ -73,14 +75,16 @@ function AppRoutes() {
         <Route path="/admin/payments" element={<AdminPayments />} />
         <Route path="/admin/settings" element={<AdminSettings />} />
         <Route path="/admin/plan-history" element={<AdminPlanHistory />} />
+        <Route path="/profile" element={<ProfileSettings />} />
 
       </Route>
       
       {/* Signature capture via QR scan — standalone, no layout */}
       <Route path="/capture-signature/:sessionId" element={<CaptureSignature />} />
       
-      {/* Email confirmation page — standalone */}
+      {/* Email confirmation / recovery — standalone */}
       <Route path="/confirmado" element={<EmailConfirmed />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

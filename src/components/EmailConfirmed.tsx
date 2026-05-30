@@ -15,36 +15,45 @@ export default function EmailConfirmed() {
     const handleConfirmation = async () => {
       const hashParams = new URLSearchParams(location.hash.replace('#', '?'));
       const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token') || '';
       const type = hashParams.get('type');
 
-      if (!accessToken || type !== 'signup') {
+      if (!accessToken) {
         setStatus('error');
         setErrorMsg('Link de confirmação inválido ou expirado.');
         return;
       }
 
-      try {
-        const { error } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: hashParams.get('refresh_token') || '',
-        });
+      // For email change and reauthentication, just set the session
+      if (type === 'email_change' || type === 'signup' || type === 'reauthentication') {
+        try {
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
 
-        if (error) {
-          if (error.message.includes('expired') || error.message.includes('invalid')) {
-            setStatus('error');
-            setErrorMsg('Este link de confirmação expirou ou já foi usado. Tenta fazer login ou solicitar um novo email de verificação.');
-          } else {
-            setStatus('error');
-            setErrorMsg(error.message);
+          if (error) {
+            if (error.message.includes('expired') || error.message.includes('invalid')) {
+              setStatus('error');
+              setErrorMsg('Este link expirou ou já foi usado.');
+            } else {
+              setStatus('error');
+              setErrorMsg(error.message);
+            }
+            return;
           }
+
+          setStatus('success');
+          return;
+        } catch {
+          setStatus('error');
+          setErrorMsg('Ocorreu um erro ao processar o link.');
           return;
         }
-
-        setStatus('success');
-      } catch {
-        setStatus('error');
-        setErrorMsg('Ocorreu um erro ao confirmar o email. Tenta novamente.');
       }
+
+      setStatus('error');
+      setErrorMsg('Link de confirmação inválido ou expirado.');
     };
 
     handleConfirmation();
@@ -117,7 +126,13 @@ export default function EmailConfirmed() {
               Email confirmado!
             </h2>
             <p style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.6, marginBottom: 32 }}>
-              A tua conta foi verificada com sucesso. Já podes aceder à plataforma e começar a gerir os teus contratos.
+              {(() => {
+                const hashParams = new URLSearchParams(location.hash.replace('#', '?'));
+                const type = hashParams.get('type');
+                if (type === 'email_change') return 'O teu email foi alterado com sucesso.';
+                if (type === 'reauthentication') return 'A tua identidade foi verificada com sucesso.';
+                return 'A tua conta foi verificada com sucesso. Já podes aceder à plataforma e começar a gerir os teus contratos.';
+              })()}
             </p>
             <button
               onClick={() => navigate('/dashboard')}

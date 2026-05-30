@@ -2,7 +2,8 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Search, Shield, ShieldOff, RotateCw, UserCheck, UserX } from 'lucide-react';
+import { Search, Shield, ShieldOff, RotateCw, UserCheck, UserX, UserPlus } from 'lucide-react';
+import InviteUserModal from './InviteUserModal';
 import { toast } from 'sonner';
 
 interface Profile {
@@ -22,6 +23,7 @@ export default function AdminUsers() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   const fetchProfiles = useCallback(async () => {
     setLoading(true);
@@ -115,6 +117,19 @@ export default function AdminUsers() {
             {profiles.length} utilizador{profiles.length !== 1 ? 'es' : ''} registado{profiles.length !== 1 ? 's' : ''}
           </p>
         </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <button
+            onClick={() => setInviteOpen(true)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '10px 18px', fontSize: 13, fontWeight: 600,
+              background: '#0d1117', color: '#fff', border: 'none', borderRadius: 10,
+              cursor: 'pointer', fontFamily: "'Poppins', sans-serif",
+            }}
+          >
+            <UserPlus size={16} />
+            Convidar
+          </button>
         <div style={{ position: 'relative', minWidth: 260 }}>
           <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
           <input
@@ -127,8 +142,9 @@ export default function AdminUsers() {
               background: '#fff', fontFamily: "'Poppins', sans-serif"
             }}
           />
+          </div>
+          </div>
         </div>
-      </div>
 
       {loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200, color: '#6b7280' }}>
@@ -266,6 +282,8 @@ export default function AdminUsers() {
           </div>
         </div>
       )}
+
+      <InviteUserModal open={inviteOpen} onClose={() => { setInviteOpen(false); fetchProfiles(); }} />
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }

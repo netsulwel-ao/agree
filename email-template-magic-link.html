@@ -6,7 +6,6 @@
 <tr><td align="center">
 <table width="480" cellpadding="0" cellspacing="0" style="background:#fff;border:1px solid #e2e5e9;padding:48px 40px;text-align:center;">
 
-<!-- Logo -->
 <tr><td align="center" style="padding-bottom:32px;">
 <table cellpadding="0" cellspacing="0"><tr>
 <td style="vertical-align:middle;"><img src="https://cmkfnycfryztjjkcxrpd.supabase.co/storage/v1/object/public/logos/agree-logo.svg" width="48" height="48" style="display:block;" /></td>
@@ -14,33 +13,30 @@
 </tr></table>
 </td></tr>
 
-<!-- Ícone -->
 <tr><td align="center" style="padding-bottom:24px;">
-<table cellpadding="0" cellspacing="0" style="width:64px;height:64px;background:#0d1117;"><tr><td align="center" valign="middle" style="font-size:28px;color:#fff;font-weight:700;">✉</td></tr></table>
+<table cellpadding="0" cellspacing="0" style="width:64px;height:64px;background:#0d1117;"><tr><td align="center" valign="middle" style="font-size:28px;color:#fff;font-weight:700;">🔗</td></tr></table>
 </td></tr>
 
-<tr><td style="padding-bottom:8px;"><h1 style="margin:0;font-size:20px;font-weight:700;color:#0d1117;">Confirma o teu email</h1></td></tr>
+<tr><td style="padding-bottom:8px;"><h1 style="margin:0;font-size:20px;font-weight:700;color:#0d1117;">Link de acesso rápido</h1></td></tr>
 
 <tr><td style="padding-bottom:32px;">
 <p style="margin:0;font-size:14px;color:#6b7280;line-height:1.7;">
 Olá <strong>{{ .Data.name }}</strong>,<br/><br/>
-Obrigado por criares a tua conta no <strong>Agree</strong>.<br/>
-Clica no botão abaixo para confirmares o teu email.
+Clica no botão abaixo para entrares no <strong>Agree</strong> de forma segura e rápida.
 </p>
 </td></tr>
 
-<!-- Botão -->
 <tr><td style="padding-bottom:32px;">
 <table cellpadding="0" cellspacing="0" style="margin:0 auto;"><tr>
 <td align="center" style="background:#0d1117;padding:14px 36px;">
-<a href="{{ .ConfirmationURL }}" target="_blank" style="color:#fff;font-size:15px;font-weight:700;text-decoration:none;display:inline-block;">Confirmar email</a>
+<a href="{{ .ConfirmationURL }}" target="_blank" style="color:#fff;font-size:15px;font-weight:700;text-decoration:none;display:inline-block;">Entrar no Agree</a>
 </td>
 </tr></table>
 </td></tr>
 
 <tr><td style="padding-bottom:32px;">
 <p style="margin:0;font-size:12px;color:#9ca3af;line-height:1.6;">
-Se o botão não funcionar, copia e cola este link no teu navegador:<br/>
+Se o botão não funcionar, copia e cola este link:<br/>
 <a href="{{ .ConfirmationURL }}" style="color:#0d1117;word-break:break-all;font-size:11px;">{{ .ConfirmationURL }}</a>
 </p>
 </td></tr>
@@ -48,7 +44,7 @@ Se o botão não funcionar, copia e cola este link no teu navegador:<br/>
 <tr><td style="border-top:1px solid #f0f0f0;padding-top:24px;">
 <p style="margin:0;font-size:11px;color:#9ca3af;line-height:1.6;">
 Este link expira em 24 horas.<br/>
-Se não criaste uma conta no Agree, ignora este email.
+Se não solicitaste este acesso, ignora este email.
 </p>
 </td></tr>
 

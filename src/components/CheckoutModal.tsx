@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { PLAN_INFO } from '../lib/plans';
+import { PLAN_INFO, getUpgradeOptions } from '../lib/plans';
 import { useCheckoutModal } from '../contexts/CheckoutModalContext';
 import { X, ArrowUpRight, CheckCircle, Loader, Upload, Landmark, FileText, AlertCircle, Wallet } from 'lucide-react';
 import AgreeLogo from '../Agree-logo.svg';
@@ -25,7 +25,7 @@ const PayPalIcon = () => (
 
 export default function CheckoutModal() {
   const { user, plan: currentPlan } = useAuth();
-  const { open, preselectedPlan, closeCheckout } = useCheckoutModal();
+  const { open, preselectedPlan, mode, closeCheckout } = useCheckoutModal();
   const [selectedPlan, setSelectedPlan] = useState<'pro' | 'enterprise'>('pro');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('bank_transfer');
   const [notes, setNotes] = useState('');
@@ -35,11 +35,19 @@ export default function CheckoutModal() {
   const [success, setSuccess] = useState(false);
   const [settings, setSettings] = useState<PaymentSettings | null>(null);
 
+  const isRenewal = mode === 'renewal';
+  const availablePlans = isRenewal
+    ? (currentPlan === 'pro' || currentPlan === 'enterprise' ? [currentPlan] : [] as ('pro' | 'enterprise')[])
+    : getUpgradeOptions(currentPlan);
+
   const amount = selectedPlan === 'pro' ? 39900 : 99900;
 
   useEffect(() => {
     if (open) {
-      setSelectedPlan(preselectedPlan);
+      const initialPlan = isRenewal
+        ? (currentPlan === 'pro' || currentPlan === 'enterprise' ? currentPlan : 'pro')
+        : (preselectedPlan && availablePlans.includes(preselectedPlan) ? preselectedPlan : availablePlans[0] || 'pro');
+      setSelectedPlan(initialPlan);
       setPaymentMethod('bank_transfer');
       setNotes('');
       setUserPaypalEmail('');
@@ -48,7 +56,7 @@ export default function CheckoutModal() {
       supabase.from('payment_settings').select('*').limit(1).maybeSingle()
         .then(({ data }) => { if (data) setSettings(data); });
     }
-  }, [open, preselectedPlan]);
+  }, [open, preselectedPlan, mode, currentPlan]);
 
   const handleBankSubmit = async () => {
     if (!user) return;
@@ -65,6 +73,7 @@ export default function CheckoutModal() {
       user_id: user.id, plan: selectedPlan, amount,
       payment_method: 'bank_transfer', receipt_url,
       notes: notes.trim() || null, status: 'pending',
+      type: isRenewal ? 'renewal' : 'new',
     });
     setSubmitting(false);
     if (error) { toast.error('Erro ao criar pedido: ' + error.message); return; }
@@ -80,6 +89,7 @@ export default function CheckoutModal() {
       user_id: user.id, plan: selectedPlan, amount,
       payment_method: 'paypal', user_paypal_email: userPaypalEmail.trim(),
       notes: notes.trim() || null, status: 'pending',
+      type: isRenewal ? 'renewal' : 'new',
     });
     setSubmitting(false);
     if (error) { toast.error('Erro ao criar pedido: ' + error.message); return; }
@@ -88,7 +98,8 @@ export default function CheckoutModal() {
 
   if (!open) return null;
 
-  if (currentPlan !== 'free' && currentPlan !== 'pro') {
+  // Enterprise with no upgrade options and not renewal
+  if (!isRenewal && availablePlans.length === 0) {
     return (
       <div onClick={closeCheckout} style={{
         position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.5)',
@@ -131,9 +142,14 @@ export default function CheckoutModal() {
           <div style={{ width: 56, height: 56,  background: '#0d1117', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
             <CheckCircle size={24} color="#fff" />
           </div>
-          <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Pedido enviado!</h2>
+          <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>
+            {isRenewal ? 'Renovação pedida!' : 'Pedido enviado!'}
+          </h2>
           <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 8 }}>
-            O pedido de upgrade para <strong>{PLAN_INFO[selectedPlan].label}</strong> foi registado.
+            {isRenewal
+              ? `O pedido de renovação do plano <strong>${PLAN_INFO[selectedPlan].label}</strong> foi registado.`
+              : `O pedido de upgrade para <strong>${PLAN_INFO[selectedPlan].label}</strong> foi registado.`
+            }
           </p>
           <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 24 }}>
             O administrador irá ativar o plano assim que o pagamento for confirmado.
@@ -176,13 +192,19 @@ export default function CheckoutModal() {
             <span style={{ fontSize: 22, fontWeight: 800, color: '#0d1117', letterSpacing: -0.5 }}>Agree</span>
           </div>
           <div>
-            <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, marginBottom: 2 }}>Checkout</h2>
-            <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>Escolhe o plano e a forma de pagamento.</p>
+            <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, marginBottom: 2 }}>
+              {isRenewal ? 'Renovar plano' : 'Checkout'}
+            </h2>
+            <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>
+              {isRenewal
+                ? `Renova o teu plano ${PLAN_INFO[currentPlan].label} por mais um mês.`
+                : 'Escolhe o plano e a forma de pagamento.'}
+            </p>
           </div>
 
           {/* Plan cards — stacked vertically */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {(['pro', 'enterprise'] as const).map(p => {
+            {availablePlans.map(p => {
               const pi = PLAN_INFO[p];
               const isSelected = selectedPlan === p;
               return (
@@ -326,7 +348,7 @@ export default function CheckoutModal() {
               {submitting ? (
                 <><Loader size={18} style={{ animation: 'spin 1s linear infinite' }} /> A enviar...</>
               ) : (
-                <>Solicitar — {PLAN_INFO[selectedPlan].price} {PLAN_INFO[selectedPlan].priceSuffix}<ArrowUpRight size={16} /></>
+                <>{isRenewal ? 'Renovar' : 'Solicitar'} — {PLAN_INFO[selectedPlan].price} {PLAN_INFO[selectedPlan].priceSuffix}<ArrowUpRight size={16} /></>
               )}
             </button>
           </div>

@@ -10,6 +10,7 @@ interface AuthContextType {
   isLoading: boolean;
   role: string | null;
   plan: Plan;
+  planExpiresAt: string | null;
   isBlocked: boolean;
   isAdmin: boolean;
   signOut: () => Promise<void>;
@@ -22,6 +23,7 @@ const AuthContext = createContext<AuthContextType>({
   isLoading: true,
   role: null,
   plan: 'free',
+  planExpiresAt: null,
   isBlocked: false,
   isAdmin: false,
   signOut: async () => {},
@@ -34,19 +36,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
   const [role, setRole] = useState<string | null>(null);
   const [plan, setPlan] = useState<Plan>('free');
+  const [planExpiresAt, setPlanExpiresAt] = useState<string | null>(null);
   const [isBlocked, setIsBlocked] = useState(false);
   const { setIsLoading: setGlobalLoading } = useGlobalLoading();
 
   const fetchProfile = useCallback(async (userId: string) => {
     const { data } = await supabase
       .from('profiles')
-      .select('role, plan')
+      .select('role, plan, plan_activated_at, plan_expires_at')
       .eq('id', userId)
       .maybeSingle();
     if (data) {
       setRole(data.role || 'user');
       const p = (data.plan as Plan) || 'free';
       setPlan(p === 'pro' || p === 'enterprise' ? p : 'free');
+      setPlanExpiresAt(data.plan_expires_at || null);
     }
     const { data: blockedData } = await supabase
       .from('profiles')
@@ -62,6 +66,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSession(null);
         setRole(null);
         setPlan('free');
+        setPlanExpiresAt(null);
         setIsBlocked(false);
       }
     }
@@ -77,6 +82,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else {
       setRole(null);
       setPlan('free');
+      setPlanExpiresAt(null);
       setIsBlocked(false);
     }
   }, [fetchProfile]);
@@ -108,7 +114,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isAdmin = role === 'admin';
 
   return (
-    <AuthContext.Provider value={{ user, session, isLoading, role, plan, isBlocked, isAdmin, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, session, isLoading, role, plan, planExpiresAt, isBlocked, isAdmin, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

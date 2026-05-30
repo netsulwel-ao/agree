@@ -16,6 +16,7 @@ import CaptureSignature from './components/CaptureSignature';
 import AdminUsers from './components/AdminUsers';
 import AdminPayments from './components/AdminPayments';
 import AdminSettings from './components/AdminSettings';
+import AdminPlanHistory from './components/AdminPlanHistory';
 
 import { GlobalLoadingProvider, useGlobalLoading } from './contexts/GlobalLoadingContext';
 import { useAuth } from './contexts/AuthContext';
@@ -70,6 +71,7 @@ function AppRoutes() {
         <Route path="/admin/users" element={<AdminUsers />} />
         <Route path="/admin/payments" element={<AdminPayments />} />
         <Route path="/admin/settings" element={<AdminSettings />} />
+        <Route path="/admin/plan-history" element={<AdminPlanHistory />} />
 
       </Route>
       

@@ -624,7 +624,7 @@ const LandingPage = () => {
                   <span style={{ fontSize: 13, color: '#374151', fontWeight: 400 }}>{f}</span>
                 </div>
               ))}
-              <button className="btn-outline-teal" onClick={() => { sessionStorage.setItem('openCheckoutOnLogin', 'free'); navigate('/login'); }} style={{ width: '100%', justifyContent: 'space-between', marginTop: 24 }}>
+              <button className="btn-outline-teal" onClick={() => navigate('/login')} style={{ width: '100%', justifyContent: 'space-between', marginTop: 24 }}>
                 Começar grátis <ArrowUpRight size={15} />
               </button>
             </div>

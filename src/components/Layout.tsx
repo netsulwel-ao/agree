@@ -8,7 +8,7 @@ import { Toaster } from 'sonner';
 import {
   LayoutDashboard, FileText, PlusCircle, LogOut,
   Bell, Menu, X, BarChart3, ShieldCheck,
-  AlertTriangle, PenLine, Shield, CreditCard, Settings
+  AlertTriangle, PenLine, Shield, CreditCard, Settings, RefreshCw
 } from 'lucide-react';
 import { addDays, isBefore, isAfter, parseISO } from 'date-fns';
 import AgreeLogo from '../Agree-logo.svg';
@@ -21,12 +21,22 @@ interface AlertContract {
   status: string | null;
 }
 
+interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  read: boolean;
+  created_at: string;
+}
+
 export default function Layout() {
   const [alertCount, setAlertCount] = useState(0);
   const [alerts, setAlerts] = useState<AlertContract[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [alertsOpen, setAlertsOpen] = useState(false);
-  const { user, signOut, isAdmin, plan } = useAuth();
-  const { openCheckout } = useCheckoutModal();
+  const { user, signOut, isAdmin, plan, planExpiresAt } = useAuth();
+  const { openCheckout, openRenewal } = useCheckoutModal();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -69,6 +79,24 @@ export default function Layout() {
     fetchAlerts();
   }, [user]);
 
+  // Buscar notificações do sistema
+  useEffect(() => {
+    if (!user) return;
+    const fetchNotifications = async () => {
+      const { data } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (data) {
+        setNotifications(data);
+      }
+    };
+    fetchNotifications();
+  }, [user]);
+
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { id: 'contracts', label: 'Meus Contratos', icon: FileText, path: '/contracts' },
@@ -81,6 +109,7 @@ export default function Layout() {
   if (isAdmin) {
     navItems.push({ id: 'admin', label: 'Admin', icon: Shield, path: '/admin/users' });
     navItems.push({ id: 'payments', label: 'Pagamentos', icon: CreditCard, path: '/admin/payments' });
+    navItems.push({ id: 'plan-history', label: 'Histórico Planos', icon: RefreshCw, path: '/admin/plan-history' });
     navItems.push({ id: 'settings', label: 'Definições', icon: Settings, path: '/admin/settings' });
   }
 
@@ -88,6 +117,9 @@ export default function Layout() {
   const avatarLetter = displayName.charAt(0).toUpperCase();
   
   const currentNav = navItems.find(i => location.pathname.startsWith(i.path));
+
+  const unreadNotifications = notifications.filter(n => !n.read);
+  const totalAlerts = alertCount + unreadNotifications.length;
 
   return (
     <div style={{
@@ -248,7 +280,7 @@ export default function Layout() {
               <item.icon size={18} />
               {item.label}
               {/* Badge de alertas no Dashboard */}
-              {item.id === 'dashboard' && alertCount > 0 && (
+              {item.id === 'dashboard' && totalAlerts > 0 && (
                 <span style={{
                   marginLeft: 'auto',
                   background: '#ef4444',
@@ -308,12 +340,32 @@ export default function Layout() {
             }}>
               {plan === 'enterprise' ? 'Enterprise' : plan === 'pro' ? 'Pro' : 'Free'}
             </span>
-            {(plan === 'free' || plan === 'pro') && (
+            {plan === 'free' && (
               <span onClick={() => openCheckout()} style={{ fontSize: 10, color: '#60a5fa', fontWeight: 600, cursor: 'pointer' }}>
                 Upgrade
               </span>
             )}
-          </div>
+            {plan === 'pro' && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <span onClick={() => openCheckout()} style={{ fontSize: 10, color: '#60a5fa', fontWeight: 600, cursor: 'pointer' }}>
+                  Upgrade
+                </span>
+                <span onClick={() => openRenewal('pro')} style={{ fontSize: 10, color: '#22c55e', fontWeight: 600, cursor: 'pointer' }}>
+                  Renovar
+                </span>
+              </div>
+            )}
+            {plan === 'enterprise' && (
+              <span onClick={() => openRenewal('enterprise')} style={{ fontSize: 10, color: '#22c55e', fontWeight: 600, cursor: 'pointer' }}>
+                Renovar
+              </span>
+            )}
+            </div>
+          {planExpiresAt && (plan === 'pro' || plan === 'enterprise') && (
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', textAlign: 'center', marginBottom: 12 }}>
+              Expira em {new Date(planExpiresAt).toLocaleDateString('pt-PT')}
+            </div>
+          )}
           <button
             onClick={() => signOut()}
             className="nav-link nav-link-logout"
@@ -350,17 +402,17 @@ export default function Layout() {
             <button
               onClick={() => setAlertsOpen(prev => !prev)}
               style={{
-                background: alertCount > 0 ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.5)',
-                border: `1px solid ${alertCount > 0 ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`,
+                background: totalAlerts > 0 ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.5)',
+                border: `1px solid ${totalAlerts > 0 ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`,
                 cursor: 'pointer', padding: 10,
-                color: alertCount > 0 ? '#ef4444' : '#6b7280',
+                color: totalAlerts > 0 ? '#ef4444' : '#6b7280',
                 position: 'relative', borderRadius: 12, transition: 'all .2s'
               }}
-              onMouseEnter={e => e.currentTarget.style.background = alertCount > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.8)'}
-              onMouseLeave={e => e.currentTarget.style.background = alertCount > 0 ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.5)'}
+              onMouseEnter={e => e.currentTarget.style.background = totalAlerts > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.8)'}
+              onMouseLeave={e => e.currentTarget.style.background = totalAlerts > 0 ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.5)'}
             >
-              {alertCount > 0 ? <AlertTriangle size={20} /> : <Bell size={20} />}
-              {alertCount > 0 && (
+              {totalAlerts > 0 ? <AlertTriangle size={20} /> : <Bell size={20} />}
+              {totalAlerts > 0 && (
                 <span style={{
                   position: 'absolute', top: 6, right: 6,
                   width: 8, height: 8, background: '#ef4444',
@@ -372,14 +424,15 @@ export default function Layout() {
               <div
                 className="alerts-panel"
                 onClick={e => e.stopPropagation()}
+                style={{ width: 380, maxHeight: 480 }}
               >
                 <div className="alerts-panel-header">
                   <div>
-                    <div className="alerts-panel-title">Alertas de contratos</div>
+                    <div className="alerts-panel-title">Notificações</div>
                     <div className="alerts-panel-count">
-                      {alertCount === 0
+                      {totalAlerts === 0
                         ? 'Nenhum alerta no momento'
-                        : `${alertCount} contrato${alertCount > 1 ? 's' : ''} a acompanhar`}
+                        : `${totalAlerts} notificaç${totalAlerts > 1 ? 'ões' : 'ão'}`}
                     </div>
                   </div>
                   <button
@@ -396,41 +449,89 @@ export default function Layout() {
                     Fechar
                   </button>
                 </div>
-                {alerts.length === 0 ? (
-                  <div className="alerts-empty">
-                    Todos os contratos estão em dia. Óptimo trabalho.
-                  </div>
-                ) : (
-                  <ul className="alerts-list">
-                    {alerts.map(alert => {
-                      const end = alert.end_date ? parseISO(alert.end_date) : null;
-                      const now = new Date();
-                      const expired = end && isBefore(end, now);
-                      const in30 = end && isAfter(end, now) && isBefore(end, addDays(now, 30));
-                      const cls = expired ? 'alerts-item expired' : in30 ? 'alerts-item expiring' : 'alerts-item risky';
-                      return (
-                        <li key={alert.id || `${alert.end_date}-${alert.status}`} className={cls}>
-                          <div className="alerts-item-title">
-                            {alert.title || 'Contrato sem título'}
-                          </div>
-                          <div className="alerts-item-meta">
-                            <span>
-                              {expired
-                                ? 'Vencido'
-                                : in30
-                                ? 'A vencer em 30 dias'
-                                : 'Risco elevado'}
-                            </span>
-                            <span>
-                              {alert.end_date
-                                ? `Fim: ${new Date(alert.end_date).toLocaleDateString()}`
-                                : 'Sem data de fim'}
-                            </span>
-                          </div>
+
+                {/* Notificações do sistema */}
+                {unreadNotifications.length > 0 && (
+                  <>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(249,250,251,0.5)', letterSpacing: 0.3, marginBottom: 6 }}>NOTIFICAÇÕES</div>
+                    <ul className="alerts-list" style={{ marginBottom: 12 }}>
+                      {unreadNotifications.map(n => (
+                        <li key={n.id} className="alerts-item">
+                          <div className="alerts-item-title">{n.title}</div>
+                          <div className="alerts-item-meta">{n.message}</div>
                         </li>
-                      );
-                    })}
-                  </ul>
+                      ))}
+                    </ul>
+                  </>
+                )}
+
+                {/* Plan expiry warning */}
+                {planExpiresAt && (plan === 'pro' || plan === 'enterprise') && (
+                  <>
+                    {(() => {
+                      const daysLeft = Math.ceil((new Date(planExpiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                      if (daysLeft <= 0) {
+                        return (
+                          <div className="alerts-item expired" style={{ padding: '10px 11px', marginBottom: 8 }}>
+                            <div className="alerts-item-title">Plano expirado</div>
+                            <div className="alerts-item-meta">O teu plano {plan === 'enterprise' ? 'Enterprise' : 'Pro'} expirou. Renova para continuares a usar as funcionalidades.</div>
+                          </div>
+                        );
+                      }
+                      if (daysLeft <= 7) {
+                        return (
+                          <div className="alerts-item expiring" style={{ padding: '10px 11px', marginBottom: 8 }}>
+                            <div className="alerts-item-title">Plano a expirar</div>
+                            <div className="alerts-item-meta">O teu plano {plan === 'enterprise' ? 'Enterprise' : 'Pro'} expira em {daysLeft} dia{daysLeft > 1 ? 's' : ''}.</div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </>
+                )}
+
+                {/* Alertas de contratos */}
+                {alerts.length > 0 && (
+                  <>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(249,250,251,0.5)', letterSpacing: 0.3, marginBottom: 6 }}>ALERTAS DE CONTRATOS</div>
+                    <ul className="alerts-list">
+                      {alerts.map(alert => {
+                        const end = alert.end_date ? parseISO(alert.end_date) : null;
+                        const now = new Date();
+                        const expired = end && isBefore(end, now);
+                        const in30 = end && isAfter(end, now) && isBefore(end, addDays(now, 30));
+                        const cls = expired ? 'alerts-item expired' : in30 ? 'alerts-item expiring' : 'alerts-item risky';
+                        return (
+                          <li key={alert.id || `${alert.end_date}-${alert.status}`} className={cls}>
+                            <div className="alerts-item-title">
+                              {alert.title || 'Contrato sem título'}
+                            </div>
+                            <div className="alerts-item-meta">
+                              <span>
+                                {expired
+                                  ? 'Vencido'
+                                  : in30
+                                  ? 'A vencer em 30 dias'
+                                  : 'Risco elevado'}
+                              </span>
+                              <span>
+                                {alert.end_date
+                                  ? `Fim: ${new Date(alert.end_date).toLocaleDateString()}`
+                                  : 'Sem data de fim'}
+                              </span>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </>
+                )}
+
+                {totalAlerts === 0 && (
+                  <div className="alerts-empty">
+                    Todas as notificações estão em dia.
+                  </div>
                 )}
               </div>
             )}

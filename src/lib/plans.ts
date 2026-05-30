@@ -82,3 +82,15 @@ export function canUpgrade(userPlan: Plan | null | undefined): boolean {
   const p = userPlan || 'free';
   return p === 'free' || p === 'pro';
 }
+
+export function getUpgradeOptions(userPlan: Plan | null | undefined): ('pro' | 'enterprise')[] {
+  const p = userPlan || 'free';
+  if (p === 'free') return ['pro', 'enterprise'];
+  if (p === 'pro') return ['enterprise'];
+  return [];
+}
+
+export function canRenew(userPlan: Plan | null | undefined): boolean {
+  const p = userPlan || 'free';
+  return p === 'pro' || p === 'enterprise';
+}

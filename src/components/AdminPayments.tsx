@@ -19,6 +19,7 @@ interface PaymentRequest {
   updated_at: string;
   approved_by: string | null;
   notes: string | null;
+  type: 'new' | 'renewal' | null;
   profiles?: { name: string | null; email: string | null };
 }
 
@@ -59,6 +60,9 @@ export default function AdminPayments() {
 
   const handleApprove = async (req: PaymentRequest) => {
     setProcessingId(req.id);
+
+    const now = new Date().toISOString();
+
     const { error: updateError } = await supabase
       .from('payment_requests')
       .update({ status: 'approved', approved_by: user?.id })
@@ -70,9 +74,28 @@ export default function AdminPayments() {
       return;
     }
 
+    // Buscar data de expiração atual para renovações
+    let expiresAt: string;
+    if (req.type === 'renewal') {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('plan_expires_at')
+        .eq('id', req.user_id)
+        .maybeSingle();
+      const currentExpiry = profile?.plan_expires_at ? new Date(profile.plan_expires_at) : new Date();
+      const base = currentExpiry > new Date() ? currentExpiry : new Date();
+      expiresAt = new Date(base.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    } else {
+      expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    }
+
     const { error: planError } = await supabase
       .from('profiles')
-      .update({ plan: req.plan })
+      .update({
+        plan: req.plan,
+        plan_activated_at: req.type === 'renewal' ? undefined : now,
+        plan_expires_at: expiresAt,
+      })
       .eq('id', req.user_id);
 
     if (planError) {
@@ -206,6 +229,7 @@ export default function AdminPayments() {
                   <th style={{ textAlign: 'left', padding: '14px 16px', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: '#6b7280' }}>Plano</th>
                   <th style={{ textAlign: 'right', padding: '14px 16px', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: '#6b7280' }}>Valor</th>
                   <th style={{ textAlign: 'center', padding: '14px 16px', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: '#6b7280' }}>Método</th>
+                  <th style={{ textAlign: 'center', padding: '14px 16px', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: '#6b7280' }}>Tipo</th>
                   <th style={{ textAlign: 'left', padding: '14px 16px', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: '#6b7280' }}>Data</th>
                   <th style={{ textAlign: 'center', padding: '14px 16px', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: '#6b7280' }}>Estado</th>
                   <th style={{ textAlign: 'center', padding: '14px 16px', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: '#6b7280' }}>Ações</th>
@@ -214,7 +238,7 @@ export default function AdminPayments() {
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={7} style={{ textAlign: 'center', padding: 40, color: '#9ca3af' }}>
+                    <td colSpan={8} style={{ textAlign: 'center', padding: 40, color: '#9ca3af' }}>
                       {search || filterStatus !== 'all' ? 'Nenhum pedido encontrado.' : 'Nenhum pedido de pagamento registado.'}
                     </td>
                   </tr>
@@ -266,6 +290,16 @@ export default function AdminPayments() {
                         ) : (
                           <span style={{ fontSize: 12, color: '#9ca3af' }}>—</span>
                         )}
+                      </td>
+                      <td style={{ padding: '14px 16px', textAlign: 'center' }}>
+                        <span style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 4,
+                          padding: '3px 10px', fontSize: 11, fontWeight: 600,
+                          background: r.type === 'renewal' ? '#f0fdf4' : '#eff6ff',
+                          color: r.type === 'renewal' ? '#22c55e' : '#3b82f6',
+                        }}>
+                          {r.type === 'renewal' ? 'Renovação' : 'Novo'}
+                        </span>
                       </td>
                       <td style={{ padding: '14px 16px', color: '#6b7280', fontSize: 12 }}>{formatDate(r.created_at)}</td>
                       <td style={{ padding: '14px 16px', textAlign: 'center' }}>{statusBadge(r.status)}</td>

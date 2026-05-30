@@ -44,7 +44,7 @@ export default function AuthenticationScreen() {
         navigate(redirectTo);
       } else if (mode === 'recovery') {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: 'https://agree.netsulwel.tech/',
+          redirectTo: window.location.origin + '/login',
         });
         if (error) throw error;
         toast.success('Email de recuperação enviado! Verifica a tua caixa de entrada.');
@@ -57,7 +57,7 @@ export default function AuthenticationScreen() {
             data: {
               name,
             },
-            emailRedirectTo: 'https://agree.netsulwel.tech/dashboard'
+            emailRedirectTo: window.location.origin + '/confirmado'
           }
         });
         if (error) throw error;

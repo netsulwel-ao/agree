@@ -13,6 +13,7 @@ import LoadingScreen from './components/LoadingScreen';
 import RegisterSignature from './components/RegisterSignature';
 import SignatureList from './components/SignatureList';
 import CaptureSignature from './components/CaptureSignature';
+import EmailConfirmed from './components/EmailConfirmed';
 import AdminUsers from './components/AdminUsers';
 import AdminPayments from './components/AdminPayments';
 import AdminSettings from './components/AdminSettings';
@@ -77,6 +78,9 @@ function AppRoutes() {
       
       {/* Signature capture via QR scan — standalone, no layout */}
       <Route path="/capture-signature/:sessionId" element={<CaptureSignature />} />
+      
+      {/* Email confirmation page — standalone */}
+      <Route path="/confirmado" element={<EmailConfirmed />} />
       
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

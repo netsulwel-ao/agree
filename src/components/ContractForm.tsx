@@ -26,9 +26,10 @@ import TemplateFieldForm from './TemplateFieldForm';
 import AIContractGenerator from './AIContractGenerator';
 import type { FieldDef } from './TemplateFieldForm';
 import { exportContractToPdf } from '../services/exportPdf';
+import { checkPlan, getLimits, canUpgrade } from '../lib/plans';
 
 export default function ContractForm() {
-  const { user } = useAuth();
+  const { user, plan, isAdmin } = useAuth();
   const navigate = useNavigate();
   const { id: editId } = useParams<{ id: string }>();
   const isEditing = !!editId;
@@ -190,6 +191,20 @@ export default function ContractForm() {
     }
 
     setSaving(true);
+
+    if (!isEditing) {
+      const { count } = await supabase
+        .from('contracts')
+        .select('id', { count: 'exact', head: true })
+        .eq('owner_id', user.id);
+      const limits = getLimits(plan);
+      if (count && count >= limits.maxContracts) {
+        toast.error('Limite de contratos atingido. Faça upgrade para o plano Pro.');
+        setSaving(false);
+        return;
+      }
+    }
+
     try {
       const allAttachments = [...existingAttachments];
       if (attachments.length > 0) {

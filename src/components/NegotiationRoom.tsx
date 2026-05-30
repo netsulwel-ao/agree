@@ -2,12 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import {
   MessageSquare, Plus, CheckCircle2, XCircle, Clock,
-  UserPlus, Send, Loader2, Mail, UserCheck, Users
+  UserPlus, Send, Loader2, Mail, UserCheck, Users, ArrowUpRight
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { sendCollaboratorInvite } from '../services/emailNotifications';
+import { useAuth } from '../contexts/AuthContext';
+import { checkPlan, getLimits, canUpgrade } from '../lib/plans';
 
 interface Collaborator {
   user_id: string;
@@ -34,6 +36,7 @@ interface NegotiationRoomProps {
 }
 
 export default function NegotiationRoom({ contract, user, isOwner, onUpdate }: NegotiationRoomProps) {
+  const { plan, isAdmin } = useAuth();
   const [collaborators, setCollaborators] = useState<Collaborator[]>(contract.collaborators || []);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -87,6 +90,11 @@ export default function NegotiationRoom({ contract, user, isOwner, onUpdate }: N
     }
     if (collaborators.find(c => c.email === inviteEmail.trim().toLowerCase())) {
       toast.error('Este email já foi convidado');
+      return;
+    }
+    const limits = getLimits(plan);
+    if (collaborators.length >= limits.maxCollaboratorsPerContract) {
+      toast.error('Limite de colaboradores atingido.');
       return;
     }
     setInviting(true);
@@ -188,6 +196,38 @@ export default function NegotiationRoom({ contract, user, isOwner, onUpdate }: N
       toast.error('Erro ao recusar');
     }
   };
+
+  if (!checkPlan(plan, 'pro', isAdmin)) {
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        padding: 60, gap: 20, fontFamily: "'Poppins',sans-serif", textAlign: 'center'
+      }}>
+        <div style={{
+          width: 80, height: 80, borderRadius: '50%',
+          background: 'rgba(13,17,23,0.06)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <MessageSquare size={40} color="#9ca3af" />
+        </div>
+        <h2 style={{ fontSize: 22, fontWeight: 800, color: '#0d1117' }}>
+          Negociação
+        </h2>
+        <p style={{ fontSize: 14, color: '#6b7280', maxWidth: 400 }}>
+          Negociação disponível apenas nos planos Pro e Enterprise.
+        </p>
+        <button onClick={() => window.location.href = '/upgrade'} style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          padding: '12px 24px', fontSize: 14, fontWeight: 700,
+          background: '#0d1117', border: 'none', color: '#fff',
+          cursor: 'pointer', borderRadius: 12, fontFamily: "'Poppins',sans-serif"
+        }}>
+          <ArrowUpRight size={16} />
+          Fazer Upgrade
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, fontFamily: "'Poppins',sans-serif" }}>

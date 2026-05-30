@@ -14,6 +14,7 @@ import RegisterSignature from './components/RegisterSignature';
 import SignatureList from './components/SignatureList';
 import CaptureSignature from './components/CaptureSignature';
 import AdminUsers from './components/AdminUsers';
+import Upgrade from './components/Upgrade';
 import { GlobalLoadingProvider, useGlobalLoading } from './contexts/GlobalLoadingContext';
 import { useAuth } from './contexts/AuthContext';
 
@@ -51,6 +52,7 @@ function AppRoutes() {
         <Route path="/signatures" element={<SignatureList />} />
         <Route path="/signatures/register" element={<RegisterSignature />} />
         <Route path="/admin/users" element={<AdminUsers />} />
+        <Route path="/upgrade" element={<Upgrade />} />
       </Route>
       
       {/* Signature capture via QR scan — standalone, no layout */}

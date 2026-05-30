@@ -1,7 +1,10 @@
--- Painel de Administração: roles e bloqueio de utilizadores
+-- Painel de Administração: roles, planos e bloqueio de utilizadores
 
 -- Coluna is_blocked em profiles
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN DEFAULT false;
+
+-- Coluna plan (free, pro, enterprise)
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'free';
 
 -- Função auxiliar para verificar se o utilizador é admin
 CREATE OR REPLACE FUNCTION public.is_admin()

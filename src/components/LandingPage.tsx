@@ -600,25 +600,32 @@ const LandingPage = () => {
 
       {/* ── PLANS ── */}
       <section style={{ padding: '100px 24px', background: '#f5f7f9' }}>
-        <div style={{ maxWidth: 700, margin: '0 auto' }}>
+        <div style={{ maxWidth: 1000, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
             <div className="tag" style={{ marginBottom: 14 }}>Escolhe o teu plano</div>
             <h2 className="section-h">Simples e transparente</h2>
           </div>
-          <div className="plan-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-            {/* Starter */}
+          <div className="plan-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20 }}>
+
+            {/* Free */}
             <div className="card" style={{ padding: '32px' }}>
-              <div style={{ fontSize: 22, fontWeight: 800, color: '#0d1117', fontFamily: "'Poppins',sans-serif", marginBottom: 6 }}>Starter</div>
-              <div style={{ fontSize: 28, fontWeight: 800, color: '#0d1117', fontFamily: "'Poppins',sans-serif", marginBottom: 4, letterSpacing: -1 }}>Kz 14.900<span style={{ fontSize: 14, fontWeight: 500, color: '#9ca3af' }}>/mês</span></div>
-              <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 24, fontWeight: 400 }}>Até 50 contratos · 5 utilizadores</div>
-              {['Assinatura digital', 'Alertas automáticos', 'Dashboard básico'].map(f => (
+              <div style={{ fontSize: 22, fontWeight: 800, color: '#0d1117', fontFamily: "'Poppins',sans-serif", marginBottom: 6 }}>Free</div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: '#0d1117', fontFamily: "'Poppins',sans-serif", marginBottom: 4, letterSpacing: -1 }}>Kz 0<span style={{ fontSize: 14, fontWeight: 500, color: '#9ca3af' }}>/mês</span></div>
+              <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 24, fontWeight: 400 }}>Para testar a plataforma</div>
+              {[
+                '3 contratos ativos',
+                '1 colaborador por contrato',
+                '3 templates básicos',
+                '3 versões por contrato',
+                '5 MB de armazenamento',
+              ].map(f => (
                 <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                   <CheckCircle size={14} color="#0d1117" />
                   <span style={{ fontSize: 13, color: '#374151', fontWeight: 400 }}>{f}</span>
                 </div>
               ))}
               <button className="btn-outline-teal" onClick={() => navigate('/login')} style={{ width: '100%', justifyContent: 'space-between', marginTop: 24 }}>
-                Começar <ArrowUpRight size={15} />
+                Começar grátis <ArrowUpRight size={15} />
               </button>
             </div>
 
@@ -628,8 +635,18 @@ const LandingPage = () => {
               <div style={{ display: 'inline-block', background: '#0d1117', color: '#fff', fontSize: 10, fontWeight: 800, padding: '3px 10px', borderRadius: 0, marginBottom: 14, letterSpacing: 0.5 }}>MAIS POPULAR</div>
               <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', fontFamily: "'Poppins',sans-serif", marginBottom: 6 }}>Pro</div>
               <div style={{ fontSize: 28, fontWeight: 800, color: '#fff', fontFamily: "'Poppins',sans-serif", marginBottom: 4, letterSpacing: -1 }}>Kz 39.900<span style={{ fontSize: 14, fontWeight: 500, color: 'rgba(255,255,255,0.45)' }}>/mês</span></div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 24, fontWeight: 400 }}>Contratos ilimitados · Utilizadores ilimitados</div>
-              {['Tudo do Starter', 'Analytics avançado', 'Compliance automático', 'Integrações ERP', 'Suporte prioritário'].map(f => (
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 24, fontWeight: 400 }}>Para profissionais e PMEs</div>
+              {[
+                'Até 50 contratos',
+                '5 colaboradores por contrato',
+                'Assinatura digital',
+                'Analytics e relatórios',
+                'Negociação de cláusulas',
+                'Geração com IA',
+                'Templates ilimitados',
+                '50 versões por contrato',
+                '50 MB de armazenamento',
+              ].map(f => (
                 <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                   <CheckCircle size={14} color="#0d1117" />
                   <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', fontWeight: 400 }}>{f}</span>
@@ -639,6 +656,31 @@ const LandingPage = () => {
                 Começar agora <ArrowUpRight size={15} />
               </button>
             </div>
+
+            {/* Enterprise */}
+            <div className="card" style={{ padding: '32px', border: '1.5px solid #e5e7eb' }}>
+              <div style={{ display: 'inline-block', background: '#e5e7eb', color: '#0d1117', fontSize: 10, fontWeight: 800, padding: '3px 10px', borderRadius: 0, marginBottom: 14, letterSpacing: 0.5 }}>SOB CONSULTA</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: '#0d1117', fontFamily: "'Poppins',sans-serif", marginBottom: 6 }}>Enterprise</div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: '#0d1117', fontFamily: "'Poppins',sans-serif", marginBottom: 4, letterSpacing: -1 }}>Kz 99.900<span style={{ fontSize: 14, fontWeight: 500, color: '#9ca3af' }}>/mês</span></div>
+              <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 24, fontWeight: 400 }}>Para empresas e grandes equipas</div>
+              {[
+                'Contratos ilimitados',
+                'Colaboradores ilimitados',
+                'Tudo do Pro',
+                '500 MB de armazenamento',
+                'Versões ilimitadas',
+                'Suporte prioritário 24/7',
+              ].map(f => (
+                <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <CheckCircle size={14} color="#0d1117" />
+                  <span style={{ fontSize: 13, color: '#374151', fontWeight: 400 }}>{f}</span>
+                </div>
+              ))}
+              <button className="btn-outline-teal" onClick={() => navigate('/login')} style={{ width: '100%', justifyContent: 'space-between', marginTop: 24 }}>
+                Falar com vendas <ArrowUpRight size={15} />
+              </button>
+            </div>
+
           </div>
         </div>
       </section>

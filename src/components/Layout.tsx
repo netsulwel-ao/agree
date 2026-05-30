@@ -23,7 +23,7 @@ export default function Layout() {
   const [alertCount, setAlertCount] = useState(0);
   const [alerts, setAlerts] = useState<AlertContract[]>([]);
   const [alertsOpen, setAlertsOpen] = useState(false);
-  const { user, signOut, isAdmin } = useAuth();
+  const { user, signOut, isAdmin, plan } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -278,6 +278,27 @@ export default function Layout() {
                 {user?.email}
               </p>
             </div>
+          </div>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
+            padding: '6px 10px', borderRadius: 8,
+            background: plan === 'enterprise' ? 'rgba(250,204,21,0.15)' : plan === 'pro' ? 'rgba(59,130,246,0.15)' : 'rgba(255,255,255,0.05)',
+            border: `1px solid ${
+              plan === 'enterprise' ? 'rgba(250,204,21,0.3)' : plan === 'pro' ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.08)'
+            }`,
+          }}>
+            <span style={{
+              fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em',
+              color: plan === 'enterprise' ? '#facc15' : plan === 'pro' ? '#60a5fa' : 'rgba(255,255,255,0.4)',
+              flex: 1,
+            }}>
+              {plan === 'enterprise' ? 'Enterprise' : plan === 'pro' ? 'Pro' : 'Free'}
+            </span>
+            {(plan === 'free' || plan === 'pro') && (
+              <span style={{ fontSize: 10, color: '#60a5fa', fontWeight: 600, cursor: 'pointer' }}>
+                Upgrade
+              </span>
+            )}
           </div>
           <button
             onClick={() => signOut()}

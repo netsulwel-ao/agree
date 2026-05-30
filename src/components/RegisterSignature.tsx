@@ -5,14 +5,15 @@ import { encryptSignature } from '../services/signatureEncryption';
 import QRCode from 'qrcode';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from '../contexts/AuthContext';
-import { ArrowLeft, Camera, Upload, QrCode, Smartphone, CheckCircle2, Loader2, RotateCcw } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, Camera, Upload, QrCode, Smartphone, CheckCircle2, Loader2, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import { checkPlan, getLimits, canUpgrade } from '../lib/plans';
 
 type Step = 'choose-method' | 'capture' | 'preview' | 'saving';
 
 export default function RegisterSignature() {
-  const { user } = useAuth();
+  const { user, plan, isAdmin } = useAuth();
   const navigate = useNavigate();
 
   const [step, setStep] = useState<Step>('choose-method');
@@ -206,6 +207,38 @@ const isLocalhost = window.location.hostname === 'localhost' || window.location.
       setIsSaving(false);
     }
   };
+
+  if (!checkPlan(plan, 'pro', isAdmin)) {
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        padding: 60, gap: 20, fontFamily: "'Poppins',sans-serif", textAlign: 'center'
+      }}>
+        <div style={{
+          width: 80, height: 80, borderRadius: '50%',
+          background: 'rgba(13,17,23,0.06)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <PenLine size={40} color="#9ca3af" />
+        </div>
+        <h2 style={{ fontSize: 22, fontWeight: 800, color: '#0d1117' }}>
+          Assinaturas Digitais
+        </h2>
+        <p style={{ fontSize: 14, color: '#6b7280', maxWidth: 400 }}>
+          Assinaturas digitais estão disponíveis apenas nos planos Pro e Enterprise.
+        </p>
+        <button onClick={() => navigate('/upgrade')} style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          padding: '12px 24px', fontSize: 14, fontWeight: 700,
+          background: '#0d1117', border: 'none', color: '#fff',
+          cursor: 'pointer', borderRadius: 12, fontFamily: "'Poppins',sans-serif"
+        }}>
+          <ArrowUpRight size={16} />
+          Fazer Upgrade
+        </button>
+      </div>
+    );
+  }
 
   if (saved) {
     return (

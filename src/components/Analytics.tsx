@@ -28,12 +28,13 @@ import {
 import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useAuth } from '../contexts/AuthContext';
+import { checkPlan, getLimits, canUpgrade } from '../lib/plans';
 
 const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#6366f1'];
 const VIBRANT = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
 export default function Analytics() {
-  const { user } = useAuth();
+  const { user, plan, isAdmin } = useAuth();
   const [contracts, setContracts] = useState<any[]>([]);
 
   useEffect(() => {
@@ -146,6 +147,38 @@ export default function Analytics() {
     pending: contracts.filter(c => c.status === 'pending').length,
     highRisk: contracts.filter(c => c.risk_level === 'high').length
   };
+
+  if (!checkPlan(plan, 'pro', isAdmin)) {
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        padding: 60, gap: 20, fontFamily: "'Poppins',sans-serif", textAlign: 'center'
+      }}>
+        <div style={{
+          width: 80, height: 80, borderRadius: '50%',
+          background: 'rgba(13,17,23,0.06)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <TrendingUp size={40} color="#9ca3af" />
+        </div>
+        <h2 style={{ fontSize: 22, fontWeight: 800, color: '#0d1117' }}>
+          Analytics
+        </h2>
+        <p style={{ fontSize: 14, color: '#6b7280', maxWidth: 400 }}>
+          Analytics está disponível apenas nos planos Pro e Enterprise.
+        </p>
+        <button onClick={() => window.location.href = '/upgrade'} style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          padding: '12px 24px', fontSize: 14, fontWeight: 700,
+          background: '#0d1117', border: 'none', color: '#fff',
+          cursor: 'pointer', borderRadius: 12, fontFamily: "'Poppins',sans-serif"
+        }}>
+          <ArrowUpRight size={16} />
+          Fazer Upgrade
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={{

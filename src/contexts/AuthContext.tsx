@@ -2,12 +2,14 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { supabase } from '../lib/supabase';
 import { User, Session } from '@supabase/supabase-js';
 import { useGlobalLoading } from './GlobalLoadingContext';
+import type { Plan } from '../lib/plans';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   isLoading: boolean;
   role: string | null;
+  plan: Plan;
   isBlocked: boolean;
   isAdmin: boolean;
   signOut: () => Promise<void>;
@@ -19,6 +21,7 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   isLoading: true,
   role: null,
+  plan: 'free',
   isBlocked: false,
   isAdmin: false,
   signOut: async () => {},
@@ -30,19 +33,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [role, setRole] = useState<string | null>(null);
+  const [plan, setPlan] = useState<Plan>('free');
   const [isBlocked, setIsBlocked] = useState(false);
   const { setIsLoading: setGlobalLoading } = useGlobalLoading();
 
   const fetchProfile = useCallback(async (userId: string) => {
     const { data } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, plan')
       .eq('id', userId)
       .maybeSingle();
     if (data) {
       setRole(data.role || 'user');
+      const p = (data.plan as Plan) || 'free';
+      setPlan(p === 'pro' || p === 'enterprise' ? p : 'free');
     }
-    // Tenta is_blocked separadamente (pode não existir até a migration correr)
     const { data: blockedData } = await supabase
       .from('profiles')
       .select('is_blocked')
@@ -56,6 +61,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(null);
         setSession(null);
         setRole(null);
+        setPlan('free');
         setIsBlocked(false);
       }
     }
@@ -70,6 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await fetchProfile(userId);
     } else {
       setRole(null);
+      setPlan('free');
       setIsBlocked(false);
     }
   }, [fetchProfile]);
@@ -101,7 +108,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isAdmin = role === 'admin';
 
   return (
-    <AuthContext.Provider value={{ user, session, isLoading, role, isBlocked, isAdmin, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, session, isLoading, role, plan, isBlocked, isAdmin, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

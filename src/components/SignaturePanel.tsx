@@ -2,7 +2,7 @@
 import { supabase } from '../lib/supabase';
 import {
   PenLine, CheckCircle2, Clock, Plus, Trash2,
-  Mail, Shield, AlertCircle, Loader2, Image as ImageIcon
+  Mail, Shield, AlertCircle, Loader2, Image as ImageIcon, ArrowUpRight
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -10,6 +10,8 @@ import { toast } from 'sonner';
 import type { User } from '@supabase/supabase-js';
 import { decryptSignature } from '../services/signatureEncryption';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { checkPlan, getLimits, canUpgrade } from '../lib/plans';
 
 interface Signature {
   id: string;
@@ -78,6 +80,7 @@ async function sendNotificationEmail(to: string, name: string, contractTitle: st
 }
 
 export default function SignaturePanel({ contract, user, onUpdate }: SignaturePanelProps) {
+  const { plan, isAdmin } = useAuth();
   const [signatures, setSignatures] = useState<Signature[]>(contract.signatures || []);
   const [addingSignatory, setAddingSignatory] = useState(false);
   const [newName, setNewName] = useState('');
@@ -226,6 +229,40 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
       setSigning(false);
     }
   };
+
+  if (!checkPlan(plan, 'pro', isAdmin)) {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 12,
+        padding: '16px 20px', background: 'rgba(107,114,128,0.06)',
+        border: '1px solid #e2e5e9', borderRadius: 16,
+        fontFamily: "'Poppins',sans-serif"
+      }}>
+        <PenLine size={20} color="#9ca3af" />
+        <div style={{ flex: 1 }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: '#0d1117' }}>
+            Assinaturas Digitais
+          </p>
+          <p style={{ fontSize: 12, color: '#6b7280' }}>
+            Disponível no plano Pro e Enterprise
+          </p>
+        </div>
+        <Link
+          to="/upgrade"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '8px 16px', fontSize: 12, fontWeight: 700,
+            background: '#0d1117', border: 'none', color: '#fff',
+            cursor: 'pointer', borderRadius: 10, textDecoration: 'none',
+            fontFamily: "'Poppins',sans-serif"
+          }}
+        >
+          <ArrowUpRight size={14} />
+          Upgrade
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

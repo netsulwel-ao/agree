@@ -79,11 +79,12 @@ export default function AuthenticationScreen() {
   };
 
   const handleGoogleSignIn = async () => {
+    sessionStorage.setItem('redirectAfterLogin', redirectTo);
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: 'https://agree.netsulwel.tech/dashboard'
+          redirectTo: window.location.origin + '/login'
         }
       });
       if (error) throw error;

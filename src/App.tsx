@@ -30,6 +30,20 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+function RedirectIfAuthenticated({ children, fallback }: { children: React.ReactNode; fallback?: string }) {
+  const { user, isLoading } = useAuth();
+  if (isLoading) return <LoadingScreen message="A carregar..." />;
+  if (user) {
+    const pending = sessionStorage.getItem('redirectAfterLogin');
+    if (pending) {
+      sessionStorage.removeItem('redirectAfterLogin');
+      return <Navigate to={pending} replace />;
+    }
+    return <Navigate to={fallback || '/dashboard'} replace />;
+  }
+  return <>{children}</>;
+}
+
 function AppRoutes() {
   const { user, isLoading } = useAuth();
   const { isLoading: globalLoading, loadingMessage } = useGlobalLoading();
@@ -40,8 +54,8 @@ function AppRoutes() {
 
   return (
     <Routes>
-      <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <LandingPage />} />
-      <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <AuthenticationScreen />} />
+      <Route path="/" element={<RedirectIfAuthenticated><LandingPage /></RedirectIfAuthenticated>} />
+      <Route path="/login" element={<RedirectIfAuthenticated fallback="/dashboard"><AuthenticationScreen /></RedirectIfAuthenticated>} />
       
       {/* Protected Routes wrapped in Layout */}
       <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>

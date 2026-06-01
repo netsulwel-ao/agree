@@ -4,6 +4,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { RotateCw, Landmark, Wallet, Shield, Mail, Check } from 'lucide-react';
 import { toast } from 'sonner';
+import { checkPlan } from '../lib/plans';
+import ExchangeRatePanel from './ExchangeRatePanel';
+import SignatureProviderConfig from './SignatureProviderConfig';
 
 interface PaymentSettings {
   id: string;
@@ -29,7 +32,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 export default function AdminSettings() {
-  const { user, isAdmin, isLoading: authLoading } = useAuth();
+  const { user, plan, isAdmin, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [settings, setSettings] = useState<PaymentSettings>(defaults);
   const [loading, setLoading] = useState(true);
@@ -287,6 +290,18 @@ export default function AdminSettings() {
             <><Shield size={16} /> Guardar Definições</>
           )}
         </button>
+      )}
+
+      {checkPlan(plan, 'enterprise') && (
+        <div style={{ marginTop: 24 }}>
+          <SignatureProviderConfig />
+        </div>
+      )}
+
+      {checkPlan(plan, 'pro') && (
+        <div style={{ marginTop: 24 }}>
+          <ExchangeRatePanel />
+        </div>
       )}
 
       <style>{`

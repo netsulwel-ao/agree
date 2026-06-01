@@ -16,20 +16,29 @@ export const PLAN_INFO: Record<Plan, PlanInfo> = {
 
 export interface PlanLimits {
   maxContracts: number;
+  maxClients: number;
   maxCollaboratorsPerContract: number;
   hasSignatures: boolean;
   hasAnalytics: boolean;
   hasNegotiation: boolean;
   hasAiGeneration: boolean;
-  maxTemplates: number; // 0 = basic only
+  maxTemplates: number;
   storageMbPerContract: number;
   maxVersions: number;
   hasPrioritySupport: boolean;
+  // Novas features
+  maxApiKeys: number;
+  hasGoogleIntegration: boolean;
+  hasMultiCurrency: boolean;
+  hasSignatureProviders: boolean;
+  hasExternalSignatureProviders: boolean;
+  hasCustomExchangeRates: boolean;
 }
 
 export const PLANS: Record<Plan, PlanLimits> = {
   free: {
     maxContracts: 3,
+    maxClients: 10,
     maxCollaboratorsPerContract: 1,
     hasSignatures: false,
     hasAnalytics: false,
@@ -39,9 +48,16 @@ export const PLANS: Record<Plan, PlanLimits> = {
     storageMbPerContract: 5,
     maxVersions: 3,
     hasPrioritySupport: false,
+    maxApiKeys: 0,
+    hasGoogleIntegration: false,
+    hasMultiCurrency: true,
+    hasSignatureProviders: false,
+    hasExternalSignatureProviders: false,
+    hasCustomExchangeRates: false,
   },
   pro: {
     maxContracts: 50,
+    maxClients: Infinity,
     maxCollaboratorsPerContract: 5,
     hasSignatures: true,
     hasAnalytics: true,
@@ -51,9 +67,16 @@ export const PLANS: Record<Plan, PlanLimits> = {
     storageMbPerContract: 50,
     maxVersions: 50,
     hasPrioritySupport: false,
+    maxApiKeys: 1,
+    hasGoogleIntegration: true,
+    hasMultiCurrency: true,
+    hasSignatureProviders: true,
+    hasExternalSignatureProviders: false,
+    hasCustomExchangeRates: true,
   },
   enterprise: {
     maxContracts: Infinity,
+    maxClients: Infinity,
     maxCollaboratorsPerContract: Infinity,
     hasSignatures: true,
     hasAnalytics: true,
@@ -63,6 +86,12 @@ export const PLANS: Record<Plan, PlanLimits> = {
     storageMbPerContract: 500,
     maxVersions: Infinity,
     hasPrioritySupport: true,
+    maxApiKeys: 10,
+    hasGoogleIntegration: true,
+    hasMultiCurrency: true,
+    hasSignatureProviders: true,
+    hasExternalSignatureProviders: true,
+    hasCustomExchangeRates: true,
   },
 };
 

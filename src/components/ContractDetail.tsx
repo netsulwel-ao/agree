@@ -22,7 +22,11 @@ import {
   ThumbsDown,
   Send,
   RotateCcw,
-  MessageSquare
+  MessageSquare,
+  DollarSign,
+  Calendar,
+  RefreshCw,
+  Bell
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -31,13 +35,25 @@ import { v4 as uuidv4 } from 'uuid';
 import AgreeLogo from '../Agree-logo.svg';
 import { exportContractToPdf } from '../services/exportPdf';
 import { analyzeContractRisks } from '../services/gemini';
+import { sendApprovalRequest, sendStatusChangeEmail, canSendEmail } from '../services/emailNotifications';
+import { logAudit, Actions } from '../services/auditLog';
 import SignaturePanel from './SignaturePanel';
 import NegotiationRoom from './NegotiationRoom';
+import ContractApprovalsTab from './ContractApprovalsTab';
+import ContractInvoicesTab from './ContractInvoicesTab';
+import { useInvoicesByContract } from '../hooks/useInvoices';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { checkPlan } from '../lib/plans';
+import { formatCurrency } from '../services/currency';
+import GoogleCalendarModal from './GoogleCalendarModal';
+import GoogleDocsExport from './GoogleDocsExport';
+import ExternalSignaturePanel from './ExternalSignaturePanel';
+import { ReminderForm, ReminderList } from './ReminderForm';
+import { getRenewalHistory, renewContract, RenewalHistory } from '../services/reminders';
 
 export default function ContractDetail() {
-  const { user } = useAuth();
+  const { user, plan, isAdmin } = useAuth();
   const navigate = useNavigate();
   const { id: contractId } = useParams<{ id: string }>();
   const [contract, setContract] = useState<any>(null);
@@ -50,10 +66,19 @@ export default function ContractDetail() {
     content: ''
   });
   const [savingNote, setSavingNote] = useState(false);
-  const [activeTab, setActiveTab] = useState<'details' | 'versions' | 'notes' | 'files' | 'signatures'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'versions' | 'notes' | 'files' | 'negotiation' | 'signatures' | 'approvals' | 'invoices'>('details');
   const [workflowLoading, setWorkflowLoading] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [showReminderForm, setShowReminderForm] = useState(false);
+  const [showRenewModal, setShowRenewModal] = useState(false);
+  const [renewEndDate, setRenewEndDate] = useState('');
+  const [renewValue, setRenewValue] = useState('');
+  const [renewNotes, setRenewNotes] = useState('');
+  const [renewing, setRenewing] = useState(false);
+  const [renewalHistory, setRenewalHistory] = useState<RenewalHistory[]>([]);
+  const [reminderKey, setReminderKey] = useState(0);
 
   useEffect(() => {
     if (user) {
@@ -101,6 +126,12 @@ export default function ContractDetail() {
       };
     }
   }, [contractId, user]);
+
+  useEffect(() => {
+    if (contractId) {
+      getRenewalHistory(contractId).then(setRenewalHistory).catch(() => {});
+    }
+  }, [contractId]);
 
   const fetchContractData = async () => {
     if (!user) return;
@@ -170,6 +201,10 @@ export default function ContractDetail() {
       if (error) throw error;
       setContract({ ...contract, status: 'pending' });
       toast.success('Contrato submetido para revisão');
+      logAudit({ user_id: user.id, user_name: user.user_metadata?.name, user_email: user.email, action: Actions.CONTRACT_SUBMIT, resource: 'contract', resource_id: contract.id, resource_name: contract.title });
+      if (canSendEmail(plan, isAdmin, 'approval')) {
+        sendApprovalRequest(user.email!, user.user_metadata?.name || 'Utilizador', contract.title, contract.id);
+      }
     } catch (e: any) {
       toast.error(e.message || 'Erro ao submeter para revisão');
     } finally {
@@ -194,6 +229,10 @@ export default function ContractDetail() {
       if (error) throw error;
       setContract({ ...contract, status: 'approved', reviewed_by: user.id, reviewed_at: new Date().toISOString(), rejection_reason: null });
       toast.success('Contrato aprovado! Já pode ser assinado.');
+      logAudit({ user_id: user.id, user_name: user.user_metadata?.name, user_email: user.email, action: Actions.CONTRACT_APPROVE, resource: 'contract', resource_id: contract.id, resource_name: contract.title });
+      if (canSendEmail(plan, isAdmin, 'approval')) {
+        sendStatusChangeEmail(user.email!, user.user_metadata?.name || 'Utilizador', contract.title, 'approved', contract.id);
+      }
     } catch (e: any) {
       toast.error(e.message || 'Erro ao aprovar contrato');
     } finally {
@@ -220,6 +259,10 @@ export default function ContractDetail() {
       setShowRejectModal(false);
       setRejectReason('');
       toast.success('Contrato rejeitado');
+      logAudit({ user_id: user.id, user_name: user.user_metadata?.name, user_email: user.email, action: Actions.CONTRACT_REJECT, resource: 'contract', resource_id: contract.id, resource_name: contract.title, details: { reason: rejectReason.trim() } });
+      if (canSendEmail(plan, isAdmin, 'approval')) {
+        sendStatusChangeEmail(user.email!, user.user_metadata?.name || 'Utilizador', contract.title, 'rejected', contract.id, rejectReason.trim());
+      }
     } catch (e: any) {
       toast.error(e.message || 'Erro ao rejeitar contrato');
     } finally {
@@ -239,6 +282,7 @@ export default function ContractDetail() {
       if (error) throw error;
       setContract({ ...contract, status: 'pending' });
       toast.success('Contrato re-submetido para revisão');
+      logAudit({ user_id: user.id, user_name: user.user_metadata?.name, user_email: user.email, action: Actions.CONTRACT_RESUBMIT, resource: 'contract', resource_id: contract.id, resource_name: contract.title });
     } catch (e: any) {
       toast.error(e.message || 'Erro ao re-submeter contrato');
     } finally {
@@ -459,6 +503,44 @@ export default function ContractDetail() {
             <Download size={16} />
             Exportar PDF
           </button>
+          {checkPlan(plan, 'pro') && (
+            <button
+              onClick={() => setShowCalendarModal(true)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                padding: '10px 18px', fontSize: 13, fontWeight: 600,
+                background: '#fff', border: '1.5px solid #e2e5e9',
+                color: '#4285F4', cursor: 'pointer', fontFamily: "'Poppins',sans-serif"
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#f7f9fb'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#fff'; }}
+            >
+              <Calendar size={16} />
+              Calendar
+            </button>
+          )}
+          {checkPlan(plan, 'pro') && <GoogleDocsExport userId={user?.id || ''} contract={contract} />}
+          {contract.status === 'approved' && contract.end_date && (
+            <button
+              onClick={() => {
+                setRenewEndDate('');
+                setRenewValue('');
+                setRenewNotes('');
+                setShowRenewModal(true);
+              }}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                padding: '10px 18px', fontSize: 13, fontWeight: 600,
+                background: '#fff', border: '1.5px solid #e2e5e9',
+                color: '#22c55e', cursor: 'pointer', fontFamily: "'Poppins',sans-serif"
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#f7f9fb'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#fff'; }}
+            >
+              <RefreshCw size={16} />
+              Renovar
+            </button>
+          )}
         </div>
       </div>
 
@@ -623,7 +705,9 @@ export default function ContractDetail() {
           { id: 'notes', label: 'Notas de Reunião', icon: FileText },
           { id: 'files', label: 'Anexos', icon: Paperclip },
           { id: 'negotiation', label: 'Negociação', icon: MessageSquare },
-          { id: 'signatures', label: 'Assinaturas', icon: CheckCircle2 }
+          { id: 'signatures', label: 'Assinaturas', icon: CheckCircle2 },
+          { id: 'approvals', label: 'Aprovação', icon: ThumbsUp },
+          { id: 'invoices', label: 'Facturas', icon: DollarSign }
         ].map(tab => (
           <button
             key={tab.id}
@@ -725,7 +809,7 @@ export default function ContractDetail() {
                       color: '#0d1117',
                       fontFamily: "'Poppins',sans-serif"
                     }}>
-                      {contract.value ? new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(contract.value) : 'Kz 0,00'}
+                      {contract.value ? formatCurrency(contract.value, contract.currency || 'AOA') : formatCurrency(0, contract.currency || 'AOA')}
                     </p>
                   </div>
                   
@@ -959,6 +1043,105 @@ export default function ContractDetail() {
                 </div>
               </div>
             )}
+
+            {/* Renovação */}
+            <div style={{
+              background: '#fff', border: '1px solid #e2e5e9', borderRadius: 0, padding: 24
+            }}>
+              <h3 style={{
+                fontSize: 14, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase',
+                letterSpacing: 1, marginBottom: 16, fontFamily: "'Poppins',sans-serif"
+              }}>
+                Renovação
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 13, color: '#6b7280' }}>Renovação Automática</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: contract.auto_renew ? '#22c55e' : '#6b7280' }}>
+                    {contract.auto_renew ? 'Sim' : 'Não'}
+                  </span>
+                </div>
+                {contract.auto_renew && contract.renewal_period && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 13, color: '#6b7280' }}>Período</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, textTransform: 'capitalize' }}>
+                      {contract.renewal_period === 'monthly' ? 'Mensal' :
+                       contract.renewal_period === 'quarterly' ? 'Trimestral' :
+                       contract.renewal_period === 'semi_annually' ? 'Semestral' : 'Anual'}
+                    </span>
+                  </div>
+                )}
+                {contract.renewal_count > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 13, color: '#6b7280' }}>Renovações</span>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>{contract.renewal_count}</span>
+                  </div>
+                )}
+                {renewalHistory.length > 0 && (
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', marginBottom: 8 }}>
+                      Histórico de Renovações
+                    </div>
+                    {renewalHistory.map(h => (
+                      <div key={h.id} style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '8px 0', borderBottom: '1px solid #f3f4f6', fontSize: 12
+                      }}>
+                        <span style={{ color: '#6b7280' }}>
+                          {h.renewed_at ? format(parseISO(h.renewed_at), 'dd/MM/yyyy') : ''}
+                        </span>
+                        <span style={{ fontWeight: 500 }}>
+                          até {h.new_end_date ? format(parseISO(h.new_end_date), 'dd/MM/yyyy') : ''}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Lembretes */}
+            <div style={{
+              background: '#fff', border: '1px solid #e2e5e9', borderRadius: 0, padding: 24
+            }}>
+              <div style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16
+              }}>
+                <h3 style={{
+                  fontSize: 14, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase',
+                  letterSpacing: 1, fontFamily: "'Poppins',sans-serif"
+                }}>
+                  Lembretes
+                </h3>
+                <button
+                  onClick={() => setShowReminderForm(true)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    padding: '6px 12px', fontSize: 12, fontWeight: 600,
+                    background: '#fff', border: '1px solid #e2e5e9',
+                    color: '#6b7280', cursor: 'pointer', fontFamily: "'Poppins',sans-serif"
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#f7f9fb'; e.currentTarget.style.color = '#0d1117'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#6b7280'; }}
+                >
+                  <Bell size={14} />
+                  Novo Lembrete
+                </button>
+              </div>
+
+              {showReminderForm && (
+                <div style={{ marginBottom: 16, padding: 16, background: '#f7f9fb', border: '1px solid #e2e5e9' }}>
+                  <ReminderForm
+                    contractId={contractId!}
+                    contractTitle={contract.title}
+                    onClose={() => setShowReminderForm(false)}
+                    onCreated={() => setReminderKey(k => k + 1)}
+                  />
+                </div>
+              )}
+
+              <ReminderList key={reminderKey} contractId={contractId!} onRefresh={() => setReminderKey(k => k + 1)} />
+            </div>
           </div>
         </div>
       )}
@@ -1447,11 +1630,105 @@ export default function ContractDetail() {
       )}
 
       {activeTab === 'signatures' && (
-        <SignaturePanel
-          contract={contract}
-          user={user}
-          onUpdate={fetchContractData}
-        />
+        <>
+          <SignaturePanel
+            contract={contract}
+            user={user}
+            onUpdate={fetchContractData}
+          />
+          {checkPlan(plan, 'enterprise') && (
+            <div style={{ marginTop: 24 }}>
+              <ExternalSignaturePanel contractId={contractId} contract={contract} user={user} />
+            </div>
+          )}
+        </>
+      )}
+
+      {activeTab === 'approvals' && <ContractApprovalsTab contractId={contractId} contract={contract} user={user} />}
+
+      {activeTab === 'invoices' && <ContractInvoicesTab contractId={contractId} />}
+
+      <GoogleCalendarModal
+        isOpen={showCalendarModal}
+        onClose={() => setShowCalendarModal(false)}
+        userId={user?.id || ''}
+        contract={contract}
+      />
+
+      {/* Renewal Modal */}
+      {showRenewModal && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 100,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)'
+        }} onClick={() => setShowRenewModal(false)}>
+          <div style={{
+            background: '#fff', width: 480, maxWidth: '90vw', padding: 32,
+            boxShadow: '0 32px 64px rgba(0,0,0,0.2)'
+          }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 24, fontFamily: "'Poppins',sans-serif" }}>
+              Renovar Contrato
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6, fontFamily: "'Poppins',sans-serif" }}>
+                  Nova Data de Término
+                </label>
+                <input type="date" value={renewEndDate} onChange={e => setRenewEndDate(e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', fontSize: 14, fontFamily: "'Poppins',sans-serif", border: '1.5px solid #e2e5e9', color: '#0d1117', outline: 'none' }}
+                  required />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6, fontFamily: "'Poppins',sans-serif" }}>
+                  Novo Valor (opcional)
+                </label>
+                <input type="number" step="0.01" value={renewValue} onChange={e => setRenewValue(e.target.value)}
+                  placeholder="Deixar vazio para manter o valor actual"
+                  style={{ width: '100%', padding: '10px 14px', fontSize: 14, fontFamily: "'Poppins',sans-serif", border: '1.5px solid #e2e5e9', color: '#0d1117', outline: 'none' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6, fontFamily: "'Poppins',sans-serif" }}>
+                  Notas (opcional)
+                </label>
+                <textarea value={renewNotes} onChange={e => setRenewNotes(e.target.value)} rows={3}
+                  style={{ width: '100%', padding: '10px 14px', fontSize: 14, fontFamily: "'Poppins',sans-serif", border: '1.5px solid #e2e5e9', color: '#0d1117', outline: 'none', resize: 'vertical' }} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 24 }}>
+              <button onClick={() => setShowRenewModal(false)}
+                style={{ padding: '10px 20px', fontSize: 14, fontWeight: 600, background: '#fff', border: '1.5px solid #e2e5e9', color: '#6b7280', cursor: 'pointer', fontFamily: "'Poppins',sans-serif" }}>
+                Cancelar
+              </button>
+              <button onClick={async () => {
+                if (!renewEndDate) { toast.error('Selecciona a nova data de término'); return; }
+                setRenewing(true);
+                try {
+                  const result = await renewContract(
+                    contractId!,
+                    new Date(renewEndDate).toISOString(),
+                    renewValue ? parseFloat(renewValue) : undefined,
+                    renewNotes || undefined
+                  );
+                  if (result.success) {
+                    toast.success('Contrato renovado com sucesso');
+                    setShowRenewModal(false);
+                    fetchContractData();
+                    getRenewalHistory(contractId!).then(setRenewalHistory).catch(() => {});
+                  } else {
+                    toast.error(result.error || 'Erro ao renovar');
+                  }
+                } catch {
+                  toast.error('Erro ao renovar contrato');
+                } finally {
+                  setRenewing(false);
+                }
+              }} disabled={renewing}
+                style={{ padding: '10px 20px', fontSize: 14, fontWeight: 600, background: '#0d1117', border: 'none', color: '#fff', cursor: renewing ? 'not-allowed' : 'pointer', fontFamily: "'Poppins',sans-serif", opacity: renewing ? 0.7 : 1 }}>
+                {renewing ? <Loader2 size={14} className="animate-spin" /> : 'Confirmar Renovação'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

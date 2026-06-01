@@ -17,6 +17,13 @@ export interface Contract {
   version: number;
   collaborators?: any[];
   tags?: string[];
+  client_id?: string;
+  currency?: string;
+  auto_renew?: boolean;
+  renewal_period?: 'monthly' | 'quarterly' | 'semi_annually' | 'annually';
+  renewal_count?: number;
+  renewed_from?: string;
+  notification_days?: number;
 }
 
 export function useContracts() {

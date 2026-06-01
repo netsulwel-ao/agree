@@ -126,6 +126,14 @@ export default function NegotiationRoom({ contract, user, isOwner, onUpdate }: N
       setInviteEmail('');
       setShowInvite(false);
       toast.success(`${newCollab.name} convidado para negociar`);
+      supabase.from('notifications').insert({
+        user_id: contract.owner_id,
+        type: 'contract_shared',
+        title: 'Colaborador convidado',
+        message: `${newCollab.name} foi convidado para negociar "${contract.title}".`,
+        reference_id: contract.id,
+        reference_type: 'contract',
+      }).then();
       const sent = await sendCollaboratorInvite(
         newCollab.email, newCollab.name, contract.title,
         user.user_metadata?.name || user.email || 'Owner',

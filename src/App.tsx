@@ -20,6 +20,19 @@ import AdminSettings from './components/AdminSettings';
 import AdminPlanHistory from './components/AdminPlanHistory';
 import ProfileSettings from './components/ProfileSettings';
 import ResetPassword from './components/ResetPassword';
+import ClientList from './components/ClientList';
+import ClientForm from './components/ClientForm';
+import ClientDetail from './components/ClientDetail';
+import MyTemplates from './components/MyTemplates';
+import ApprovalWorkflowConfig from './components/ApprovalWorkflowConfig';
+import ApprovalRequestList from './components/ApprovalRequestList';
+import ApprovalDetail from './components/ApprovalDetail';
+import InvoiceList from './components/InvoiceList';
+import InvoiceForm from './components/InvoiceForm';
+import InvoiceDetail from './components/InvoiceDetail';
+import AuditLogList from './components/AuditLogList';
+import SignatureWebhook from './components/SignatureWebhook';
+import NotificationsPage from './components/NotificationsPage';
 
 import { GlobalLoadingProvider, useGlobalLoading } from './contexts/GlobalLoadingContext';
 import { useAuth } from './contexts/AuthContext';
@@ -75,7 +88,21 @@ function AppRoutes() {
         <Route path="/admin/payments" element={<AdminPayments />} />
         <Route path="/admin/settings" element={<AdminSettings />} />
         <Route path="/admin/plan-history" element={<AdminPlanHistory />} />
+        <Route path="/clients" element={<ClientList />} />
+        <Route path="/clients/new" element={<ClientForm />} />
+        <Route path="/clients/:id/edit" element={<ClientForm />} />
+        <Route path="/clients/:id" element={<ClientDetail />} />
+        <Route path="/templates" element={<MyTemplates />} />
+        <Route path="/invoices" element={<InvoiceList />} />
+        <Route path="/invoices/new" element={<InvoiceForm />} />
+        <Route path="/invoices/:id" element={<InvoiceDetail />} />
+        <Route path="/invoices/:id/edit" element={<InvoiceForm />} />
+        <Route path="/approvals" element={<ApprovalRequestList />} />
+        <Route path="/approvals/:id" element={<ApprovalDetail />} />
+        <Route path="/admin/approval-workflows" element={<ApprovalWorkflowConfig />} />
+        <Route path="/admin/audit-logs" element={<AuditLogList />} />
         <Route path="/profile" element={<ProfileSettings />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
 
       </Route>
       
@@ -85,6 +112,9 @@ function AppRoutes() {
       {/* Email confirmation / recovery — standalone */}
       <Route path="/confirmado" element={<EmailConfirmed />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      
+      {/* Signature provider webhook endpoint */}
+      <Route path="/signature-webhook" element={<SignatureWebhook />} />
       
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

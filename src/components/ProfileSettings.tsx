@@ -3,10 +3,15 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
-import { Mail, Lock, Shield, RotateCw, CheckCircle } from 'lucide-react';
+import { Mail, Lock, Shield, RotateCw, CheckCircle, Sparkles } from 'lucide-react';
+import NotificationPreferences from './NotificationPreferences';
+import GoogleConfigPanel from './GoogleConfigPanel';
+import ApiKeyManager from './ApiKeyManager';
+import ApiDocs from './ApiDocs';
+import { checkPlan } from '../lib/plans';
 
 export default function ProfileSettings() {
-  const { user } = useAuth();
+  const { user, plan } = useAuth();
   const [newEmail, setNewEmail] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -290,6 +295,28 @@ export default function ProfileSettings() {
           </div>
           )}
         </motion.div>
+
+        {checkPlan(plan, 'pro') && (
+          <div style={{ gridColumn: '1 / -1', marginTop: 24 }}>
+            <GoogleConfigPanel />
+          </div>
+        )}
+
+        {checkPlan(plan, 'pro') && (
+          <div style={{ gridColumn: '1 / -1', marginTop: 24 }}>
+            <ApiKeyManager />
+          </div>
+        )}
+
+        {checkPlan(plan, 'pro') && (
+          <div style={{ gridColumn: '1 / -1', marginTop: 24 }}>
+            <ApiDocs />
+          </div>
+        )}
+
+        <div style={{ marginTop: 24 }}>
+          <NotificationPreferences />
+        </div>
       </div>
 
       <style>{`

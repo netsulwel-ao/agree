@@ -12,6 +12,7 @@ import { intelligentSearch } from '../services/gemini';
 import { exportContractListToPdf } from '../services/exportPdf';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
+import { formatCurrency } from '../services/currency';
 
 export default function ContractList() {
   const navigate = useNavigate();
@@ -21,6 +22,15 @@ export default function ContractList() {
   const [isAiSearching, setIsAiSearching] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [filteredContracts, setFilteredContracts] = useState(contracts);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    status: '',
+    riskLevel: '',
+    dateFrom: '',
+    dateTo: '',
+    valueMin: '',
+    valueMax: '',
+  });
 
   const allTags = [...new Set(contracts.flatMap(c => c.tags || []))].sort();
 
@@ -38,12 +48,36 @@ export default function ContractList() {
         selectedTags.every(t => (c.tags || []).includes(t))
       );
     }
+    if (filters.status) {
+      result = result.filter(c => c.status === filters.status);
+    }
+    if (filters.riskLevel) {
+      result = result.filter(c => c.risk_level === filters.riskLevel);
+    }
+    if (filters.dateFrom) {
+      result = result.filter(c => !c.end_date || c.end_date >= filters.dateFrom);
+    }
+    if (filters.dateTo) {
+      result = result.filter(c => !c.end_date || c.end_date <= filters.dateTo);
+    }
+    if (filters.valueMin) {
+      result = result.filter(c => (c.value || 0) >= parseFloat(filters.valueMin));
+    }
+    if (filters.valueMax) {
+      result = result.filter(c => (c.value || 0) <= parseFloat(filters.valueMax));
+    }
     setFilteredContracts(result);
   };
 
   React.useEffect(() => {
     filterContracts();
-  }, [contracts, searchTerm, selectedTags]);
+  }, [contracts, searchTerm, selectedTags, filters]);
+
+  const clearFilters = () => {
+    setFilters({ status: '', riskLevel: '', dateFrom: '', dateTo: '', valueMin: '', valueMax: '' });
+    setSelectedTags([]);
+    setSearchTerm('');
+  };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,20 +173,36 @@ export default function ContractList() {
           </button>
         </form>
 
-        {/*<div style={{ display: 'flex', gap: 12 }}>
-          <button style={btnStyle}
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            style={{
+              ...btnStyle,
+              background: showFilters || Object.values(filters).some(v => v) ? '#f7f9fb' : '#fff',
+              color: showFilters || Object.values(filters).some(v => v) ? '#0d1117' : '#6b7280',
+            }}
             onMouseEnter={e => { e.currentTarget.style.background = '#f7f9fb'; e.currentTarget.style.color = '#0d1117'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#6b7280'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = showFilters || Object.values(filters).some(v => v) ? '#f7f9fb' : '#fff'; e.currentTarget.style.color = showFilters || Object.values(filters).some(v => v) ? '#0d1117' : '#6b7280'; }}
           >
             <Filter size={16} /> Filtros
+            {Object.values(filters).some(v => v) && (
+              <span style={{
+                background: '#0d1117', color: '#fff', fontSize: 10, fontWeight: 700,
+                padding: '1px 6px', borderRadius: 10, marginLeft: 4
+              }}>
+                {Object.values(filters).filter(v => v).length}
+              </span>
+            )}
           </button>
-          <button style={btnStyle}
-            onMouseEnter={e => { e.currentTarget.style.background = '#f7f9fb'; e.currentTarget.style.color = '#0d1117'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#6b7280'; }}
-          >
-            <CalendarIcon size={16} /> Data
-          </button>
-        </div>*/}
+          {Object.values(filters).some(v => v) && (
+            <button onClick={clearFilters} style={btnStyle}
+              onMouseEnter={e => { e.currentTarget.style.background = '#f7f9fb'; e.currentTarget.style.color = '#0d1117'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#6b7280'; }}
+            >
+              <X size={16} /> Limpar
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Tag Filters */}
@@ -178,6 +228,64 @@ export default function ContractList() {
               </button>
             );
           })}
+        </div>
+      )}
+
+      {/* Filter Panel */}
+      {showFilters && (
+        <div style={{
+          padding: 20, background: 'rgba(255,255,255,0.55)', backdropFilter: 'blur(30px)',
+          border: '1px solid rgba(255,255,255,0.5)', boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
+          display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16
+        }}>
+          <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6, fontFamily: "'Poppins',sans-serif" }}>Status</label>
+            <select value={filters.status} onChange={e => setFilters(p => ({ ...p, status: e.target.value }))}
+              style={{ width: '100%', padding: '8px 12px', fontSize: 13, fontFamily: "'Poppins',sans-serif", border: '1px solid #e2e5e9', color: '#0d1117', outline: 'none', background: '#fff' }}>
+              <option value="">Todos</option>
+              <option value="draft">Rascunho</option>
+              <option value="pending">Aprovação</option>
+              <option value="approved">Assinado</option>
+              <option value="rejected">Rejeitado</option>
+            </select>
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6, fontFamily: "'Poppins',sans-serif" }}>Risco</label>
+            <select value={filters.riskLevel} onChange={e => setFilters(p => ({ ...p, riskLevel: e.target.value }))}
+              style={{ width: '100%', padding: '8px 12px', fontSize: 13, fontFamily: "'Poppins',sans-serif", border: '1px solid #e2e5e9', color: '#0d1117', outline: 'none', background: '#fff' }}>
+              <option value="">Todos</option>
+              <option value="low">Baixo</option>
+              <option value="medium">Médio</option>
+              <option value="high">Alto</option>
+            </select>
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6, fontFamily: "'Poppins',sans-serif" }}>Período (término)</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input type="date" value={filters.dateFrom} onChange={e => setFilters(p => ({ ...p, dateFrom: e.target.value }))}
+                placeholder="De"
+                style={{ width: '50%', padding: '8px 12px', fontSize: 12, fontFamily: "'Poppins',sans-serif", border: '1px solid #e2e5e9', color: '#0d1117', outline: 'none' }} />
+              <input type="date" value={filters.dateTo} onChange={e => setFilters(p => ({ ...p, dateTo: e.target.value }))}
+                placeholder="Até"
+                style={{ width: '50%', padding: '8px 12px', fontSize: 12, fontFamily: "'Poppins',sans-serif", border: '1px solid #e2e5e9', color: '#0d1117', outline: 'none' }} />
+            </div>
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6, fontFamily: "'Poppins',sans-serif" }}>Valor (mín)</label>
+            <input type="number" value={filters.valueMin} onChange={e => setFilters(p => ({ ...p, valueMin: e.target.value }))}
+              style={{ width: '100%', padding: '8px 12px', fontSize: 13, fontFamily: "'Poppins',sans-serif", border: '1px solid #e2e5e9', color: '#0d1117', outline: 'none' }} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6, fontFamily: "'Poppins',sans-serif" }}>Valor (máx)</label>
+            <input type="number" value={filters.valueMax} onChange={e => setFilters(p => ({ ...p, valueMax: e.target.value }))}
+              style={{ width: '100%', padding: '8px 12px', fontSize: 13, fontFamily: "'Poppins',sans-serif", border: '1px solid #e2e5e9', color: '#0d1117', outline: 'none' }} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+            <button onClick={clearFilters}
+              style={{ padding: '8px 16px', fontSize: 12, fontWeight: 600, background: '#fff', border: '1px solid #e2e5e9', color: '#6b7280', cursor: 'pointer', fontFamily: "'Poppins',sans-serif" }}>
+              Limpar Filtros
+            </button>
+          </div>
         </div>
       )}
 
@@ -273,7 +381,7 @@ export default function ContractList() {
                       {contract.end_date ? format(parseISO(contract.end_date), 'dd MMM yyyy', { locale: ptBR }) : 'N/A'}
                     </td>
                     <td style={{ padding: '14px 24px', color: '#6b7280', fontWeight: 500 }}>
-                      {contract.value ? new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(contract.value) : 'Kz 0,00'}
+                      {formatCurrency(Number(contract.value) || 0, contract.currency || 'AOA')}
                     </td>
                     <td style={{ padding: '14px 24px' }}>
                       <span style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, background: badge.bg, color: badge.color }}>

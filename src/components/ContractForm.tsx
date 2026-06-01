@@ -13,10 +13,12 @@ import {
   Wand2,
   FileUp,
   BookTemplate,
-  Library
+  Library,
+  ScanText
 } from 'lucide-react';
 import { analyzeContractRisks, generateContractSuggestions, extractContractFromText } from '../services/gemini';
 import { extractTextFromPdf } from '../services/pdf';
+import { extractTextFromImage } from '../services/ocr';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -25,9 +27,12 @@ import TemplateLibrary from './TemplateLibrary';
 import TemplateFieldForm from './TemplateFieldForm';
 import AIContractGenerator from './AIContractGenerator';
 import TagInput from './TagInput';
+import { useClients } from '../hooks/useClients';
 import type { FieldDef } from './TemplateFieldForm';
 import { exportContractToPdf } from '../services/exportPdf';
 import { checkPlan, getLimits, canUpgrade } from '../lib/plans';
+import { logAudit, Actions } from '../services/auditLog';
+import CurrencySelect from './CurrencySelect';
 
 export default function ContractForm() {
   const { user, plan, isAdmin } = useAuth();
@@ -37,6 +42,8 @@ export default function ContractForm() {
   const [analyzing, setAnalyzing] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [extractingPdf, setExtractingPdf] = useState(false);
+  const [ocrRunning, setOcrRunning] = useState(false);
+  const [ocrProgress, setOcrProgress] = useState(0);
   const [analysis, setAnalysis] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [loadingContract, setLoadingContract] = useState(isEditing);
@@ -56,13 +63,19 @@ export default function ContractForm() {
     description: '',
     content: '',
     value: '',
+    currency: 'AOA',
     startDate: '',
     endDate: '',
+    autoRenew: false,
+    renewalPeriod: '',
+    notificationDays: 30,
   });
 
   const [attachments, setAttachments] = useState<File[]>([]);
   const [existingAttachments, setExistingAttachments] = useState<any[]>([]);
   const [tags, setTags] = useState<string[]>([]);
+  const [clientId, setClientId] = useState<string>('');
+  const { data: clients } = useClients();
 
   useEffect(() => {
     if (!editId || !user) return;
@@ -83,12 +96,17 @@ export default function ContractForm() {
         description: data.description || '',
         content: data.content || '',
         value: data.value?.toString() || '',
+        currency: data.currency || 'AOA',
         startDate: data.start_date || '',
         endDate: data.end_date || '',
+        autoRenew: data.auto_renew || false,
+        renewalPeriod: data.renewal_period || '',
+        notificationDays: data.notification_days || 30,
       });
       setAnalysis(data.risks ? { risks: data.risks } : null);
       setExistingAttachments(data.attachments || []);
       setTags(data.tags || []);
+      setClientId(data.client_id || '');
       setLoadingContract(false);
     };
     fetchContract();
@@ -174,6 +192,47 @@ export default function ContractForm() {
     }
   };
 
+  const handleOcrUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Selecciona uma imagem (PNG, JPG)');
+      return;
+    }
+    setOcrRunning(true);
+    setOcrProgress(0);
+    try {
+      toast.success('A processar imagem com OCR...');
+      const text = await extractTextFromImage(file, (p) => setOcrProgress(p));
+      if (!text.trim()) {
+        toast.error('Não foi possível extrair texto da imagem');
+        return;
+      }
+      setFormData(prev => ({ ...prev, content: text }));
+      toast.success(`Texto extraído (${(text.length / 1000).toFixed(0)}k caracteres)`);
+
+      const extracted = await extractContractFromText(text);
+      if (extracted) {
+        setFormData(prev => ({
+          ...prev,
+          title: extracted.title || prev.title,
+          description: extracted.description || prev.description,
+          value: extracted.value || prev.value,
+          startDate: extracted.startDate || prev.startDate,
+          endDate: extracted.endDate || prev.endDate,
+          content: text,
+        }));
+        toast.success('Campos preenchidos automaticamente!');
+      }
+    } catch {
+      toast.error('Erro ao processar imagem');
+    } finally {
+      setOcrRunning(false);
+      setOcrProgress(0);
+      e.target.value = '';
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const newFiles = Array.from(e.target.files);
@@ -243,11 +302,16 @@ export default function ContractForm() {
             description: formData.description,
             content: formData.content,
             value: parseFloat(formData.value) || 0,
+            currency: formData.currency,
             start_date: formData.startDate || null,
             end_date: formData.endDate || null,
             risks: analysis?.risks || [],
             attachments: allAttachments,
             tags,
+            client_id: clientId || null,
+            auto_renew: formData.autoRenew,
+            renewal_period: formData.renewalPeriod || null,
+            notification_days: formData.notificationDays,
           })
           .eq('id', editId)
           .eq('owner_id', user.id);
@@ -269,6 +333,7 @@ export default function ContractForm() {
           version_number: nextVersion
         });
 
+        logAudit({ user_id: user.id, user_name: user.user_metadata?.name, user_email: user.email, action: Actions.CONTRACT_UPDATE, resource: 'contract', resource_id: editId, resource_name: formData.title });
         toast.success("Contrato actualizado com sucesso!");
         navigate(`/contracts/${editId}`);
       } else {
@@ -279,6 +344,7 @@ export default function ContractForm() {
             description: formData.description,
             content: formData.content,
             value: parseFloat(formData.value) || 0,
+            currency: formData.currency,
             status: 'draft',
             owner_id: user.id,
             start_date: formData.startDate || null,
@@ -286,6 +352,10 @@ export default function ContractForm() {
             risks: analysis?.risks || [],
             attachments: allAttachments,
             tags,
+            client_id: clientId || null,
+            auto_renew: formData.autoRenew,
+            renewal_period: formData.renewalPeriod || null,
+            notification_days: formData.notificationDays,
           })
           .select()
           .single();
@@ -298,6 +368,7 @@ export default function ContractForm() {
           version_number: 1
         });
 
+        logAudit({ user_id: user.id, user_name: user.user_metadata?.name, user_email: user.email, action: Actions.CONTRACT_CREATE, resource: 'contract', resource_id: contract.id, resource_name: formData.title });
         toast.success("Contrato criado com sucesso!");
         navigate('/contracts');
       }
@@ -575,6 +646,31 @@ export default function ContractForm() {
 
               <div>
                 <label style={{
+                  display: 'block', fontSize: 13, fontWeight: 600,
+                  color: '#374151', marginBottom: 8,
+                  fontFamily: "'Poppins',sans-serif"
+                }}>
+                  Cliente (opcional)
+                </label>
+                <select
+                  value={clientId}
+                  onChange={e => setClientId(e.target.value)}
+                  style={{
+                    width: '100%', padding: '10px 14px', fontSize: 13,
+                    fontFamily: "'Poppins',sans-serif", color: '#0d1117',
+                    background: '#fff', border: '1.5px solid #e2e5e9',
+                    outline: 'none',
+                  }}
+                >
+                  <option value="">Seleccionar cliente...</option>
+                  {clients?.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{
                   display: 'block',
                   fontSize: 13,
                   fontWeight: 600,
@@ -613,6 +709,16 @@ export default function ContractForm() {
                     placeholder="0,00"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label style={{
+                  display: 'block', fontSize: 13, fontWeight: 600,
+                  color: '#374151', marginBottom: 8, fontFamily: "'Poppins',sans-serif"
+                }}>
+                  Moeda
+                </label>
+                <CurrencySelect value={formData.currency} onChange={c => setFormData({ ...formData, currency: c })} />
               </div>
 
               <div>
@@ -696,6 +802,62 @@ export default function ContractForm() {
               </div>
             </div>
 
+            {/* Auto-renew fields */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '16px 0', borderTop: '1px solid #e2e5e9' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <input
+                  type="checkbox"
+                  id="autoRenew"
+                  checked={formData.autoRenew}
+                  onChange={e => setFormData({ ...formData, autoRenew: e.target.checked })}
+                  style={{ width: 18, height: 18, cursor: 'pointer' }}
+                />
+                <label htmlFor="autoRenew" style={{ fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer', fontFamily: "'Poppins',sans-serif" }}>
+                  Renovação Automática
+                </label>
+              </div>
+
+              {formData.autoRenew && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 8, fontFamily: "'Poppins',sans-serif" }}>
+                      Período de Renovação
+                    </label>
+                    <select
+                      value={formData.renewalPeriod}
+                      onChange={e => setFormData({ ...formData, renewalPeriod: e.target.value })}
+                      style={{
+                        width: '100%', padding: '10px 14px', fontSize: 13, fontFamily: "'Poppins',sans-serif",
+                        color: '#0d1117', background: '#fff', border: '1.5px solid #e2e5e9', outline: 'none'
+                      }}
+                    >
+                      <option value="">Seleccionar período...</option>
+                      <option value="monthly">Mensal</option>
+                      <option value="quarterly">Trimestral</option>
+                      <option value="semi_annually">Semestral</option>
+                      <option value="annually">Anual</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 8, fontFamily: "'Poppins',sans-serif" }}>
+                      Notificar com (dias de antecedência)
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={90}
+                      value={formData.notificationDays}
+                      onChange={e => setFormData({ ...formData, notificationDays: parseInt(e.target.value) || 30 })}
+                      style={{
+                        width: '100%', padding: '10px 14px', fontSize: 13, fontFamily: "'Poppins',sans-serif",
+                        background: '#fff', border: '1.5px solid #e2e5e9', color: '#0d1117', outline: 'none'
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div>
               <div style={{
                 display: 'flex',
@@ -768,6 +930,25 @@ export default function ContractForm() {
                       }}>
                         {extractingPdf ? <Loader2 size={14} className="animate-spin" /> : <FileUp size={14} />}
                         {extractingPdf ? 'Extraindo...' : 'Upload PDF'}
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleOcrUpload}
+                        style={{ display: 'none' }}
+                        id="ocr-upload"
+                      />
+                      <label htmlFor="ocr-upload" style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        padding: '6px 12px', fontSize: 12, fontWeight: 600,
+                        background: '#fff', border: '1px solid #e2e5e9',
+                        color: ocrRunning ? '#0d1117' : '#6b7280',
+                        cursor: ocrRunning ? 'not-allowed' : 'pointer',
+                        transition: 'all .2s', fontFamily: "'Poppins',sans-serif",
+                        opacity: ocrRunning ? 0.8 : 1
+                      }}>
+                        {ocrRunning ? <Loader2 size={14} className="animate-spin" /> : <ScanText size={14} />}
+                        {ocrRunning ? `OCR ${Math.round(ocrProgress * 100)}%` : 'Digitalizar Imagem'}
                       </label>
                       <button
                         type="button"

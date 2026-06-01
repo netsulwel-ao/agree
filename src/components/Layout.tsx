@@ -1,16 +1,18 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useCheckoutModal } from '../contexts/CheckoutModalContext';
 import CheckoutModal from './CheckoutModal';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 import {
   LayoutDashboard, FileText, PlusCircle, LogOut,
   Bell, Menu, X, BarChart3, ShieldCheck,
-  AlertTriangle, PenLine, Shield, CreditCard, Settings, RefreshCw
+  AlertTriangle, PenLine, Shield, CreditCard, Settings, RefreshCw, Users, CheckCheck,
+  MessageSquare, Clock, Send, CheckCircle2, Ban, BookTemplate, ThumbsUp, DollarSign, Activity
 } from 'lucide-react';
-import { addDays, isBefore, isAfter, parseISO } from 'date-fns';
+import { addDays, isBefore, isAfter, parseISO, format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import AgreeLogo from '../Agree-logo.svg';
 
 interface AlertContract {
@@ -28,6 +30,8 @@ interface Notification {
   message: string;
   read: boolean;
   created_at: string;
+  reference_id?: string;
+  reference_type?: string;
 }
 
 export default function Layout() {
@@ -79,9 +83,29 @@ export default function Layout() {
     fetchAlerts();
   }, [user]);
 
+  const markAsRead = useCallback(async (notificationId: string) => {
+    await supabase.from('notifications').update({ read: true }).eq('id', notificationId);
+    setNotifications(prev => prev.map(n => n.id === notificationId ? { ...n, read: true } : n));
+  }, []);
+
+  const markAllAsRead = useCallback(async () => {
+    if (!user) return;
+    await supabase.from('notifications').update({ read: true }).eq('user_id', user.id).eq('read', false);
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    toast.success('Notificações marcadas como lidas');
+  }, [user]);
+
   // Buscar notificações do sistema
   useEffect(() => {
     if (!user) return;
+
+    const checkExpiring = async () => {
+      try {
+        await supabase.rpc('insert_expiry_notifications');
+      } catch {}
+    };
+    checkExpiring();
+
     const fetchNotifications = async () => {
       const { data } = await supabase
         .from('notifications')
@@ -95,13 +119,31 @@ export default function Layout() {
       }
     };
     fetchNotifications();
+
+    const channel = supabase
+      .channel('notifications-realtime')
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
+        (payload: any) => {
+          setNotifications(prev => [payload.new, ...prev].slice(0, 20));
+        }
+      )
+      .subscribe();
+
+    const expiryInterval = setInterval(checkExpiring, 60 * 60 * 1000);
+
+    return () => { supabase.removeChannel(channel); clearInterval(expiryInterval); };
   }, [user]);
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
+    { id: 'clients', label: 'Clientes', icon: Users, path: '/clients' },
     { id: 'contracts', label: 'Meus Contratos', icon: FileText, path: '/contracts' },
+    { id: 'invoices', label: 'Facturação', icon: DollarSign, path: '/invoices' },
     { id: 'analytics', label: 'Analytics', icon: BarChart3, path: '/analytics' },
     { id: 'signatures', label: 'Assinaturas', icon: PenLine, path: '/signatures' },
+    { id: 'approvals', label: 'Aprovações', icon: ThumbsUp, path: '/approvals' },
+    { id: 'templates', label: 'Modelos', icon: BookTemplate, path: '/templates' },
     { id: 'compliance', label: 'Segurança', icon: ShieldCheck, path: '/compliance' },
     { id: 'create', label: 'Novo Contrato', icon: PlusCircle, path: '/contracts/new' },
   ];
@@ -111,6 +153,8 @@ export default function Layout() {
     navItems.push({ id: 'payments', label: 'Pagamentos', icon: CreditCard, path: '/admin/payments' });
     navItems.push({ id: 'plan-history', label: 'Histórico Planos', icon: RefreshCw, path: '/admin/plan-history' });
     navItems.push({ id: 'settings', label: 'Definições', icon: Settings, path: '/admin/settings' });
+    navItems.push({ id: 'approval-workflows', label: 'Workflows Aprov.', icon: ThumbsUp, path: '/admin/approval-workflows' });
+    navItems.push({ id: 'audit-logs', label: 'Auditoria', icon: Activity, path: '/admin/audit-logs' });
   }
 
   const displayName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'Usuário';
@@ -453,32 +497,97 @@ export default function Layout() {
                         : `${totalAlerts} notificaç${totalAlerts > 1 ? 'ões' : 'ão'}`}
                     </div>
                   </div>
-                  <button
-                    onClick={() => setAlertsOpen(false)}
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      color: 'rgba(148,163,184,0.9)',
-                      cursor: 'pointer',
-                      fontSize: 12,
-                      padding: '4px 6px',
-                    }}
-                  >
-                    Fechar
-                  </button>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {unreadNotifications.length > 0 && (
+                      <button
+                        onClick={markAllAsRead}
+                        style={{
+                          background: 'transparent', border: 'none',
+                          color: 'rgba(148,163,184,0.9)', cursor: 'pointer',
+                          fontSize: 11, padding: '4px 6px',
+                        }}
+                        title="Marcar todas como lidas"
+                      >
+                        <CheckCheck size={14} />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { navigate('/notifications'); setAlertsOpen(false); }}
+                      style={{
+                        background: 'transparent', border: 'none',
+                        color: 'rgba(148,163,184,0.9)', cursor: 'pointer',
+                        fontSize: 11, padding: '4px 6px',
+                      }}
+                      title="Ver todas as notificações"
+                    >
+                      Ver todas
+                    </button>
+                    <button
+                      onClick={() => setAlertsOpen(false)}
+                      style={{
+                        background: 'transparent', border: 'none',
+                        color: 'rgba(148,163,184,0.9)', cursor: 'pointer',
+                        fontSize: 12, padding: '4px 6px',
+                      }}
+                    >
+                      Fechar
+                    </button>
+                  </div>
                 </div>
 
                 {/* Notificações do sistema */}
-                {unreadNotifications.length > 0 && (
+                {notifications.length > 0 && (
                   <>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(249,250,251,0.5)', letterSpacing: 0.3, marginBottom: 6 }}>NOTIFICAÇÕES</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(249,250,251,0.5)', letterSpacing: 0.3, marginBottom: 6, display: 'flex', justifyContent: 'space-between' }}>
+                      <span>NOTIFICAÇÕES</span>
+                    </div>
                     <ul className="alerts-list" style={{ marginBottom: 12 }}>
-                      {unreadNotifications.map(n => (
-                        <li key={n.id} className="alerts-item">
-                          <div className="alerts-item-title">{n.title}</div>
-                          <div className="alerts-item-meta">{n.message}</div>
-                        </li>
-                      ))}
+                      {notifications.map(n => {
+                        const icon = n.type === 'contract_approved' ? <CheckCircle2 size={14} color="#0d1117" /> :
+                                    n.type === 'contract_rejected' ? <Ban size={14} color="#ef4444" /> :
+                                    n.type === 'approval_requested' ? <Send size={14} color="#f59e0b" /> :
+                                    n.type === 'contract_expiring' ? <Clock size={14} color="#f59e0b" /> :
+                                    n.type === 'contract_shared' ? <MessageSquare size={14} color="#0d1117" /> :
+                                    <Bell size={14} color="#6b7280" />;
+                        return (
+                          <li
+                            key={n.id}
+                            className={`alerts-item ${n.read ? 'read' : ''}`}
+                            onClick={() => {
+                              if (!n.read) markAsRead(n.id);
+                              if (n.reference_id && n.reference_type === 'contract') {
+                                navigate(`/contracts/${n.reference_id}`);
+                                setAlertsOpen(false);
+                              }
+                            }}
+                            style={{ cursor: n.reference_id ? 'pointer' : 'default', opacity: n.read ? 0.6 : 1 }}
+                          >
+                            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                              <div style={{ marginTop: 2 }}>{icon}</div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div className="alerts-item-title" style={{ fontSize: 13 }}>{n.title}</div>
+                                <div className="alerts-item-meta" style={{ fontSize: 11 }}>{n.message}</div>
+                                <div style={{ fontSize: 10, color: 'rgba(148,163,184,0.6)', marginTop: 4 }}>
+                                  {n.created_at ? format(parseISO(n.created_at), "dd/MM 'às' HH:mm", { locale: ptBR }) : ''}
+                                </div>
+                              </div>
+                              {!n.read && (
+                                <button
+                                  onClick={e => { e.stopPropagation(); markAsRead(n.id); }}
+                                  style={{
+                                    background: 'transparent', border: 'none',
+                                    color: 'rgba(148,163,184,0.6)', cursor: 'pointer',
+                                    padding: 2, fontSize: 10, marginTop: 2,
+                                  }}
+                                  title="Marcar como lida"
+                                >
+                                  <CheckCheck size={12} />
+                                </button>
+                              )}
+                            </div>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </>
                 )}

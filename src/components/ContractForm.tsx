@@ -24,6 +24,7 @@ import { useAuth } from '../contexts/AuthContext';
 import TemplateLibrary from './TemplateLibrary';
 import TemplateFieldForm from './TemplateFieldForm';
 import AIContractGenerator from './AIContractGenerator';
+import TagInput from './TagInput';
 import type { FieldDef } from './TemplateFieldForm';
 import { exportContractToPdf } from '../services/exportPdf';
 import { checkPlan, getLimits, canUpgrade } from '../lib/plans';
@@ -61,6 +62,7 @@ export default function ContractForm() {
 
   const [attachments, setAttachments] = useState<File[]>([]);
   const [existingAttachments, setExistingAttachments] = useState<any[]>([]);
+  const [tags, setTags] = useState<string[]>([]);
 
   useEffect(() => {
     if (!editId || !user) return;
@@ -86,6 +88,7 @@ export default function ContractForm() {
       });
       setAnalysis(data.risks ? { risks: data.risks } : null);
       setExistingAttachments(data.attachments || []);
+      setTags(data.tags || []);
       setLoadingContract(false);
     };
     fetchContract();
@@ -244,6 +247,7 @@ export default function ContractForm() {
             end_date: formData.endDate || null,
             risks: analysis?.risks || [],
             attachments: allAttachments,
+            tags,
           })
           .eq('id', editId)
           .eq('owner_id', user.id);
@@ -281,6 +285,7 @@ export default function ContractForm() {
             end_date: formData.endDate || null,
             risks: analysis?.risks || [],
             attachments: allAttachments,
+            tags,
           })
           .select()
           .single();
@@ -555,6 +560,17 @@ export default function ContractForm() {
                   onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
                   placeholder="Breve descrição do contrato"
                 />
+              </div>
+
+              <div>
+                <label style={{
+                  display: 'block', fontSize: 13, fontWeight: 600,
+                  color: '#374151', marginBottom: 8,
+                  fontFamily: "'Poppins',sans-serif"
+                }}>
+                  Tags
+                </label>
+                <TagInput tags={tags} onChange={setTags} />
               </div>
 
               <div>

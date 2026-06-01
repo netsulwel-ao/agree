@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useContracts } from '../hooks/useContracts';
 import { 
   Search, Filter, Eye, FileEdit, Trash2,
-  Sparkles, Calendar as CalendarIcon, FileText, Download
+  Sparkles, Calendar as CalendarIcon, FileText, Download, X
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -19,19 +19,41 @@ export default function ContractList() {
   const { data: contracts = [], isLoading } = useContracts();
   const [searchTerm, setSearchTerm] = useState('');
   const [isAiSearching, setIsAiSearching] = useState(false);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [filteredContracts, setFilteredContracts] = useState(contracts);
 
+  const allTags = [...new Set(contracts.flatMap(c => c.tags || []))].sort();
+
+  const filterContracts = () => {
+    let result = contracts;
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      result = result.filter(c =>
+        c.title.toLowerCase().includes(term) ||
+        c.description?.toLowerCase().includes(term)
+      );
+    }
+    if (selectedTags.length > 0) {
+      result = result.filter(c =>
+        selectedTags.every(t => (c.tags || []).includes(t))
+      );
+    }
+    setFilteredContracts(result);
+  };
+
   React.useEffect(() => {
-    if (!searchTerm.trim()) setFilteredContracts(contracts);
-  }, [contracts, searchTerm]);
+    filterContracts();
+  }, [contracts, searchTerm, selectedTags]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!searchTerm.trim()) { setFilteredContracts(contracts); return; }
-    setFilteredContracts(contracts.filter(c =>
-      c.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.description?.toLowerCase().includes(searchTerm.toLowerCase())
-    ));
+    filterContracts();
+  };
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags(prev =>
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    );
   };
 
   const handleAiSearch = async () => {
@@ -133,6 +155,32 @@ export default function ContractList() {
         </div>*/}
       </div>
 
+      {/* Tag Filters */}
+      {allTags.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {allTags.map(tag => {
+            const active = selectedTags.includes(tag);
+            return (
+              <button
+                key={tag}
+                onClick={() => toggleTag(tag)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '6px 14px', borderRadius: 20, border: 'none',
+                  fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  background: active ? '#0d1117' : '#f3f4f6',
+                  color: active ? '#fff' : '#6b7280',
+                  fontFamily: "'Poppins',sans-serif", transition: 'all .2s',
+                }}
+              >
+                {tag}
+                {active && <X size={12} />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Table */}
       <div style={{
         background: 'rgba(255,255,255,0.55)', backdropFilter: 'blur(30px)',
@@ -190,10 +238,10 @@ export default function ContractList() {
                     onClick={() => navigate(`/contracts/${contract.id}`)}
                   >
                     <td style={{ padding: '14px 24px' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontWeight: 600, color: '#0d1117' }}>{contract.title}</span>
-                          {contract.owner_id !== user?.id && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <span style={{ fontWeight: 600, color: '#0d1117' }}>{contract.title}</span>
+                            {contract.owner_id !== user?.id && (
                             <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', background: 'rgba(13,17,23,0.08)', color: '#0d1117', borderRadius: 20, whiteSpace: 'nowrap' }}>
                               Partilhado
                             </span>
@@ -202,6 +250,16 @@ export default function ContractList() {
                         <span style={{ fontSize: 11, color: '#6b7280', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {contract.description || 'Sem descrição'}
                         </span>
+                        {(contract.tags?.length ?? 0) > 0 && (
+                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+                            {contract.tags!.map(t => (
+                              <span key={t} style={{
+                                fontSize: 10, fontWeight: 600, padding: '2px 8px',
+                                background: '#f3f4f6', color: '#6b7280', borderRadius: 20,
+                              }}>{t}</span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td style={{ padding: '14px 24px', color: '#6b7280' }}>v{contract.version || '1.0'}</td>

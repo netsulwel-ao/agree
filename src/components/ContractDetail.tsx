@@ -345,7 +345,7 @@ export default function ContractDetail() {
             }}>
               {contract.title}
             </h1>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <span style={{
                 padding: '4px 12px',
                 fontSize: 12,
@@ -361,6 +361,13 @@ export default function ContractDetail() {
               <span style={{ fontSize: 13, color: '#6b7280', fontFamily: "'Poppins',sans-serif" }}>
                 Criado em {format(parseISO(contract.created_at), 'dd/MM/yyyy', { locale: ptBR })}
               </span>
+              {(contract.tags?.length ?? 0) > 0 && contract.tags.map((t: string) => (
+                <span key={t} style={{
+                  fontSize: 11, fontWeight: 600, padding: '3px 10px',
+                  background: '#f3f4f6', color: '#6b7280', borderRadius: 20,
+                  fontFamily: "'Poppins',sans-serif"
+                }}>{t}</span>
+              ))}
             </div>
           </div>
         </div>

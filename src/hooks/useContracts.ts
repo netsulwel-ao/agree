@@ -16,6 +16,7 @@ export interface Contract {
   value?: number;
   version: number;
   collaborators?: any[];
+  tags?: string[];
 }
 
 export function useContracts() {

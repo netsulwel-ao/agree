@@ -320,7 +320,7 @@ export default function ContractList() {
         </div>
 
         {/* Table */}
-        <div style={{ overflowX: 'auto' }}>
+        <div className="responsive-table" style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, fontFamily: "'Poppins',sans-serif" }}>
             <thead>
               <tr style={{ background: '#f7f9fb', borderBottom: '1px solid #e2e5e9' }}>

@@ -39,6 +39,8 @@ export default function Layout() {
   const [alerts, setAlerts] = useState<AlertContract[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [alertsOpen, setAlertsOpen] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const { user, signOut, isAdmin, plan, planExpiresAt } = useAuth();
   const { openCheckout, openRenewal } = useCheckoutModal();
   const location = useLocation();
@@ -134,6 +136,20 @@ export default function Layout() {
 
     return () => { supabase.removeChannel(channel); clearInterval(expiryInterval); };
   }, [user]);
+
+  // Mobile detection
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)');
+    const handler = (e: MediaQueryListEvent | MediaQueryList) => setIsMobile(e.matches);
+    handler(mq);
+    mq.addEventListener('change', handler as any);
+    return () => mq.removeEventListener('change', handler as any);
+  }, []);
+
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    setMobileSidebarOpen(false);
+  }, [location.pathname]);
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
@@ -272,6 +288,27 @@ export default function Layout() {
         .sidebar-nav::-webkit-scrollbar-track { background: transparent; }
         .sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
         .sidebar-nav::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
+        @media (max-width: 768px) {
+          .sidebar-desktop { transform: translateX(-100%); transition: transform 0.3s ease; }
+          .sidebar-desktop.open { transform: translateX(0); }
+          .sidebar-overlay { display: block; }
+          .main-content { margin-left: 0 !important; padding: 12px !important; }
+          .header-desktop { padding: 14px 16px !important; border-radius: 14px !important; }
+          .header-desktop h2 { font-size: 16px !important; }
+          .header-desktop p { font-size: 12px !important; }
+          .alerts-panel-mobile { width: calc(100vw - 32px) !important; right: 16px !important; top: 80px !important; max-height: 70vh !important; }
+          .responsive-table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+          .responsive-table table { min-width: 600px; }
+          .hide-mobile { display: none !important; }
+          .show-mobile { display: flex !important; }
+          input, select, textarea, button { font-size: 16px !important; }
+          .stats-grid { grid-template-columns: 1fr 1fr !important; }
+        }
+        @media (max-width: 480px) {
+          .stats-grid { grid-template-columns: 1fr !important; }
+          .sidebar-desktop { width: 100% !important; }
+        }
+        .sidebar-desktop { transition: transform 0.3s ease; }
       `}</style>
 
       {/* Background blobs */}
@@ -280,14 +317,25 @@ export default function Layout() {
 
       <Toaster position="top-right" richColors />
 
+      {/* Mobile overlay */}
+      {isMobile && mobileSidebarOpen && (
+        <div
+          onClick={() => setMobileSidebarOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+            zIndex: 39, backdropFilter: 'blur(4px)'
+          }}
+        />
+      )}
+
       {/* Sidebar */}
       <aside
-        className="sidebar"
+        className={`sidebar sidebar-desktop ${mobileSidebarOpen ? 'open' : ''}`}
         style={{
-          width: 260,
+          width: isMobile ? 280 : 260,
           background: '#0d1117',
           borderRight: '1px solid rgba(255,255,255,0.08)',
-          boxShadow: '4px 0 24px rgba(0,0,0,0.15)',
+          boxShadow: isMobile && mobileSidebarOpen ? '0 0 40px rgba(0,0,0,0.4)' : '4px 0 24px rgba(0,0,0,0.15)',
           display: 'flex',
           flexDirection: 'column',
           position: 'fixed',
@@ -440,25 +488,38 @@ export default function Layout() {
       </aside>
 
       {/* Main Content */}
-      <main style={{
-        flex: 1, marginLeft: 260, display: 'flex',
-        flexDirection: 'column', height: '100vh', padding: 24
+      <main className="main-content" style={{
+        flex: 1, marginLeft: isMobile ? 0 : 260, display: 'flex',
+        flexDirection: 'column', height: '100vh', padding: isMobile ? 12 : 24
       }}>
         {/* Top Header */}
-        <header style={{
+        <header className="header-desktop" style={{
           background: 'rgba(255,255,255,0.45)', backdropFilter: 'blur(30px)',
           border: '1px solid rgba(255,255,255,0.35)', borderRadius: 20,
           padding: '20px 28px', display: 'flex', alignItems: 'center',
-          justifyContent: 'space-between', position: 'sticky', top: 24,
+          justifyContent: 'space-between', position: 'sticky', top: isMobile ? 12 : 24,
           zIndex: 30, marginBottom: 24, boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
         }}>
-          <div style={{ position: 'relative', flex: 1 }}>
-            <h2 style={{ fontFamily: "'Poppins',sans-serif", fontSize: 20, fontWeight: 700, color: '#0d1117', marginBottom: 4 }}>
-              {currentNav?.label || 'Detalhes'}
-            </h2>
-            <p style={{ fontSize: 13, color: '#6b7280', fontFamily: "'Poppins',sans-serif" }}>
-              Gerencie os seus contratos com total controlo
-            </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
+            {isMobile && (
+              <button
+                onClick={() => setMobileSidebarOpen(true)}
+                style={{
+                  background: 'transparent', border: 'none', cursor: 'pointer',
+                  color: '#0d1117', padding: 4, display: 'flex',
+                }}
+              >
+                <Menu size={22} />
+              </button>
+            )}
+            <div>
+              <h2 style={{ fontFamily: "'Poppins',sans-serif", fontSize: 20, fontWeight: 700, color: '#0d1117', marginBottom: 4 }}>
+                {currentNav?.label || 'Detalhes'}
+              </h2>
+              <p style={{ fontSize: 13, color: '#6b7280', fontFamily: "'Poppins',sans-serif" }}>
+                Gerencie os seus contratos com total controlo
+              </p>
+            </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, position: 'relative' }}>
             <button
@@ -484,9 +545,9 @@ export default function Layout() {
             </button>
             {alertsOpen && (
               <div
-                className="alerts-panel"
+                className={`alerts-panel ${isMobile ? 'alerts-panel-mobile' : ''}`}
                 onClick={e => e.stopPropagation()}
-                style={{ width: 380, maxHeight: 480 }}
+                style={{ width: isMobile ? 'calc(100vw - 32px)' : 380, maxHeight: isMobile ? '70vh' : 480 }}
               >
                 <div className="alerts-panel-header">
                   <div>

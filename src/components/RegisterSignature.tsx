@@ -6,12 +6,13 @@ import QRCode from 'qrcode';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from '../contexts/AuthContext';
 import { useCheckoutModal } from '../contexts/CheckoutModalContext';
-import { ArrowLeft, ArrowUpRight, Camera, Upload, QrCode, Smartphone, CheckCircle2, Loader2, RotateCcw, PenLine } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, Camera, Upload, QrCode, Smartphone, CheckCircle2, Loader2, RotateCcw, PenLine, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { checkPlan, getLimits, canUpgrade } from '../lib/plans';
+import SignaturePad from './SignaturePad';
 
-type Step = 'choose-method' | 'capture' | 'preview' | 'saving';
+type Step = 'choose-method' | 'draw' | 'capture' | 'preview' | 'saving';
 
 export default function RegisterSignature() {
   const { user, plan, isAdmin } = useAuth();
@@ -19,9 +20,11 @@ export default function RegisterSignature() {
   const navigate = useNavigate();
 
   const [step, setStep] = useState<Step>('choose-method');
-  const [method, setMethod] = useState<'camera' | 'upload' | 'qr' | null>(null);
+  const [method, setMethod] = useState<'camera' | 'upload' | 'qr' | 'draw' | null>(null);
   const [sessionId, setSessionId] = useState<string>('');
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
+  const [existingSignatures, setExistingSignatures] = useState<any[]>([]);
+  const [loadingExisting, setLoadingExisting] = useState(true);
   const [rawBlob, setRawBlob] = useState<Blob | null>(null);
   const [processedPreview, setProcessedPreview] = useState<string>('');
   const [finalBlob, setFinalBlob] = useState<Blob | null>(null);
@@ -46,6 +49,20 @@ const isLocalhost = window.location.hostname === 'localhost' || window.location.
       .then(() => setHasCamera(true))
       .catch(() => setHasCamera(false));
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchExisting = async () => {
+      const { data } = await supabase
+        .from('user_signatures')
+        .select('id, name, image_url, created_at, is_active')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      if (data) setExistingSignatures(data);
+      setLoadingExisting(false);
+    };
+    fetchExisting();
+  }, [user]);
 
   useEffect(() => {
     return () => {
@@ -113,6 +130,16 @@ const isLocalhost = window.location.hostname === 'localhost' || window.location.
     setCameraStream(null);
   };
 
+  const handleDrawSave = (dataUrl: string) => {
+    fetch(dataUrl)
+      .then(res => res.blob())
+      .then(blob => {
+        setRawBlob(blob);
+        processAndPreview(blob);
+        setMethod('draw');
+      });
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -174,6 +201,14 @@ const isLocalhost = window.location.hostname === 'localhost' || window.location.
     setQrDataUrl('');
     setSessionId('');
     setSigName('');
+  };
+
+  const handleDeleteSignature = async (id: string, imageUrl: string) => {
+    const path = imageUrl.split('/signatures/')[1];
+    if (path) await supabase.storage.from('signatures').remove([path]);
+    await supabase.from('user_signatures').delete().eq('id', id);
+    setExistingSignatures(prev => prev.filter(s => s.id !== id));
+    toast.success('Assinatura eliminada');
   };
 
   const handleSave = async () => {
@@ -290,6 +325,20 @@ const isLocalhost = window.location.hostname === 'localhost' || window.location.
           <p style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>Escolhe como queres criar a tua assinatura:</p>
 
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16 }}>
+            {/* Draw — primeiro método, sempre disponível */}
+            <button onClick={() => { setMethod('draw'); setStep('draw'); }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: 32, background: 'linear-gradient(135deg, rgba(13,17,23,0.04), rgba(13,17,23,0.01))', border: '1.5px solid #0d1117', cursor: 'pointer', transition: 'all .2s', fontFamily: "'Poppins',sans-serif" }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#000'; e.currentTarget.style.background = 'linear-gradient(135deg, rgba(13,17,23,0.08), rgba(13,17,23,0.03))'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#0d1117'; e.currentTarget.style.background = 'linear-gradient(135deg, rgba(13,17,23,0.04), rgba(13,17,23,0.01))'; }}
+            >
+              <div style={{ width: 60, height: 60, borderRadius: 16, background: 'rgba(13,17,23,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Pencil size={28} color="#0d1117" />
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <p style={{ fontSize: 16, fontWeight: 700, color: '#0d1117', margin: 0 }}>Desenhar Assinatura</p>
+                <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0' }}>Desenha a tua assinatura com o rato ou dedo</p>
+              </div>
+            </button>
+
             {/* Camera / Mobile */}
             {hasCamera && (
               <button onClick={startCamera} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: 32, background: '#fff', border: '1.5px solid #e2e5e9', cursor: 'pointer', transition: 'all .2s', fontFamily: "'Poppins',sans-serif" }}
@@ -323,7 +372,7 @@ const isLocalhost = window.location.hostname === 'localhost' || window.location.
 
             {/* QR Code — só no PC */}
             {!isMobile && (
-              <button onClick={generateQrCode} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: 32, background: '#fff', border: '1.5px solid #e2e5e9', cursor: 'pointer', transition: 'all .2s', gridColumn: isMobile ? '1' : '1 / -1', fontFamily: "'Poppins',sans-serif" }}
+              <button onClick={generateQrCode} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: 32, background: '#fff', border: '1.5px solid #e2e5e9', cursor: 'pointer', transition: 'all .2s', fontFamily: "'Poppins',sans-serif" }}
                 onMouseEnter={e => e.currentTarget.style.borderColor = '#0d1117'}
                 onMouseLeave={e => e.currentTarget.style.borderColor = '#e2e5e9'}
               >
@@ -342,6 +391,37 @@ const isLocalhost = window.location.hostname === 'localhost' || window.location.
               </button>
             )}
           </div>
+
+          {/* Minhas Assinaturas — galeria das assinaturas existentes */}
+          {!loadingExisting && existingSignatures.length > 0 && (
+            <div style={{ marginTop: 32 }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0d1117', marginBottom: 12 }}>
+                Minhas assinaturas ({existingSignatures.length})
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
+                {existingSignatures.map(sig => (
+                  <div key={sig.id} style={{
+                    position: 'relative', background: '#fff', border: sig.is_active ? '1.5px solid #0d1117' : '1px solid #e2e5e9',
+                    borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8
+                  }}>
+                    <div style={{ width: '100%', height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <img src={sig.image_url} alt={sig.name} style={{ maxWidth: '90%', maxHeight: 44, objectFit: 'contain' }} />
+                    </div>
+                    <p style={{ fontSize: 11, fontWeight: 600, color: '#0d1117', margin: 0, textAlign: 'center' }}>{sig.name}</p>
+                    {sig.is_active && (
+                      <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 8px', background: 'rgba(13,17,23,0.1)', color: '#0d1117', borderRadius: 20 }}>Ativa</span>
+                    )}
+                    <button
+                      onClick={() => handleDeleteSignature(sig.id, sig.image_url)}
+                      style={{ position: 'absolute', top: 6, right: 6, width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(239,68,68,0.1)', border: 'none', color: '#ef4444', cursor: 'pointer', borderRadius: 6, fontSize: 12 }}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -375,6 +455,25 @@ const isLocalhost = window.location.hostname === 'localhost' || window.location.
           <button onClick={() => { setStep('choose-method'); setMethod(null); }} style={{ padding: '10px 20px', fontSize: 13, fontWeight: 600, background: '#fff', border: '1px solid #e2e5e9', color: '#6b7280', cursor: 'pointer', borderRadius: 10, fontFamily: "'Poppins',sans-serif" }}>
             Cancelar
           </button>
+        </div>
+      )}
+
+      {step === 'draw' && (
+        <div style={{ maxWidth: 560, margin: '0 auto' }}>
+          <div style={{ background: '#fff', border: '1px solid #e2e5e9', borderRadius: 16, padding: 24 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#0d1117', margin: '0 0 4px', fontFamily: "'Poppins',sans-serif" }}>
+              Desenha a tua assinatura
+            </h3>
+            <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 16px', fontFamily: "'Poppins',sans-serif" }}>
+              Usa o rato ou o dedo para desenhar a tua assinatura
+            </p>
+            <SignaturePad
+              onSave={handleDrawSave}
+              onCancel={() => { setStep('choose-method'); setMethod(null); }}
+              width={560}
+              height={200}
+            />
+          </div>
         </div>
       )}
 

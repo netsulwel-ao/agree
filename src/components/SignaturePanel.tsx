@@ -2,7 +2,7 @@
 import { supabase } from '../lib/supabase';
 import {
   PenLine, CheckCircle2, Clock, Plus, Trash2,
-  Mail, Shield, AlertCircle, Loader2, Image as ImageIcon, ArrowUpRight
+  Mail, Shield, AlertCircle, Loader2, Image as ImageIcon, ArrowUpRight, Pencil, X
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -13,6 +13,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCheckoutModal } from '../contexts/CheckoutModalContext';
 import { checkPlan, getLimits, canUpgrade } from '../lib/plans';
+import SignaturePad from './SignaturePad';
 
 interface Signature {
   id: string;
@@ -89,6 +90,8 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
   const [newEmail, setNewEmail] = useState('');
   const [signing, setSigning] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showDrawPad, setShowDrawPad] = useState(false);
+  const [drawingUpload, setDrawingUpload] = useState(false);
   const [userSignature, setUserSignature] = useState<{ id: string; image_url: string; name: string } | null>(null);
 
   useEffect(() => {
@@ -183,6 +186,37 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
       toast.error('Erro ao remover signatário');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDrawAndSign = async (dataUrl: string) => {
+    setDrawingUpload(true);
+    try {
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      const filePath = `${user.id}/inline_${Date.now()}.png`;
+      const { error: uploadError } = await supabase.storage
+        .from('signatures')
+        .upload(filePath, blob, { contentType: 'image/png', upsert: false });
+      if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = supabase.storage
+        .from('signatures')
+        .getPublicUrl(filePath);
+
+      await supabase.from('user_signatures').insert({
+        user_id: user.id,
+        name: `Assinatura ${new Date().toLocaleDateString()}`,
+        image_url: publicUrl,
+        is_active: true,
+      });
+
+      setUserSignature({ id: '', image_url: publicUrl, name: 'Assinatura' });
+      setShowDrawPad(false);
+      toast.success('Assinatura criada! Agora podes assinar o contrato.');
+    } catch (e: any) {
+      toast.error('Erro ao processar assinatura');
+    } finally {
+      setDrawingUpload(false);
     }
   };
 
@@ -377,23 +411,38 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
               </button>
             </div>
           ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', fontFamily: "'Poppins',sans-serif", flex: 1 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', fontFamily: "'Poppins',sans-serif" }}>
                 Ainda não tens uma assinatura digital registada.
               </p>
-              <Link
-                to="/signatures/register"
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 8,
-                  padding: '12px 24px', fontSize: 14, fontWeight: 700,
-                  background: '#fff', border: 'none', color: '#0d1117',
-                  cursor: 'pointer', borderRadius: 12, textDecoration: 'none',
-                  fontFamily: "'Poppins',sans-serif"
-                }}
-              >
-                <PenLine size={16} />
-                Registar Assinatura
-              </Link>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => setShowDrawPad(true)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 8,
+                    padding: '12px 24px', fontSize: 14, fontWeight: 700,
+                    background: '#fff', border: 'none', color: '#0d1117',
+                    cursor: 'pointer', borderRadius: 12, textDecoration: 'none',
+                    fontFamily: "'Poppins',sans-serif"
+                  }}
+                >
+                  <Pencil size={16} />
+                  Desenhar Agora
+                </button>
+                <Link
+                  to="/signatures/register"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 8,
+                    padding: '12px 24px', fontSize: 14, fontWeight: 600,
+                    background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)',
+                    color: '#fff', cursor: 'pointer', borderRadius: 12, textDecoration: 'none',
+                    fontFamily: "'Poppins',sans-serif"
+                  }}
+                >
+                  <PenLine size={16} />
+                  Registar Assinatura
+                </Link>
+              </div>
             </div>
           )}
         </div>
@@ -646,6 +695,48 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
           </div>
         )}
       </div>
+
+      {/* Desenho inline da assinatura */}
+      {showDrawPad && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(0,0,0,0.5)', padding: 20,
+          fontFamily: "'Poppins',sans-serif"
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: 20, padding: 28,
+            maxWidth: 600, width: '100%', boxShadow: '0 24px 64px rgba(0,0,0,0.24)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div>
+                <h3 style={{ fontSize: 18, fontWeight: 800, color: '#0d1117', margin: 0 }}>Desenha a tua assinatura</h3>
+                <p style={{ fontSize: 12, color: '#6b7280', margin: '2px 0 0' }}>
+                  Usa o rato ou o dedo para assinar
+                </p>
+              </div>
+              <button
+                onClick={() => setShowDrawPad(false)}
+                style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f7f9fb', border: 'none', cursor: 'pointer', borderRadius: 10, color: '#6b7280' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <SignaturePad
+              onSave={handleDrawAndSign}
+              onCancel={() => setShowDrawPad(false)}
+              width={560}
+              height={200}
+            />
+            {drawingUpload && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, padding: '8px 16px', background: 'rgba(13,17,23,0.04)', borderRadius: 8 }}>
+                <Loader2 size={14} className="animate-spin" />
+                <span style={{ fontSize: 12, color: '#6b7280' }}>A processar assinatura...</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Aviso legal */}
       <div style={{

@@ -112,7 +112,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(session?.user ?? null);
       await handleUserChange(session?.user?.id ?? null, session?.user?.email);
       setIsLoading(false);
-    }).catch(() => {
+    }).catch(async () => {
+      // Sess�o corrompida (ex: refresh token inv�lido) → limpa localStorage
+      try { await supabase.auth.signOut(); } catch {}
       if (!cancelled) setIsLoading(false);
     });
 

@@ -104,12 +104,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [fetchProfile]);
 
   useEffect(() => {
+    let cancelled = false;
     // Carrega a sessão inicial e aguarda o perfil antes de marcar isLoading=false
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (cancelled) return;
       setSession(session);
       setUser(session?.user ?? null);
       await handleUserChange(session?.user?.id ?? null, session?.user?.email);
       setIsLoading(false);
+    }).catch(() => {
+      if (!cancelled) setIsLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
@@ -119,7 +123,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => { cancelled = true; subscription.unsubscribe(); };
   }, [handleUserChange]);
 
   const signOut = async () => {

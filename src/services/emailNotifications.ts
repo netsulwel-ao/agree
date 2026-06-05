@@ -1,5 +1,8 @@
 const APP_URL = import.meta.env.VITE_APP_URL || window.location.origin;
 
+// Segredo para autenticar chamadas ao endpoint /api/send-email
+const EMAIL_API_SECRET = import.meta.env.VITE_EMAIL_API_SECRET || '';
+
 type Plan = 'free' | 'pro' | 'enterprise';
 
 export function canSendEmail(plan: Plan, isAdmin: boolean, feature: 'approval' | 'sharing' | 'expiry' | 'digest'): boolean {
@@ -12,13 +15,18 @@ export async function sendEmail({ to, subject, html }: { to: string; subject: st
   try {
     const res = await fetch('/api/send-email', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        // Envia o segredo via header para autenticar o pedido no servidor
+        ...(EMAIL_API_SECRET ? { 'x-internal-secret': EMAIL_API_SECRET } : {}),
+      },
       body: JSON.stringify({ to, subject, html }),
     });
     if (!res.ok) throw new Error(await res.text());
     return true;
-  } catch (e: any) {
-    console.warn('Email não enviado (SMTP configurado?):', e.message);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.warn('Email não enviado (SMTP configurado?):', message);
     return false;
   }
 }

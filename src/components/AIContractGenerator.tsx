@@ -585,7 +585,7 @@ export default function AIContractGenerator({ onGenerated, onClose }: AIContract
                   const actualKey = isExtra ? f.key.slice(6) : f.key;
                   const value = isExtra
                     ? (answers.extraFields?.[actualKey] || '')
-                    : (answers[f.key as keyof ContractAnswers] || '');
+                    : ((answers[f.key as keyof ContractAnswers] as string) || '');
                   const onChange = (v: string) => {
                     if (isExtra) updateExtra(actualKey, v);
                     else update(f.key as keyof ContractAnswers, v);

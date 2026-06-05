@@ -468,6 +468,14 @@ export default function Layout() {
               </div>
             )}
             <Link
+              to="/billing"
+              className="nav-link"
+              style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 10, textDecoration: 'none', marginBottom: 6 }}
+            >
+              <CreditCard size={18} />
+              Billing
+            </Link>
+            <Link
               to="/profile"
               className="nav-link nav-link-logout"
               style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 10, textDecoration: 'none', marginBottom: 6 }}

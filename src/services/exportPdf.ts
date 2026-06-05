@@ -74,8 +74,12 @@ export async function exportContractToPdf(contract: any) {
     contract.content.trim().startsWith('<html') ||
     contract.content.includes('Cormorant Garamond')
   )) {
-    await exportTemplateAsImage(contract.content, contract.title, logoImg);
-    return;
+    try {
+      await exportTemplateAsImage(contract.content, contract.title, logoImg);
+      return;
+    } catch (e) {
+      console.error('Template image export failed, falling back to legacy layout:', e);
+    }
   }
 
   // ── Legacy / plain-text contracts → keep Agree layout ──
@@ -196,6 +200,7 @@ export async function exportContractToPdf(contract: any) {
         const totalPages = doc.getNumberOfPages();
         for (let i = 1; i <= totalPages; i++) {
           doc.setPage(i);
+          if (i > 1) addWatermark(doc);
           addFreeFooter(doc, i, totalPages, logoImg);
         }
         doc.save(`${contract.title || 'contrato'}.pdf`);

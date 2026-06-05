@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
 import { Search, Shield, ShieldOff, RotateCw, UserCheck, UserX, UserPlus } from 'lucide-react';
 import InviteUserModal from './InviteUserModal';
 import { toast } from 'sonner';
@@ -16,7 +16,7 @@ interface Profile {
 }
 
 export default function AdminUsers() {
-  const { user, isAdmin, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -42,12 +42,8 @@ export default function AdminUsers() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user || !isAdmin) {
-      navigate('/dashboard', { replace: true });
-      return;
-    }
     fetchProfiles();
-  }, [user, isAdmin, authLoading, navigate, fetchProfiles]);
+  }, [authLoading, fetchProfiles]);
 
   const updateRole = async (profileId: string, newRole: string) => {
     setUpdatingId(profileId);

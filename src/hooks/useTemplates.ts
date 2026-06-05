@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { BUILT_IN_TEMPLATES } from '../data/builtInTemplates';
 
 export interface TemplateField {
   name: string;
@@ -11,28 +12,46 @@ export interface TemplateField {
 
 export interface Template {
   id: string;
-  created_at: string;
+  created_at?: string;
   name: string;
   description: string;
   category: string;
   content: string;
-  variables: TemplateField[];
+  fields: TemplateField[];
+  variables?: TemplateField[];
   is_system: boolean;
   user_id?: string;
-  usage_count: number;
+  usage_count?: number;
 }
 
 export function useTemplates() {
   return useQuery({
     queryKey: ['templates'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('contract_templates')
-        .select('*')
-        .order('category', { ascending: true })
-        .order('name', { ascending: true });
-      if (error) throw new Error(error.message);
-      return (data || []) as Template[];
+      // 1. Built-in templates (always available, no DB required)
+      const builtIns: Template[] = BUILT_IN_TEMPLATES.map(t => ({
+        ...t,
+        created_at: new Date().toISOString(),
+        fields: t.fields.map(f => ({ ...f, type: f.type as TemplateField['type'] })),
+        variables: [],
+        usage_count: 0,
+      }));
+
+      // 2. User-created templates from Supabase (if available)
+      try {
+        const { data, error } = await supabase
+          .from('contract_templates')
+          .select('*')
+          .order('category', { ascending: true })
+          .order('name', { ascending: true });
+        if (!error && data) {
+          return [...builtIns, ...(data as Template[]).filter(t => t.user_id)];
+        }
+      } catch {
+        // Supabase unavailable — return built-ins only
+      }
+
+      return builtIns;
     },
   });
 }

@@ -18,9 +18,34 @@ interface ApiKeyRow {
   rate_limit: number;
 }
 
+// ─── Rate limit in-memory store ────────────────────────
+// Chave: api_key_id → { count, windowStart }
+// Resetado quando a janela de 60 s expira.
+const rateLimitStore = new Map<string, { count: number; windowStart: number }>();
+
+function checkRateLimit(keyId: string, limitPerMinute: number): boolean {
+  const now = Date.now();
+  const WINDOW_MS = 60_000;
+
+  const entry = rateLimitStore.get(keyId);
+
+  if (!entry || now - entry.windowStart >= WINDOW_MS) {
+    // Nova janela
+    rateLimitStore.set(keyId, { count: 1, windowStart: now });
+    return true;
+  }
+
+  if (entry.count >= limitPerMinute) {
+    return false; // limite atingido
+  }
+
+  entry.count += 1;
+  return true;
+}
+
 // ─── Auth helper ───────────────────────────────────────
 
-async function authenticate(req: Request): Promise<{ userId: string; scopes: string[] } | null> {
+async function authenticate(req: Request): Promise<{ userId: string; scopes: string[]; keyId: string; rateLimit: number } | null> {
   const authHeader = req.headers.get('authorization');
   if (!authHeader?.startsWith('Bearer ')) return null;
 
@@ -43,10 +68,10 @@ async function authenticate(req: Request): Promise<{ userId: string; scopes: str
 
   if (!row || !row.is_active || row.key_hash !== keyHash) return null;
 
-  // Update last_used
-  await supabase.from('api_keys').update({ last_used_at: new Date().toISOString() }).eq('id', row.id);
+  // Update last_used (fire and forget — não bloqueia a resposta)
+  supabase.from('api_keys').update({ last_used_at: new Date().toISOString() }).eq('id', row.id);
 
-  return { userId: row.user_id, scopes: row.scopes };
+  return { userId: row.user_id, scopes: row.scopes, keyId: row.id, rateLimit: row.rate_limit ?? 60 };
 }
 
 // ─── Response helpers ──────────────────────────────────
@@ -147,6 +172,18 @@ serve(async (req) => {
   // Authenticate
   const auth = await authenticate(req);
   if (!auth) return error('Unauthorized', 401);
+
+  // Rate limiting — verifica o limite por minuto da API key
+  if (!checkRateLimit(auth.keyId, auth.rateLimit)) {
+    return new Response(JSON.stringify({ error: 'Rate limit exceeded. Tente novamente em 60 segundos.' }), {
+      status: 429,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Retry-After': '60',
+      },
+    });
+  }
 
   // Check scope
   const method = req.method;

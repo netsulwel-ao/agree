@@ -33,21 +33,42 @@ import InvoiceDetail from './components/InvoiceDetail';
 import AuditLogList from './components/AuditLogList';
 import SignatureWebhook from './components/SignatureWebhook';
 import NotificationsPage from './components/NotificationsPage';
+import BillingPortal from './components/BillingPortal';
 
-import { GlobalLoadingProvider, useGlobalLoading } from './contexts/GlobalLoadingContext';
+import { useGlobalLoading } from './contexts/GlobalLoadingContext';
 import { useAuth } from './contexts/AuthContext';
 
+// ─── Guards de rota ────────────────────────────────────
+
+/** Requer utilizador autenticado. Redireciona para /login caso contrário. */
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, isLoading } = useAuth();
-  
+
   if (isLoading) return <LoadingScreen message="A validar acesso..." />;
   if (!user) return <Navigate to="/login" replace />;
-  
+
   return <>{children}</>;
 };
 
+/**
+ * Requer role de administrador.
+ * Se o utilizador estiver autenticado mas não for admin, redireciona para /dashboard.
+ * Aguarda o perfil estar carregado (isLoading) antes de decidir — evita flash de redirect.
+ */
+const AdminRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, isAdmin, isLoading } = useAuth();
+
+  if (isLoading) return <LoadingScreen message="A validar acesso..." />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!isAdmin) return <Navigate to="/dashboard" replace />;
+
+  return <>{children}</>;
+};
+
+/** Redireciona utilizadores já autenticados para o dashboard (ou rota pendente). */
 function RedirectIfAuthenticated({ children, fallback }: { children: React.ReactNode; fallback?: string }) {
   const { user, isLoading } = useAuth();
+
   if (isLoading) return <LoadingScreen message="A carregar..." />;
   if (user) {
     const pending = sessionStorage.getItem('redirectAfterLogin');
@@ -60,20 +81,22 @@ function RedirectIfAuthenticated({ children, fallback }: { children: React.React
   return <>{children}</>;
 }
 
+// ─── Rotas ────────────────────────────────────────────
+
 function AppRoutes() {
-  const { user, isLoading } = useAuth();
+  const { isLoading } = useAuth();
   const { isLoading: globalLoading, loadingMessage } = useGlobalLoading();
 
   if (isLoading || globalLoading) {
-    return <LoadingScreen message={loadingMessage || "A carregar..."} />;
+    return <LoadingScreen message={loadingMessage || 'A carregar...'} />;
   }
 
   return (
     <Routes>
       <Route path="/" element={<RedirectIfAuthenticated><LandingPage /></RedirectIfAuthenticated>} />
       <Route path="/login" element={<RedirectIfAuthenticated fallback="/dashboard"><AuthenticationScreen /></RedirectIfAuthenticated>} />
-      
-      {/* Protected Routes wrapped in Layout */}
+
+      {/* Rotas protegidas (utilizador autenticado) dentro do Layout */}
       <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/contracts" element={<ContractList />} />
@@ -84,10 +107,6 @@ function AppRoutes() {
         <Route path="/compliance" element={<Compliance />} />
         <Route path="/signatures" element={<SignatureList />} />
         <Route path="/signatures/register" element={<RegisterSignature />} />
-        <Route path="/admin/users" element={<AdminUsers />} />
-        <Route path="/admin/payments" element={<AdminPayments />} />
-        <Route path="/admin/settings" element={<AdminSettings />} />
-        <Route path="/admin/plan-history" element={<AdminPlanHistory />} />
         <Route path="/clients" element={<ClientList />} />
         <Route path="/clients/new" element={<ClientForm />} />
         <Route path="/clients/:id/edit" element={<ClientForm />} />
@@ -99,23 +118,29 @@ function AppRoutes() {
         <Route path="/invoices/:id/edit" element={<InvoiceForm />} />
         <Route path="/approvals" element={<ApprovalRequestList />} />
         <Route path="/approvals/:id" element={<ApprovalDetail />} />
-        <Route path="/admin/approval-workflows" element={<ApprovalWorkflowConfig />} />
-        <Route path="/admin/audit-logs" element={<AuditLogList />} />
         <Route path="/profile" element={<ProfileSettings />} />
         <Route path="/notifications" element={<NotificationsPage />} />
+        <Route path="/billing" element={<BillingPortal />} />
 
+        {/* Rotas de administração — requerem role=admin */}
+        <Route path="/admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
+        <Route path="/admin/payments" element={<AdminRoute><AdminPayments /></AdminRoute>} />
+        <Route path="/admin/settings" element={<AdminRoute><AdminSettings /></AdminRoute>} />
+        <Route path="/admin/plan-history" element={<AdminRoute><AdminPlanHistory /></AdminRoute>} />
+        <Route path="/admin/approval-workflows" element={<AdminRoute><ApprovalWorkflowConfig /></AdminRoute>} />
+        <Route path="/admin/audit-logs" element={<AdminRoute><AuditLogList /></AdminRoute>} />
       </Route>
-      
-      {/* Signature capture via QR scan — standalone, no layout */}
+
+      {/* Captura de assinatura via QR — standalone, sem layout */}
       <Route path="/capture-signature/:sessionId" element={<CaptureSignature />} />
-      
-      {/* Email confirmation / recovery — standalone */}
+
+      {/* Confirmação de email / recuperação de password — standalone */}
       <Route path="/confirmado" element={<EmailConfirmed />} />
       <Route path="/reset-password" element={<ResetPassword />} />
-      
-      {/* Signature provider webhook endpoint */}
+
+      {/* Webhook de fornecedor de assinaturas */}
       <Route path="/signature-webhook" element={<SignatureWebhook />} />
-      
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

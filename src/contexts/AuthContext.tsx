@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase';
 import { User, Session } from '@supabase/supabase-js';
 import { useGlobalLoading } from './GlobalLoadingContext';
 import type { Plan } from '../lib/plans';
+import { isTrialActive } from '../lib/plans';
+import { setSentryUser } from '../lib/sentry';
 
 interface AuthContextType {
   user: User | null;
@@ -11,8 +13,12 @@ interface AuthContextType {
   role: string | null;
   plan: Plan;
   planExpiresAt: string | null;
+  trialEndsAt: string | null;
+  isInTrial: boolean;
   isBlocked: boolean;
   isAdmin: boolean;
+  onboardingCompleted: boolean;
+  setOnboardingCompleted: () => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -24,8 +30,12 @@ const AuthContext = createContext<AuthContextType>({
   role: null,
   plan: 'free',
   planExpiresAt: null,
+  trialEndsAt: null,
+  isInTrial: false,
   isBlocked: false,
   isAdmin: false,
+  onboardingCompleted: false,
+  setOnboardingCompleted: async () => {},
   signOut: async () => {},
   refreshProfile: async () => {},
 });
@@ -37,68 +47,75 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [role, setRole] = useState<string | null>(null);
   const [plan, setPlan] = useState<Plan>('free');
   const [planExpiresAt, setPlanExpiresAt] = useState<string | null>(null);
+  const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
   const [isBlocked, setIsBlocked] = useState(false);
+  const [onboardingCompleted, setOnboardingCompletedState] = useState(false);
   const { setIsLoading: setGlobalLoading } = useGlobalLoading();
 
   const fetchProfile = useCallback(async (userId: string) => {
+    // Uma única query busca todos os campos necessários — evita dois roundtrips
     const { data } = await supabase
       .from('profiles')
-      .select('role, plan, plan_activated_at, plan_expires_at')
+      .select('role, plan, plan_activated_at, plan_expires_at, trial_ends_at, is_blocked, onboarding_completed')
       .eq('id', userId)
       .maybeSingle();
-    if (data) {
-      setRole(data.role || 'user');
-      const p = (data.plan as Plan) || 'free';
-      setPlan(p === 'pro' || p === 'enterprise' ? p : 'free');
-      setPlanExpiresAt(data.plan_expires_at || null);
+
+    if (!data) return;
+
+    // Utilizador bloqueado — faz logout imediatamente antes de actualizar qualquer estado
+    if (data.is_blocked === true) {
+      await supabase.auth.signOut();
+      setUser(null);
+      setSession(null);
+      setRole(null);
+      setPlan('free');
+      setPlanExpiresAt(null);
+      setTrialEndsAt(null);
+      setIsBlocked(false);
+      return;
     }
-    const { data: blockedData } = await supabase
-      .from('profiles')
-      .select('is_blocked')
-      .eq('id', userId)
-      .maybeSingle();
-    if (blockedData && typeof blockedData.is_blocked === 'boolean') {
-      const blocked = blockedData.is_blocked;
-      setIsBlocked(blocked);
-      if (blocked) {
-        await supabase.auth.signOut();
-        setUser(null);
-        setSession(null);
-        setRole(null);
-        setPlan('free');
-        setPlanExpiresAt(null);
-        setIsBlocked(false);
-      }
-    }
+
+    setRole(data.role || 'user');
+    const p = (data.plan as Plan) || 'free';
+    setPlan(p === 'pro' || p === 'enterprise' ? p : 'free');
+    setPlanExpiresAt(data.plan_expires_at || null);
+    setTrialEndsAt(data.trial_ends_at || null);
+    setIsBlocked(false);
+    setOnboardingCompletedState(data.onboarding_completed === true);
   }, []);
 
   const refreshProfile = useCallback(async () => {
     if (user) await fetchProfile(user.id);
   }, [user, fetchProfile]);
 
-  const handleUserChange = useCallback(async (userId: string | null) => {
+  const handleUserChange = useCallback(async (userId: string | null, email?: string) => {
     if (userId) {
       await fetchProfile(userId);
+      setSentryUser(userId, email);
     } else {
       setRole(null);
       setPlan('free');
       setPlanExpiresAt(null);
+      setTrialEndsAt(null);
       setIsBlocked(false);
+      setOnboardingCompletedState(false);
+      setSentryUser(null);
     }
   }, [fetchProfile]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Carrega a sessão inicial e aguarda o perfil antes de marcar isLoading=false
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      handleUserChange(session?.user?.id ?? null);
+      await handleUserChange(session?.user?.id ?? null, session?.user?.email);
       setIsLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
-      handleUserChange(session?.user?.id ?? null);
+      await handleUserChange(session?.user?.id ?? null, session?.user?.email);
       setIsLoading(false);
     });
 
@@ -106,15 +123,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [handleUserChange]);
 
   const signOut = async () => {
-    setGlobalLoading(true, 'A sair da conta...');
+    setGlobalLoading(true);
     await supabase.auth.signOut();
     setGlobalLoading(false);
   };
 
   const isAdmin = role === 'admin';
+  const isInTrial = isTrialActive(trialEndsAt) && plan === 'free';
+
+  // Marca o onboarding como concluído na BD e actualiza o estado local
+  const setOnboardingCompleted = useCallback(async () => {
+    if (!user) return;
+    setOnboardingCompletedState(true);
+    await supabase
+      .from('profiles')
+      .update({ onboarding_completed: true })
+      .eq('id', user.id);
+  }, [user]);
 
   return (
-    <AuthContext.Provider value={{ user, session, isLoading, role, plan, planExpiresAt, isBlocked, isAdmin, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{
+      user, session, isLoading, role, plan, planExpiresAt, trialEndsAt,
+      isInTrial, isBlocked, isAdmin, onboardingCompleted, setOnboardingCompleted,
+      signOut, refreshProfile,
+    }}>
       {children}
     </AuthContext.Provider>
   );

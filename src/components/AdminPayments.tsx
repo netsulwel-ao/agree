@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
 import { PLAN_INFO } from '../lib/plans';
 import { Search, CheckCircle, XCircle, Clock, RotateCw, FileText, Landmark, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
@@ -24,8 +23,7 @@ interface PaymentRequest {
 }
 
 export default function AdminPayments() {
-  const { user, isAdmin, isLoading: authLoading } = useAuth();
-  const navigate = useNavigate();
+  const { user, isLoading: authLoading } = useAuth();
 
   const [requests, setRequests] = useState<PaymentRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,12 +49,8 @@ export default function AdminPayments() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user || !isAdmin) {
-      navigate('/dashboard', { replace: true });
-      return;
-    }
     fetchRequests();
-  }, [user, isAdmin, authLoading, navigate, fetchRequests]);
+  }, [authLoading, fetchRequests]);
 
   const handleApprove = async (req: PaymentRequest) => {
     setProcessingId(req.id);

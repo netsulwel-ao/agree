@@ -1,8 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { RotateCw, Landmark, Wallet, Shield, Mail, Check } from 'lucide-react';
+import { RotateCw, Landmark, Wallet, Shield, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { checkPlan } from '../lib/plans';
 import ExchangeRatePanel from './ExchangeRatePanel';
@@ -32,8 +31,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 export default function AdminSettings() {
-  const { user, plan, isAdmin, isLoading: authLoading } = useAuth();
-  const navigate = useNavigate();
+  const { user, plan, isLoading: authLoading } = useAuth();
   const [settings, setSettings] = useState<PaymentSettings>(defaults);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -120,7 +118,7 @@ export default function AdminSettings() {
     toast.info('Alterações canceladas');
   };
 
-  const fetch = useCallback(async () => {
+  const loadSettings = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase.from('payment_settings').select('*').limit(1).maybeSingle();
     if (error) {
@@ -133,12 +131,8 @@ export default function AdminSettings() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user || !isAdmin) {
-      navigate('/dashboard', { replace: true });
-      return;
-    }
-    fetch();
-  }, [user, isAdmin, authLoading, navigate, fetch]);
+    loadSettings();
+  }, [authLoading, loadSettings]);
 
   if (authLoading || loading) {
     return (

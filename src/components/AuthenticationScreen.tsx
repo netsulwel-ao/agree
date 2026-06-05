@@ -35,7 +35,7 @@ export default function AuthenticationScreen() {
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setGlobalLoading(true, mode === 'login' ? 'A entrar...' : 'A criar conta...');
+    setGlobalLoading(true);
     try {
       if (mode === 'login') {
         const { error } = await supabase.auth.signInWithPassword({
@@ -150,7 +150,7 @@ export default function AuthenticationScreen() {
                 className="bg-white/5 border border-white/10 p-5"
               >
                 <div className="w-10 h-10 bg-gradient-to-br from-neutral-800 to-neutral-900 flex items-center justify-center mb-3">
-                  {React.cloneElement(feature.icon as React.ReactElement, { className: "text-white" })}
+                  {React.cloneElement(feature.icon as React.ReactElement<{ className?: string }>, { className: "text-white" })}
                 </div>
                 <div className="text-[13px] font-bold text-white mb-1">
                   {feature.title}

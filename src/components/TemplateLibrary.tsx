@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useTemplates } from '../hooks/useTemplates';
+import { useTemplates, type Template as HookTemplate } from '../hooks/useTemplates';
 import {
   FileText, Search, X, Loader2, BookTemplate, FolderOpen,
   Briefcase, Users, Home, Shield, Handshake, FileCode, ChevronRight, Star
@@ -7,16 +7,7 @@ import {
 import { toast } from 'sonner';
 import AgreeLogo from '../Agree-logo.svg';
 
-interface Template {
-  id: string;
-  name: string;
-  description: string;
-  category: string;
-  content: string;
-  variables: any[];
-  is_system: boolean;
-  usage_count: number;
-}
+type Template = HookTemplate;
 
 interface TemplateLibraryProps {
   onSelectTemplate: (template: Template) => void;

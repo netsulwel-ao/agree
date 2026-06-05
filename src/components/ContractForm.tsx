@@ -294,13 +294,25 @@ export default function ContractForm() {
         }
       }
 
+      // Merge template field values into content before saving
+      let contentToSave = formData.content;
+      if (selectedTemplate) {
+        contentToSave = selectedTemplate.content;
+        (selectedTemplate.fields || []).forEach((f: FieldDef) => {
+          const val = fieldValues[f.name] || '';
+          contentToSave = contentToSave.replace(new RegExp(`\\{\\{${f.name}\\}\\}`, 'g'), val);
+        });
+        // Update formData.content so editor reflects filled values
+        setFormData(prev => ({ ...prev, content: contentToSave }));
+      }
+
       if (isEditing) {
         const { error: updateError } = await supabase
           .from('contracts')
           .update({
             title: formData.title,
             description: formData.description,
-            content: formData.content,
+            content: contentToSave,
             value: parseFloat(formData.value) || 0,
             currency: formData.currency,
             start_date: formData.startDate || null,
@@ -329,7 +341,7 @@ export default function ContractForm() {
 
         await supabase.from('contract_versions').insert({
           contract_id: editId,
-          content: formData.content,
+          content: contentToSave,
           version_number: nextVersion
         });
 
@@ -342,7 +354,7 @@ export default function ContractForm() {
           .insert({
             title: formData.title,
             description: formData.description,
-            content: formData.content,
+            content: contentToSave,
             value: parseFloat(formData.value) || 0,
             currency: formData.currency,
             status: 'draft',
@@ -364,7 +376,7 @@ export default function ContractForm() {
         
         await supabase.from('contract_versions').insert({
           contract_id: contract.id,
-          content: formData.content,
+          content: contentToSave,
           version_number: 1
         });
 
@@ -413,7 +425,7 @@ export default function ContractForm() {
     const initial: Record<string, string> = {};
     (template.fields || []).forEach((f: FieldDef) => { initial[f.name] = ''; });
     setFieldValues(initial);
-    setFormData(prev => ({ ...prev, content: '' }));
+    setFormData(prev => ({ ...prev, content: template.content }));
     toast.success(`Modelo "${template.name}" aplicado — preenche os campos e exporta`);
   };
 

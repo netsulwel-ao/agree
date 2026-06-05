@@ -10,12 +10,16 @@
     "clean": "rm -rf dist",
     "start": "node server.js",
     "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "create-admin": "node create-admin.js"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.0",
     "@fontsource-variable/geist": "^5.2.8",
     "@google/genai": "^1.29.0",
+    "@sentry/react": "8.54.0",
     "@supabase/supabase-js": "^2.106.0",
     "@tailwindcss/vite": "^4.1.14",
     "@tanstack/react-query": "^5.100.14",
@@ -39,7 +43,6 @@
     "jspdf-autotable": "^5.0.8",
     "libphonenumber-js": "^1.13.3",
     "lucide-react": "^0.546.0",
-    "motion": "^12.23.24",
     "next-themes": "^0.4.6",
     "nodemailer": "^8.0.10",
     "pdfjs-dist": "^5.7.284",
@@ -63,11 +66,13 @@
     "@types/node": "^22.14.0",
     "@types/nodemailer": "^8.0.0",
     "@types/qrcode": "^1.5.6",
+    "@vitest/coverage-v8": "^4.1.8",
     "autoprefixer": "^10.4.21",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
+    "vitest": "^4.1.8",
     "ws": "^8.20.1"
   }
 }

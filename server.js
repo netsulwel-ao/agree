@@ -9,6 +9,17 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 app.use(express.json());
 app.use(express.static(join(__dirname, 'dist')));
 
+// --- Segredo partilhado para autenticar pedidos internos do frontend ---
+// Define EMAIL_API_SECRET no .env com um valor longo e aleatório.
+const EMAIL_API_SECRET = process.env.EMAIL_API_SECRET || '';
+
+if (!EMAIL_API_SECRET) {
+  console.warn(
+    '[Agree] EMAIL_API_SECRET não definido. ' +
+    'O endpoint /api/send-email está desprotegido. Define a variável no .env.'
+  );
+}
+
 // --- Email transport ---
 const smtpHost = process.env.SMTP_HOST;
 const smtpPort = process.env.SMTP_PORT;
@@ -32,8 +43,32 @@ async function sendEmail({ to, subject, html }) {
   await transporter.sendMail({ from: emailFrom, to, subject, html });
 }
 
+// --- Middleware de autenticação do endpoint interno ---
+function requireEmailSecret(req, res, next) {
+  // Aceita o segredo via header ou via body (para retrocompatibilidade temporária)
+  const headerSecret = req.headers['x-internal-secret'];
+  const bodySecret = req.body?.secret;
+  const provided = headerSecret || bodySecret;
+
+  if (!EMAIL_API_SECRET) {
+    // Se a variável não estiver configurada, bloqueia sempre em produção
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(503).json({ error: 'Endpoint de email não configurado' });
+    }
+    // Em dev permite mas avisa
+    console.warn('[Agree] EMAIL_API_SECRET não definido — pedido permitido apenas em modo dev');
+    return next();
+  }
+
+  if (!provided || provided !== EMAIL_API_SECRET) {
+    return res.status(401).json({ error: 'Não autorizado' });
+  }
+
+  next();
+}
+
 // --- POST /api/send-email ---
-app.post('/api/send-email', async (req, res) => {
+app.post('/api/send-email', requireEmailSecret, async (req, res) => {
   const { to, subject, html } = req.body;
   if (!to || !subject || !html) {
     return res.status(400).json({ error: 'Campos obrigatórios: to, subject, html' });

@@ -44,8 +44,8 @@ function simpleHash(str: string): string {
 
 const APP_URL = import.meta.env.VITE_APP_URL || window.location.origin;
 
-async function sendNotificationEmail(to: string, name: string, contractTitle: string, ownerName: string, type: 'invite' | 'reminder' | 'signed') {
-  const contractUrl = `${APP_URL}/contracts/${contract.id}`;
+async function sendNotificationEmail(to: string, name: string, contractTitle: string, ownerName: string, type: 'invite' | 'reminder' | 'signed', contract?: { id: string }) {
+  const contractUrl = `${APP_URL}/contracts/${contract?.id}`;
   const subject = type === 'invite'
     ? `Foste convidado(a) para assinar: ${contractTitle}`
     : type === 'reminder'
@@ -85,6 +85,9 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
   const { plan, isAdmin } = useAuth();
   const { openCheckout } = useCheckoutModal();
   const [signatures, setSignatures] = useState<Signature[]>(contract.signatures || []);
+  useEffect(() => {
+    setSignatures(contract.signatures || []);
+  }, [contract.signatures]);
   const [addingSignatory, setAddingSignatory] = useState(false);
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -149,7 +152,7 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
       const sent = await sendNotificationEmail(
         newSig.email, newSig.name, contract.title,
         user.user_metadata?.name || user.email || 'Owner',
-        'invite'
+        'invite', contract
       );
       if (!sent) {
         toast.warning('Signatário adicionado, mas não foi possível enviar o email (SMTP não configurado)');
@@ -240,11 +243,12 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
       );
 
       const allNowSigned = updated.every(s => s.signed);
+      const newStatus = allNowSigned ? 'approved' : (contract.status === 'approved' ? 'approved' : contract.status);
       const { error } = await supabase
         .from('contracts')
         .update({
           signatures: updated,
-          status: allNowSigned ? 'approved' : contract.status,
+          status: newStatus,
           updated_at: new Date().toISOString()
         })
         .eq('id', contract.id);
@@ -659,7 +663,7 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
                         const sent = await sendNotificationEmail(
                           sig.email, sig.name, contract.title,
                           user.user_metadata?.name || user.email || 'Owner',
-                          'reminder'
+                          'reminder', contract
                         );
                         if (sent) toast.success('Lembrete enviado para ' + sig.email);
                         else toast.warning('Não foi possível enviar o email (SMTP não configurado)');

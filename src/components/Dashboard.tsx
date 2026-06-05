@@ -2,7 +2,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useContracts } from '../hooks/useContracts';
-import { checkPlan, getLimits } from '../lib/plans';
+import { checkPlan, getLimits, trialDaysRemaining } from '../lib/plans';
 import { useCheckoutModal } from '../contexts/CheckoutModalContext';
 import {
   Plus, FileText, TrendingUp, AlertTriangle, Clock, CheckCircle2,
@@ -30,22 +30,19 @@ const QUICK_ACTIONS = [
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { user, plan, isAdmin } = useAuth();
+  const { user, plan, isAdmin, isInTrial, trialEndsAt, onboardingCompleted, setOnboardingCompleted } = useAuth();
   const { openCheckout } = useCheckoutModal();
   const { data: contracts = [], isLoading } = useContracts();
   const [showOnboarding, setShowOnboarding] = useState(false);
 
-  const canUseCharts = checkPlan(plan, 'pro', isAdmin);
-  const canExport = checkPlan(plan, 'enterprise', isAdmin);
+  const canUseCharts = checkPlan(plan, 'pro', isAdmin, trialEndsAt);
+  const canExport = checkPlan(plan, 'enterprise', isAdmin, trialEndsAt);
 
   useEffect(() => {
-    if (!isLoading && contracts.length === 0 && user) {
-      const completed = localStorage.getItem('onboarding_completed');
-      if (!completed) {
-        setShowOnboarding(true);
-      }
+    if (!isLoading && contracts.length === 0 && user && !onboardingCompleted) {
+      setShowOnboarding(true);
     }
-  }, [isLoading, contracts, user]);
+  }, [isLoading, contracts, user, onboardingCompleted]);
 
   const today = new Date();
   const expiringContracts = contracts.filter(c => {
@@ -150,10 +147,42 @@ export default function Dashboard() {
 
       {/* Onboarding Walkthrough */}
       {showOnboarding && (
-        <OnboardingWalkthrough onComplete={() => {
-          localStorage.setItem('onboarding_completed', 'true');
+        <OnboardingWalkthrough onComplete={async () => {
+          await setOnboardingCompleted();
           setShowOnboarding(false);
         }} />
+      )}
+
+      {/* Trial Banner */}
+      {isInTrial && (
+        <div style={{
+          background: 'linear-gradient(135deg, #1e3a5f, #0d2137)',
+          padding: '14px 20px', display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between', flexWrap: 'wrap', gap: 12,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <CreditCard size={17} color="#93c5fd" />
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>
+              Trial Pro activo —{' '}
+              <span style={{ color: '#93c5fd' }}>
+                {trialDaysRemaining(trialEndsAt)} dia{trialDaysRemaining(trialEndsAt) !== 1 ? 's' : ''} restante{trialDaysRemaining(trialEndsAt) !== 1 ? 's' : ''}
+              </span>
+            </span>
+            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
+              Estás a usar o Agree Pro gratuitamente. Subscreve para não perderes o acesso.
+            </span>
+          </div>
+          <button
+            onClick={() => openCheckout('pro')}
+            style={{
+              padding: '8px 18px', background: '#fff', color: '#0d1117',
+              border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              fontFamily: "'Poppins', sans-serif", whiteSpace: 'nowrap',
+            }}
+          >
+            Subscrever agora
+          </button>
+        </div>
       )}
 
       {/* Alert Banner */}
@@ -432,7 +461,6 @@ export default function Dashboard() {
               <Plus size={18} /> Criar Primeiro Contrato
             </button>
             <button onClick={() => {
-              localStorage.removeItem('onboarding_completed');
               setShowOnboarding(true);
             }} style={{
               display: 'inline-flex', alignItems: 'center', gap: 8,

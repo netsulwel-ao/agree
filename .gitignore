@@ -3,4 +3,6 @@ dist/
 .env
 client_secret_*.json
 .vscode/
-check-rls.mjs
+
+# Scripts de desenvolvimento/debug — não devem ir para produção
+_dev-scripts/

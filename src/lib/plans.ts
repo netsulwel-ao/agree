@@ -26,7 +26,6 @@ export interface PlanLimits {
   storageMbPerContract: number;
   maxVersions: number;
   hasPrioritySupport: boolean;
-  // Novas features
   maxApiKeys: number;
   hasGoogleIntegration: boolean;
   hasMultiCurrency: boolean;
@@ -97,14 +96,57 @@ export const PLANS: Record<Plan, PlanLimits> = {
 
 const PLAN_ORDER: Plan[] = ['free', 'pro', 'enterprise'];
 
-export function checkPlan(userPlan: Plan | null | undefined, minPlan: Plan, isAdmin = false): boolean {
-  if (isAdmin) return true;
-  if (!userPlan) return minPlan === 'free';
-  return PLAN_ORDER.indexOf(userPlan) >= PLAN_ORDER.indexOf(minPlan);
+// ─── Trial helpers ────────────────────────────────────
+
+/** Devolve true se o trial ainda está activo (data futura). */
+export function isTrialActive(trialEndsAt: string | null | undefined): boolean {
+  if (!trialEndsAt) return false;
+  return new Date(trialEndsAt) > new Date();
 }
 
-export function getLimits(userPlan: Plan | null | undefined): PlanLimits {
-  return PLANS[userPlan || 'free'];
+/** Dias restantes do trial (0 se expirado ou sem trial). */
+export function trialDaysRemaining(trialEndsAt: string | null | undefined): number {
+  if (!trialEndsAt) return 0;
+  const diff = new Date(trialEndsAt).getTime() - Date.now();
+  if (diff <= 0) return 0;
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+}
+
+/**
+ * Devolve o plano efectivo do utilizador.
+ * Se o trial estiver activo e o plano real for 'free', trata como 'pro'.
+ */
+export function effectivePlan(
+  userPlan: Plan | null | undefined,
+  trialEndsAt: string | null | undefined,
+): Plan {
+  const p = userPlan || 'free';
+  if (p === 'free' && isTrialActive(trialEndsAt)) return 'pro';
+  return p;
+}
+
+// ─── Plan checks ──────────────────────────────────────
+
+/**
+ * Verifica se o utilizador tem acesso ao nível mínimo pedido.
+ * Respeita o trial activo (equivale a Pro durante o período).
+ */
+export function checkPlan(
+  userPlan: Plan | null | undefined,
+  minPlan: Plan,
+  isAdmin = false,
+  trialEndsAt?: string | null,
+): boolean {
+  if (isAdmin) return true;
+  const plan = effectivePlan(userPlan, trialEndsAt);
+  return PLAN_ORDER.indexOf(plan) >= PLAN_ORDER.indexOf(minPlan);
+}
+
+export function getLimits(
+  userPlan: Plan | null | undefined,
+  trialEndsAt?: string | null,
+): PlanLimits {
+  return PLANS[effectivePlan(userPlan, trialEndsAt)];
 }
 
 export function canUpgrade(userPlan: Plan | null | undefined): boolean {

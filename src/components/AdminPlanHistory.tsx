@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
 import { RotateCw, ArrowUpRight, ArrowDownRight, RefreshCw, Shield, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -25,8 +24,7 @@ const TYPE_LABELS: Record<string, { label: string; color: string; bg: string }> 
 };
 
 export default function AdminPlanHistory() {
-  const { user, isAdmin, isLoading: authLoading } = useAuth();
-  const navigate = useNavigate();
+  const { isLoading: authLoading } = useAuth();
 
   const [changes, setChanges] = useState<PlanChange[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,12 +48,8 @@ export default function AdminPlanHistory() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user || !isAdmin) {
-      navigate('/dashboard', { replace: true });
-      return;
-    }
     fetchHistory();
-  }, [user, isAdmin, authLoading, navigate, fetchHistory]);
+  }, [authLoading, fetchHistory]);
 
   const filtered = changes.filter(c => {
     if (!search.trim()) return true;

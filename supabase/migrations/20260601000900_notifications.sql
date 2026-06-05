@@ -3,7 +3,7 @@ ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_type_check;
 ALTER TABLE notifications ADD CONSTRAINT notifications_type_check
   CHECK (type IN (
     'plan_expiring', 'plan_expired', 'plan_upgraded',
-    'payment_approved', 'payment_rejected',
+    'payment_request', 'payment_approved', 'payment_rejected',
     'contract_shared', 'approval_requested', 'contract_approved',
     'contract_rejected', 'contract_expiring'
   ));

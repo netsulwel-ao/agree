@@ -267,9 +267,9 @@ export default function Layout() {
           color: rgba(148,163,184,0.9);
         }
         .sidebar .nav-link {
-          display: flex; align-items: center; gap: 12px;
-          padding: 12px 16px; font-size: 14px; font-weight: 500;
-          color: rgba(255,255,255,0.55); border-radius: 12px; transition: all .2s;
+          display: flex; align-items: center; gap: 14px;
+          padding: 14px 18px; font-size: 14px; font-weight: 500;
+          color: rgba(255,255,255,0.55); border-radius: 14px; transition: all .2s;
           width: 100%; cursor: pointer; border: none; text-decoration: none;
           background: transparent; font-family: 'Poppins', sans-serif;
           position: relative;
@@ -346,8 +346,8 @@ export default function Layout() {
         }}
       >
         {/* Topo fixo — Logo */}
-        <div style={{ padding: '24px 24px 0', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} aria-label="Agree">
+        <div style={{ padding: '32px 28px 8px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }} aria-label="Agree">
             <img
               src={AgreeLogo}
               alt=""
@@ -367,9 +367,9 @@ export default function Layout() {
 
         {/* Meio scrollável — Nav */}
         <nav className="sidebar-nav" style={{
-          display: 'flex', flexDirection: 'column', gap: 8,
+          display: 'flex', flexDirection: 'column', gap: 10,
           flex: 1, overflowY: 'auto', minHeight: 0,
-          padding: '24px',
+          padding: '20px 28px',
         }}>
           {navItems.map((item) => (
             <Link
@@ -401,14 +401,14 @@ export default function Layout() {
         </nav>
 
         {/* Fundo fixo — User + Logout */}
-        <div style={{ padding: '0 24px 24px', flexShrink: 0 }}>
+        <div style={{ padding: '0 28px 28px', flexShrink: 0 }}>
           <div style={{
             background: 'rgba(255,255,255,0.06)',
             border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: 16,
-            padding: 16,
+            borderRadius: 18,
+            padding: 18,
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
               <div style={{
                 width: 44, height: 44, borderRadius: 12,
                 background: '#ffffff',
@@ -427,8 +427,8 @@ export default function Layout() {
               </div>
             </div>
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
-              padding: '6px 10px', borderRadius: 8,
+              display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16,
+              padding: '8px 14px', borderRadius: 10,
               background: plan === 'enterprise' ? 'rgba(250,204,21,0.15)' : plan === 'pro' ? 'rgba(59,130,246,0.15)' : 'rgba(255,255,255,0.05)',
               border: `1px solid ${
                 plan === 'enterprise' ? 'rgba(250,204,21,0.3)' : plan === 'pro' ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.08)'
@@ -447,7 +447,7 @@ export default function Layout() {
                 </span>
               )}
               {plan === 'pro' && (
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 12 }}>
                   <span onClick={() => openCheckout()} style={{ fontSize: 10, color: '#60a5fa', fontWeight: 600, cursor: 'pointer' }}>
                     Upgrade
                   </span>
@@ -463,14 +463,14 @@ export default function Layout() {
               )}
               </div>
             {planExpiresAt && (plan === 'pro' || plan === 'enterprise') && (
-              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', textAlign: 'center', marginBottom: 12 }}>
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', textAlign: 'center', marginBottom: 16 }}>
                 Expira em {new Date(planExpiresAt).toLocaleDateString('pt-PT')}
               </div>
             )}
             <Link
               to="/billing"
               className="nav-link"
-              style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 10, textDecoration: 'none', marginBottom: 6 }}
+              style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 10, textDecoration: 'none', marginBottom: 10 }}
             >
               <CreditCard size={18} />
               Billing
@@ -478,7 +478,7 @@ export default function Layout() {
             <Link
               to="/profile"
               className="nav-link nav-link-logout"
-              style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 10, textDecoration: 'none', marginBottom: 6 }}
+              style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 10, textDecoration: 'none', marginBottom: 10 }}
             >
               <Settings size={18} />
               Perfil

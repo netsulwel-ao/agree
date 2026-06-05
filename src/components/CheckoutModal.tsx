@@ -77,6 +77,8 @@ export default function CheckoutModal() {
     });
     setSubmitting(false);
     if (error) { toast.error('Erro ao criar pedido: ' + error.message); return; }
+    // Notificar admins
+    notifyAdmins(selectedPlan, user.email || user.id, isRenewal);
     setSuccess(true);
   };
 
@@ -93,7 +95,26 @@ export default function CheckoutModal() {
     });
     setSubmitting(false);
     if (error) { toast.error('Erro ao criar pedido: ' + error.message); return; }
+    // Notificar admins
+    notifyAdmins(selectedPlan, user.email || user.id, isRenewal);
     setSuccess(true);
+  };
+
+  const notifyAdmins = async (plan: string, userEmail: string, renewal: boolean) => {
+    const { data: admins } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('role', 'admin');
+    if (!admins?.length) return;
+    const notificationInserts = admins.map(a => ({
+      user_id: a.id,
+      type: 'payment_request',
+      title: renewal ? 'Renovação pendente' : 'Novo pedido de upgrade',
+      message: `${userEmail} solicitou o plano ${PLAN_INFO[plan].label} (${renewal ? 'renovação' : 'novo'}).`,
+      reference_id: null,
+      reference_type: 'payment_request',
+    }));
+    await supabase.from('notifications').insert(notificationInserts);
   };
 
   if (!open) return null;

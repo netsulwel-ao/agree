@@ -52,6 +52,19 @@ export default function AdminPayments() {
     fetchRequests();
   }, [authLoading, fetchRequests]);
 
+  // Realtime: atualiza quando houver novos pedidos/alterações
+  useEffect(() => {
+    if (authLoading) return;
+    const channel = supabase
+      .channel('admin-payments-realtime')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'payment_requests' },
+        () => { fetchRequests(); }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [authLoading, fetchRequests]);
+
   const handleApprove = async (req: PaymentRequest) => {
     setProcessingId(req.id);
 
@@ -96,6 +109,15 @@ export default function AdminPayments() {
       toast.error('Pedido aprovado, mas erro ao atualizar plano: ' + planError.message);
     } else {
       toast.success(`Plano ${PLAN_INFO[req.plan].label} ativado para ${req.profiles?.name || req.user_id}`);
+      // Notificar o user
+      await supabase.from('notifications').insert({
+        user_id: req.user_id,
+        type: 'payment_approved',
+        title: 'Plano ativado',
+        message: `O teu plano ${PLAN_INFO[req.plan].label} foi ativado com sucesso.`,
+        reference_type: 'payment_request',
+        reference_id: req.id,
+      });
     }
 
     setRequests(prev =>
@@ -115,6 +137,15 @@ export default function AdminPayments() {
       toast.error('Erro ao rejeitar: ' + error.message);
     } else {
       toast.success('Pedido rejeitado');
+      // Notificar o user
+      await supabase.from('notifications').insert({
+        user_id: req.user_id,
+        type: 'payment_rejected',
+        title: 'Pedido rejeitado',
+        message: `O pedido do plano ${PLAN_INFO[req.plan].label} foi rejeitado. Contacta o administrador para mais informações.`,
+        reference_type: 'payment_request',
+        reference_id: req.id,
+      });
       setRequests(prev =>
         prev.map(r => (r.id === req.id ? { ...r, status: 'rejected' as const, approved_by: user?.id } : r))
       );

@@ -20,8 +20,8 @@ CREATE POLICY "Users can insert audit logs"
 
 CREATE POLICY "Admins can view all audit logs"
     ON audit_logs FOR SELECT
-    USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+    USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid()::text AND role = 'admin'));
 
 CREATE POLICY "Users can view their own audit logs"
     ON audit_logs FOR SELECT
-    USING (user_id = auth.uid());
+    USING (user_id = auth.uid()::text);

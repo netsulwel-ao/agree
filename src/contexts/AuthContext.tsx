@@ -128,8 +128,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     setGlobalLoading(true);
-    await supabase.auth.signOut();
-    setGlobalLoading(false);
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // ignora erros de rede/sess�o
+    } finally {
+      setGlobalLoading(false);
+    }
   };
 
   const isAdmin = role === 'admin';

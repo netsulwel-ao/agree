@@ -61,12 +61,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchProfile = useCallback(async (userId: string) => {
     try {
       console.log('[Auth] Fetching profile for user:', userId);
+      console.log('[Auth] Starting Supabase query for profile...');
+      const startTime = Date.now();
       // Uma única query busca todos os campos necessários — evita dois roundtrips
       const { data, error } = await supabase
         .from('profiles')
         .select('role, plan, plan_activated_at, plan_expires_at, trial_ends_at, is_blocked, onboarding_completed, is_super_admin, company_id')
         .eq('id', userId)
         .maybeSingle();
+      console.log('[Auth] Supabase query completed in', Date.now() - startTime, 'ms');
+      console.log('[Auth] Query result:', { data, error });
 
       if (error) {
         console.error('[Auth] Error fetching profile:', error);

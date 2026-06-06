@@ -59,39 +59,55 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { setIsLoading: setGlobalLoading } = useGlobalLoading();
 
   const fetchProfile = useCallback(async (userId: string) => {
-    // Uma única query busca todos os campos necessários — evita dois roundtrips
-    const { data } = await supabase
-      .from('profiles')
-      .select('role, plan, plan_activated_at, plan_expires_at, trial_ends_at, is_blocked, onboarding_completed, is_super_admin, company_id')
-      .eq('id', userId)
-      .maybeSingle();
+    try {
+      console.log('[Auth] Fetching profile for user:', userId);
+      // Uma única query busca todos os campos necessários — evita dois roundtrips
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('role, plan, plan_activated_at, plan_expires_at, trial_ends_at, is_blocked, onboarding_completed, is_super_admin, company_id')
+        .eq('id', userId)
+        .maybeSingle();
 
-    if (!data) return;
+      if (error) {
+        console.error('[Auth] Error fetching profile:', error);
+        return;
+      }
 
-    // Utilizador bloqueado — faz logout imediatamente antes de actualizar qualquer estado
-    if (data.is_blocked === true) {
-      await supabase.auth.signOut();
-      setUser(null);
-      setSession(null);
-      setRole(null);
-      setPlan('free');
-      setPlanExpiresAt(null);
-      setTrialEndsAt(null);
+      if (!data) {
+        console.warn('[Auth] No profile found for user:', userId);
+        return;
+      }
+
+      console.log('[Auth] Profile loaded:', data);
+
+      // Utilizador bloqueado — faz logout imediatamente antes de actualizar qualquer estado
+      if (data.is_blocked === true) {
+        console.warn('[Auth] User is blocked, signing out');
+        await supabase.auth.signOut();
+        setUser(null);
+        setSession(null);
+        setRole(null);
+        setPlan('free');
+        setPlanExpiresAt(null);
+        setTrialEndsAt(null);
+        setIsBlocked(false);
+        setIsSuperAdmin(false);
+        setCompanyId(null);
+        return;
+      }
+
+      setRole(data.role || 'user');
+      const p = (data.plan as Plan) || 'free';
+      setPlan(p === 'pro' || p === 'enterprise' ? p : 'free');
+      setPlanExpiresAt(data.plan_expires_at || null);
+      setTrialEndsAt(data.trial_ends_at || null);
       setIsBlocked(false);
-      setIsSuperAdmin(false);
-      setCompanyId(null);
-      return;
+      setOnboardingCompletedState(data.onboarding_completed === true);
+      setIsSuperAdmin(data.is_super_admin === true);
+      setCompanyId(data.company_id || null);
+    } catch (error) {
+      console.error('[Auth] Unexpected error in fetchProfile:', error);
     }
-
-    setRole(data.role || 'user');
-    const p = (data.plan as Plan) || 'free';
-    setPlan(p === 'pro' || p === 'enterprise' ? p : 'free');
-    setPlanExpiresAt(data.plan_expires_at || null);
-    setTrialEndsAt(data.trial_ends_at || null);
-    setIsBlocked(false);
-    setOnboardingCompletedState(data.onboarding_completed === true);
-    setIsSuperAdmin(data.is_super_admin === true);
-    setCompanyId(data.company_id || null);
   }, []);
 
   const refreshProfile = useCallback(async () => {

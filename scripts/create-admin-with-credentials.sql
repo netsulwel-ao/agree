@@ -31,14 +31,16 @@ BEGIN
   )
   RETURNING id INTO user_id;
   
-  -- Actualizar profile com role admin
-  UPDATE profiles 
-  SET 
-    role = 'admin',
-    plan = 'enterprise',
-    is_blocked = false,
-    onboarding_completed = true
-  WHERE id = user_id;
+  -- Criar profile manualmente (o trigger não é acionado quando inserimos directamente em auth.users)
+  INSERT INTO profiles (id, email, role, plan, is_blocked, onboarding_completed)
+  VALUES (
+    user_id,
+    random_email,
+    'admin',
+    'enterprise',
+    false,
+    true
+  );
 END $$;
 
 -- Mostrar credenciais

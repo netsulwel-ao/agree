@@ -480,7 +480,11 @@ export default function Layout() {
               Perfil
             </Link>
             <button
-              onClick={() => signOut()}
+              onClick={async () => {
+                console.log('[Layout] Sign out button clicked');
+                await signOut();
+                console.log('[Layout] Sign out completed');
+              }}
               className="nav-link nav-link-logout"
               style={{ background: 'rgba(239,68,68,0.12)' }}
             >

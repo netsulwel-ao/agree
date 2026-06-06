@@ -1,7 +1,6 @@
-const APP_URL = import.meta.env.VITE_APP_URL || window.location.origin;
+import { supabase } from '../lib/supabase';
 
-// Segredo para autenticar chamadas ao endpoint /api/send-email
-const EMAIL_API_SECRET = import.meta.env.VITE_EMAIL_API_SECRET || '';
+const APP_URL = import.meta.env.VITE_APP_URL || window.location.origin;
 
 type Plan = 'free' | 'pro' | 'enterprise';
 
@@ -13,12 +12,14 @@ export function canSendEmail(plan: Plan, isAdmin: boolean, feature: 'approval' |
 
 export async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }) {
   try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+
     const res = await fetch('/api/send-email', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        // Envia o segredo via header para autenticar o pedido no servidor
-        ...(EMAIL_API_SECRET ? { 'x-internal-secret': EMAIL_API_SECRET } : {}),
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({ to, subject, html }),
     });

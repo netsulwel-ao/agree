@@ -1,6 +1,5 @@
--- Currency support: add currency to contracts, exchange rates table
-
-ALTER TABLE contracts ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'AOA';
+-- Currency support: exchange rates table
+-- currency column já existe em contracts (core_tables.sql)
 
 CREATE TABLE IF NOT EXISTS exchange_rates (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,

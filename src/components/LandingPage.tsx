@@ -193,7 +193,7 @@ const LandingPage = () => {
 
         .btn-primary {
           display: inline-flex; align-items: center; gap: 8px;
-          background: var(--accent); color: #fff; border: none; border-radius: 0;
+          background: var(--accent); color: #fff; border: none;
           padding: 12px 24px; font-size: 14px; font-weight: 700;
           cursor: pointer; font-family: 'Poppins', sans-serif;
           transition: all .2s; white-space: nowrap;
@@ -203,7 +203,7 @@ const LandingPage = () => {
         .btn-outline {
           display: inline-flex; align-items: center; gap: 8px;
           background: transparent; color: var(--text);
-          border: 1.5px solid var(--border); border-radius: 0;
+          border: 1.5px solid var(--border);
           padding: 11px 22px; font-size: 14px; font-weight: 600;
           cursor: pointer; font-family: 'Poppins', sans-serif;
           transition: all .2s; white-space: nowrap;
@@ -213,7 +213,7 @@ const LandingPage = () => {
         .btn-outline-teal {
           display: inline-flex; align-items: center; gap: 8px;
           background: transparent; color: var(--accent);
-          border: 1.5px solid var(--accent); border-radius: 0;
+          border: 1.5px solid var(--accent);
           padding: 11px 22px; font-size: 14px; font-weight: 700;
           cursor: pointer; font-family: 'Poppins', sans-serif;
           transition: all .2s; white-space: nowrap;
@@ -222,7 +222,7 @@ const LandingPage = () => {
 
         .card {
           background: var(--surface); border: 1px solid var(--border);
-          border-radius: 0; transition: all .22s;
+          transition: all .22s;
         }
         .card:hover { box-shadow: 0 4px 24px rgba(0,0,0,0.07); transform: translateY(-2px); }
 
@@ -238,7 +238,7 @@ const LandingPage = () => {
         .input-f {
           width:100%; padding:12px 14px; font-size:14px;
           background:#f7f9fb; border:1.5px solid var(--border);
-          border-radius: 0; color: var(--text); outline:none;
+          color: var(--text); outline:none;
           font-family:'Poppins',sans-serif; transition:all .2s;
         }
         .input-f::placeholder { color:#b0b8c1; }
@@ -256,7 +256,7 @@ const LandingPage = () => {
         }
         .testi-card {
           flex:0 0 300px; background:#fff; border:1px solid var(--border);
-          border-radius: 0; padding:24px;
+          padding:24px;
         }
 
         /* ── RESPONSIVE ── */

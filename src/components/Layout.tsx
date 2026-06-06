@@ -9,7 +9,7 @@ import {
   LayoutDashboard, FileText, PlusCircle, LogOut,
   Bell, Menu, X, BarChart3, ShieldCheck,
   AlertTriangle, PenLine, Shield, CreditCard, Settings, RefreshCw, Users, CheckCheck,
-  MessageSquare, Clock, Send, CheckCircle2, Ban, BookTemplate, ThumbsUp, DollarSign, Activity
+  MessageSquare, Clock, Send, CheckCircle2, Ban, BookTemplate, ThumbsUp, DollarSign, Activity, Building2, Lock
 } from 'lucide-react';
 import { addDays, isBefore, isAfter, parseISO, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -41,7 +41,7 @@ export default function Layout() {
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const { user, signOut, isAdmin, plan, planExpiresAt } = useAuth();
+  const { user, signOut, isAdmin, isSuperAdmin, plan, planExpiresAt } = useAuth();
   const { openCheckout, openRenewal } = useCheckoutModal();
   const location = useLocation();
   const navigate = useNavigate();
@@ -173,6 +173,11 @@ export default function Layout() {
     navItems.push({ id: 'audit-logs', label: 'Auditoria', icon: Activity, path: '/admin/audit-logs' });
   }
 
+  if (isSuperAdmin) {
+    navItems.push({ id: 'companies', label: 'Empresas', icon: Building2, path: '/admin/companies' });
+    navItems.push({ id: 'permissions', label: 'Permissões', icon: Lock, path: '/admin/permissions' });
+  }
+
   const displayName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'Usuário';
   const avatarLetter = displayName.charAt(0).toUpperCase();
   
@@ -242,14 +247,12 @@ export default function Layout() {
           overflow-y: auto;
         }
         .alerts-item {
-          border-radius: 12px;
           padding: 10px 11px;
           background: rgba(15,23,42,0.85);
-          border: 1px solid rgba(148,163,184,0.35);
         }
-        .alerts-item.expired { border-color: rgba(248,113,113,0.7); }
-        .alerts-item.expiring { border-color: rgba(250,204,21,0.8); }
-        .alerts-item.risky { border-color: rgba(96,165,250,0.8); }
+        .alerts-item.expired { background: rgba(248,113,113,0.15); }
+        .alerts-item.expiring { background: rgba(250,204,21,0.15); }
+        .alerts-item.risky { background: rgba(96,165,250,0.15); }
         .alerts-item-title {
           font-size: 13px;
           font-weight: 600;
@@ -293,7 +296,7 @@ export default function Layout() {
           .sidebar-desktop.open { transform: translateX(0); }
           .sidebar-overlay { display: block; }
           .main-content { margin-left: 0 !important; padding: 12px !important; }
-          .header-desktop { padding: 14px 16px !important; border-radius: 14px !important; }
+          .header-desktop { padding: 14px 16px !important; }
           .header-desktop h2 { font-size: 16px !important; }
           .header-desktop p { font-size: 12px !important; }
           .alerts-panel-mobile { width: calc(100vw - 32px) !important; right: 16px !important; top: 80px !important; max-height: 70vh !important; }
@@ -334,7 +337,6 @@ export default function Layout() {
         style={{
           width: isMobile ? 280 : 260,
           background: '#0d1117',
-          borderRight: '1px solid rgba(255,255,255,0.08)',
           boxShadow: isMobile && mobileSidebarOpen ? '0 0 40px rgba(0,0,0,0.4)' : '4px 0 24px rgba(0,0,0,0.15)',
           display: 'flex',
           flexDirection: 'column',
@@ -388,7 +390,6 @@ export default function Layout() {
                   fontSize: 10,
                   fontWeight: 700,
                   padding: '2px 7px',
-                  borderRadius: 20,
                   fontFamily: "'Poppins',sans-serif",
                   minWidth: 20,
                   textAlign: 'center'
@@ -404,13 +405,11 @@ export default function Layout() {
         <div style={{ padding: '0 28px 28px', flexShrink: 0 }}>
           <div style={{
             background: 'rgba(255,255,255,0.06)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: 18,
             padding: 18,
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
               <div style={{
-                width: 44, height: 44, borderRadius: 12,
+                width: 44, height: 44,
                 background: '#ffffff',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 15, fontWeight: 800, color: '#0d1117',
@@ -428,11 +427,8 @@ export default function Layout() {
             </div>
             <div style={{
               display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16,
-              padding: '8px 14px', borderRadius: 10,
+              padding: '8px 14px',
               background: plan === 'enterprise' ? 'rgba(250,204,21,0.15)' : plan === 'pro' ? 'rgba(59,130,246,0.15)' : 'rgba(255,255,255,0.05)',
-              border: `1px solid ${
-                plan === 'enterprise' ? 'rgba(250,204,21,0.3)' : plan === 'pro' ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.08)'
-              }`,
             }}>
               <span style={{
                 fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em',
@@ -470,7 +466,7 @@ export default function Layout() {
             <Link
               to="/billing"
               className="nav-link"
-              style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 10, textDecoration: 'none', marginBottom: 10 }}
+              style={{ background: 'rgba(255,255,255,0.06)', textDecoration: 'none', marginBottom: 10 }}
             >
               <CreditCard size={18} />
               Billing
@@ -478,7 +474,7 @@ export default function Layout() {
             <Link
               to="/profile"
               className="nav-link nav-link-logout"
-              style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 10, textDecoration: 'none', marginBottom: 10 }}
+              style={{ background: 'rgba(255,255,255,0.06)', textDecoration: 'none', marginBottom: 10 }}
             >
               <Settings size={18} />
               Perfil
@@ -486,7 +482,7 @@ export default function Layout() {
             <button
               onClick={() => signOut()}
               className="nav-link nav-link-logout"
-              style={{ background: 'rgba(239,68,68,0.12)', borderRadius: 10 }}
+              style={{ background: 'rgba(239,68,68,0.12)' }}
             >
               <LogOut size={18} />
               Sair
@@ -503,7 +499,6 @@ export default function Layout() {
         {/* Top Header */}
         <header className="header-desktop" style={{
           background: 'rgba(255,255,255,0.45)', backdropFilter: 'blur(30px)',
-          border: '1px solid rgba(255,255,255,0.35)', borderRadius: 20,
           padding: '20px 28px', display: 'flex', alignItems: 'center',
           justifyContent: 'space-between', position: 'sticky', top: isMobile ? 12 : 24,
           zIndex: 30, marginBottom: 24, boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
@@ -534,10 +529,9 @@ export default function Layout() {
               onClick={() => setAlertsOpen(prev => !prev)}
               style={{
                 background: totalAlerts > 0 ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.5)',
-                border: `1px solid ${totalAlerts > 0 ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`,
                 cursor: 'pointer', padding: 10,
                 color: totalAlerts > 0 ? '#ef4444' : '#6b7280',
-                position: 'relative', borderRadius: 12, transition: 'all .2s'
+                position: 'relative', transition: 'all .2s'
               }}
               onMouseEnter={e => e.currentTarget.style.background = totalAlerts > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.8)'}
               onMouseLeave={e => e.currentTarget.style.background = totalAlerts > 0 ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.5)'}
@@ -547,7 +541,6 @@ export default function Layout() {
                 <span style={{
                   position: 'absolute', top: 6, right: 6,
                   width: 8, height: 8, background: '#ef4444',
-                  borderRadius: '50%', border: '2px solid rgba(255,255,255,0.9)'
                 }} />
               )}
             </button>

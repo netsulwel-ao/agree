@@ -2,6 +2,7 @@ import express from 'express';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { createTransport } from 'nodemailer';
+import { createClient } from '@supabase/supabase-js';
 
 const app = express();
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -9,15 +10,15 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 app.use(express.json());
 app.use(express.static(join(__dirname, 'dist')));
 
-// --- Segredo partilhado para autenticar pedidos internos do frontend ---
-// Define EMAIL_API_SECRET no .env com um valor longo e aleatório.
-const EMAIL_API_SECRET = process.env.EMAIL_API_SECRET || '';
+// --- Supabase admin client for JWT verification ---
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!EMAIL_API_SECRET) {
-  console.warn(
-    '[Agree] EMAIL_API_SECRET não definido. ' +
-    'O endpoint /api/send-email está desprotegido. Define a variável no .env.'
-  );
+function getSupabaseAdmin() {
+  if (!supabaseUrl || !supabaseServiceKey) return null;
+  return createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
 }
 
 // --- Email transport ---
@@ -43,32 +44,34 @@ async function sendEmail({ to, subject, html }) {
   await transporter.sendMail({ from: emailFrom, to, subject, html });
 }
 
-// --- Middleware de autenticação do endpoint interno ---
-function requireEmailSecret(req, res, next) {
-  // Aceita o segredo via header ou via body (para retrocompatibilidade temporária)
-  const headerSecret = req.headers['x-internal-secret'];
-  const bodySecret = req.body?.secret;
-  const provided = headerSecret || bodySecret;
+// --- Middleware de autenticação via Supabase JWT ---
+async function requireAuth(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader?.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Não autorizado' });
+  }
 
-  if (!EMAIL_API_SECRET) {
-    // Se a variável não estiver configurada, bloqueia sempre em produção
+  const supabase = getSupabaseAdmin();
+  if (!supabase) {
     if (process.env.NODE_ENV === 'production') {
-      return res.status(503).json({ error: 'Endpoint de email não configurado' });
+      return res.status(503).json({ error: 'Autenticação não configurada' });
     }
-    // Em dev permite mas avisa
-    console.warn('[Agree] EMAIL_API_SECRET não definido — pedido permitido apenas em modo dev');
+    console.warn('[Agree] SUPABASE_SERVICE_ROLE_KEY não definida — allowing request in dev mode');
     return next();
   }
 
-  if (!provided || provided !== EMAIL_API_SECRET) {
-    return res.status(401).json({ error: 'Não autorizado' });
+  const token = authHeader.slice(7);
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+
+  if (error || !user) {
+    return res.status(401).json({ error: 'Token inválido ou expirado' });
   }
 
   next();
 }
 
 // --- POST /api/send-email ---
-app.post('/api/send-email', requireEmailSecret, async (req, res) => {
+app.post('/api/send-email', requireAuth, async (req, res) => {
   const { to, subject, html } = req.body;
   if (!to || !subject || !html) {
     return res.status(400).json({ error: 'Campos obrigatórios: to, subject, html' });

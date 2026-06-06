@@ -34,18 +34,12 @@ export function useContracts() {
     queryFn: async () => {
       if (!user) return [];
       
-      // Contratos onde sou owner
-      const { data: owned, error: err1 } = await supabase
-        .from('contracts')
-        .select('*')
-        .eq('owner_id', user.id)
-        .order('created_at', { ascending: false });
+      const contractFields = 'id,created_at,title,description,status,risk_level,value,currency,start_date,end_date,owner_id,client_id,version,auto_renew,renewal_count,notification_days,tags';
 
-      // Contratos onde sou owner ou colaborador (numa query só)
       const filter = JSON.stringify([{ user_id: user.id }]);
       const { data, error } = await supabase
         .from('contracts')
-        .select('*')
+        .select(contractFields)
         .or(`owner_id.eq.${user.id},collaborators.cs.${filter}`)
         .order('created_at', { ascending: false });
 

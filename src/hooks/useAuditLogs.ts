@@ -30,8 +30,8 @@ export function useAuditLogs(filters?: {
     queryFn: async () => {
       let query = supabase
         .from('audit_logs')
-        .select('*')
-        .order('timestamp', { ascending: false });
+        .select('id,created_at,user_id,user_name,user_email,action,resource,resource_id,resource_name,status,details,ip_address')
+        .order('created_at', { ascending: false });
 
       if (filters?.action) query = query.eq('action', filters.action);
       if (filters?.resource) query = query.eq('resource', filters.resource);

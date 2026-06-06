@@ -65,7 +65,7 @@ CREATE POLICY "Users can view their own invoices"
 
 CREATE POLICY "Admins can view all invoices"
     ON invoices FOR SELECT
-    USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid()::text AND role = 'admin'));
+    USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
 
 CREATE POLICY "Users can create invoices"
     ON invoices FOR INSERT

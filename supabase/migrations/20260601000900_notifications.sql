@@ -113,7 +113,7 @@ $$;
 -- Notification preferences table (Enterprise)
 CREATE TABLE IF NOT EXISTS notification_preferences (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id TEXT NOT NULL REFERENCES profiles(id) UNIQUE,
+  user_id UUID NOT NULL REFERENCES profiles(id) UNIQUE,
   email_approval BOOLEAN DEFAULT true,
   email_sharing BOOLEAN DEFAULT true,
   email_expiry BOOLEAN DEFAULT true,
@@ -129,7 +129,7 @@ ALTER TABLE notification_preferences ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can manage their own notification preferences"
   ON notification_preferences FOR ALL
-  USING (auth.uid()::text = user_id)
-  WITH CHECK (auth.uid()::text = user_id);
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
 
 CREATE INDEX IF NOT EXISTS idx_notif_prefs_user ON notification_preferences(user_id);

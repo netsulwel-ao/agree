@@ -1,7 +1,7 @@
 -- Reminders table for scheduled notifications
 CREATE TABLE IF NOT EXISTS reminders (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id TEXT NOT NULL REFERENCES profiles(id),
+  user_id UUID NOT NULL REFERENCES profiles(id),
   contract_id UUID NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   message TEXT,
@@ -16,20 +16,16 @@ ALTER TABLE reminders ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can manage their own reminders"
   ON reminders FOR ALL
-  USING (auth.uid()::text = user_id)
-  WITH CHECK (auth.uid()::text = user_id);
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
 
 CREATE INDEX IF NOT EXISTS idx_reminders_user ON reminders(user_id);
 CREATE INDEX IF NOT EXISTS idx_reminders_contract ON reminders(contract_id);
 CREATE INDEX IF NOT EXISTS idx_reminders_remind_at ON reminders(remind_at);
 CREATE INDEX IF NOT EXISTS idx_reminders_status ON reminders(status);
 
--- Renewal fields on contracts
-ALTER TABLE contracts ADD COLUMN IF NOT EXISTS auto_renew BOOLEAN DEFAULT false;
-ALTER TABLE contracts ADD COLUMN IF NOT EXISTS renewal_period TEXT CHECK (renewal_period IN ('monthly', 'quarterly', 'semi_annually', 'annually'));
-ALTER TABLE contracts ADD COLUMN IF NOT EXISTS renewed_from UUID REFERENCES contracts(id);
-ALTER TABLE contracts ADD COLUMN IF NOT EXISTS renewal_count INTEGER DEFAULT 0;
-ALTER TABLE contracts ADD COLUMN IF NOT EXISTS notification_days INTEGER DEFAULT 30;
+-- Renewal fields on contracts - já existem em core_tables.sql
+-- auto_renew, renewal_period, renewed_from, renewal_count, notification_days
 
 -- Renewal history table
 CREATE TABLE IF NOT EXISTS renewal_history (
@@ -41,18 +37,18 @@ CREATE TABLE IF NOT EXISTS renewal_history (
   previous_value NUMERIC,
   new_value NUMERIC,
   notes TEXT,
-  created_by TEXT NOT NULL REFERENCES profiles(id)
+  created_by UUID NOT NULL REFERENCES profiles(id)
 );
 
 ALTER TABLE renewal_history ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can view their own renewal history"
   ON renewal_history FOR SELECT
-  USING (auth.uid()::text = created_by);
+  USING (auth.uid() = created_by);
 
 CREATE POLICY "Users can insert their own renewal history"
   ON renewal_history FOR INSERT
-  WITH CHECK (auth.uid()::text = created_by);
+  WITH CHECK (auth.uid() = created_by);
 
 CREATE INDEX IF NOT EXISTS idx_renewal_history_contract ON renewal_history(contract_id);
 

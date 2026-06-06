@@ -46,7 +46,6 @@ jobs:
           # Evitar falha de build por variáveis opcionais não definidas
           VITE_GROQ_API_KEY: ''
           VITE_PAYPAL_CLIENT_ID: ''
-          VITE_EMAIL_API_SECRET: ''
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

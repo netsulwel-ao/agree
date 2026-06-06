@@ -26,7 +26,7 @@ export function useClients() {
       if (!user) return [];
       const { data, error } = await supabase
         .from('clients')
-        .select('*')
+        .select('id,created_at,updated_at,name,email,phone,status,category,tags,notes,owner_id')
         .eq('owner_id', user.id)
         .order('name', { ascending: true });
       if (error) throw new Error(error.message);
@@ -45,7 +45,7 @@ export function useClient(id?: string) {
       if (!user || !id) return null;
       const { data, error } = await supabase
         .from('clients')
-        .select('*')
+        .select('id,created_at,updated_at,name,email,phone,status,category,tags,notes,custom_fields,owner_id')
         .eq('id', id)
         .eq('owner_id', user.id)
         .single();

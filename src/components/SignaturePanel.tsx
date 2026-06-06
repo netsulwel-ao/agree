@@ -61,7 +61,7 @@ async function sendNotificationEmail(to: string, name: string, contractTitle: st
       <p style="font-size:14px;color:#374151;line-height:1.6">Ainda não assinaste o contrato <strong>"${contractTitle}"</strong>. O <strong>${ownerName}</strong> solicita a tua assinatura.</p>` : ''}
       ${type === 'signed' ? `<p style="font-size:14px;color:#374151;line-height:1.6"><strong>${name}</strong> assinou o contrato <strong>"${contractTitle}"</strong>.</p>` : ''}
       <p style="font-size:14px;color:#374151">Acede ao link abaixo para ver o contrato:</p>
-      <a href="${contractUrl}" style="display:inline-block;padding:12px 24px;font-size:14px;font-weight:700;color:#fff;background:#0d1117;text-decoration:none;border-radius:10px;margin:16px 0">Ver Contrato</a>
+      <a href="${contractUrl}" style="display:inline-block;padding:12px 24px;font-size:14px;font-weight:700;color:#fff;background:#0d1117;text-decoration:none;margin:16px 0">Ver Contrato</a>
       <hr style="border:none;border-top:1px solid #e2e5e9;margin:24px 0">
       <p style="font-size:12px;color:#9ca3af">Plataforma Agree — Gestão de Contratos</p>
     </div>

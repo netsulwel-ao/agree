@@ -45,20 +45,16 @@ interface LogEntry {
 }
 
 export async function logAudit(entry: LogEntry) {
-  try {
-    const { error } = await supabase.from('audit_logs').insert({
-      user_id: entry.user_id,
-      user_name: entry.user_name || null,
-      user_email: entry.user_email || null,
-      action: entry.action,
-      resource: entry.resource,
-      resource_id: entry.resource_id || null,
-      resource_name: entry.resource_name || null,
-      status: entry.status || 'success',
-      details: entry.details || {},
-    });
-    if (error) console.error('Audit log insert error:', error);
-  } catch (err) {
-    console.error('Failed to write audit log:', err);
-  }
+  const { error } = await supabase.from('audit_logs').insert({
+    user_id: entry.user_id,
+    user_name: entry.user_name || null,
+    user_email: entry.user_email || null,
+    action: entry.action,
+    resource: entry.resource,
+    resource_id: entry.resource_id || null,
+    resource_name: entry.resource_name || null,
+    status: entry.status || 'success',
+    details: entry.details || {},
+  });
+  if (error) throw new Error(error.message);
 }

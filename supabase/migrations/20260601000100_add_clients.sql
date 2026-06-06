@@ -16,5 +16,5 @@ CREATE TABLE IF NOT EXISTS clients (
 CREATE INDEX IF NOT EXISTS idx_clients_owner ON clients(owner_id);
 CREATE INDEX IF NOT EXISTS idx_clients_tags ON clients USING GIN (tags);
 
-ALTER TABLE contracts ADD COLUMN IF NOT EXISTS client_id UUID REFERENCES clients(id) ON DELETE SET NULL;
+-- client_id já existe em contracts (core_tables.sql)
 CREATE INDEX IF NOT EXISTS idx_contracts_client ON contracts(client_id);

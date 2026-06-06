@@ -41,7 +41,7 @@ export function useTemplates() {
       try {
         const { data, error } = await supabase
           .from('contract_templates')
-          .select('*')
+          .select('id,name,description,category,content,variables,is_system,user_id,usage_count')
           .order('category', { ascending: true })
           .order('name', { ascending: true });
         if (!error && data) {
@@ -65,7 +65,7 @@ export function useUserTemplates() {
       if (!user) return [];
       const { data, error } = await supabase
         .from('contract_templates')
-        .select('*')
+        .select('id,name,description,category,content,variables,is_system,user_id,usage_count,created_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
       if (error) throw new Error(error.message);

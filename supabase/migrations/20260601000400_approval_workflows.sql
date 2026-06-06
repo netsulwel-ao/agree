@@ -84,15 +84,15 @@ CREATE POLICY "Authenticated users can view workflows"
 -- Apenas admins criam/actualizam/eliminam workflows
 CREATE POLICY "Admins can insert workflows"
     ON approval_workflows FOR INSERT WITH CHECK (
-        EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid()::text AND role = 'admin')
+        EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
     );
 CREATE POLICY "Admins can update workflows"
     ON approval_workflows FOR UPDATE USING (
-        EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid()::text AND role = 'admin')
+        EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
     );
 CREATE POLICY "Admins can delete workflows"
     ON approval_workflows FOR DELETE USING (
-        EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid()::text AND role = 'admin')
+        EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
     );
 
 -- Steps: select all, insert/update/delete only admin
@@ -100,15 +100,15 @@ CREATE POLICY "Authenticated users can view steps"
     ON approval_workflow_steps FOR SELECT USING (auth.role() = 'authenticated');
 CREATE POLICY "Admins can manage steps"
     ON approval_workflow_steps FOR INSERT WITH CHECK (
-        EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid()::text AND role = 'admin')
+        EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
     );
 CREATE POLICY "Admins can update steps"
     ON approval_workflow_steps FOR UPDATE USING (
-        EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid()::text AND role = 'admin')
+        EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
     );
 CREATE POLICY "Admins can delete steps"
     ON approval_workflow_steps FOR DELETE USING (
-        EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid()::text AND role = 'admin')
+        EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
     );
 
 -- Approvers: same as steps
@@ -116,15 +116,15 @@ CREATE POLICY "Authenticated users can view approvers"
     ON approval_workflow_step_approvers FOR SELECT USING (auth.role() = 'authenticated');
 CREATE POLICY "Admins can manage approvers"
     ON approval_workflow_step_approvers FOR INSERT WITH CHECK (
-        EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid()::text AND role = 'admin')
+        EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
     );
 CREATE POLICY "Admins can update approvers"
     ON approval_workflow_step_approvers FOR UPDATE USING (
-        EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid()::text AND role = 'admin')
+        EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
     );
 CREATE POLICY "Admins can delete approvers"
     ON approval_workflow_step_approvers FOR DELETE USING (
-        EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid()::text AND role = 'admin')
+        EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
     );
 
 -- Approval requests: created by user sees own, approvers see assigned
@@ -155,7 +155,7 @@ CREATE POLICY "Users can update their own pending requests"
 CREATE POLICY "Users can view their own approvals"
     ON approval_request_approvals FOR SELECT USING (
         user_id = auth.uid()
-        OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid()::text AND role = 'admin')
+        OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
     );
 
 CREATE POLICY "Assigned approvers can insert approvals"

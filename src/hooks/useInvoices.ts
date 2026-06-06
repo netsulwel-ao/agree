@@ -43,7 +43,20 @@ export function useInvoices(statusFilter?: string) {
     queryFn: async () => {
       let query = supabase
         .from('invoices')
-        .select('*, contract:contracts(title), client:clients(name, email)')
+        .select(`
+          id,
+          created_at,
+          number,
+          title,
+          value,
+          total_value,
+          status,
+          issued_date,
+          due_date,
+          currency,
+          contract:contracts(title),
+          client:clients(name, email)
+        `)
         .order('created_at', { ascending: false });
       if (statusFilter) query = query.eq('status', statusFilter);
       const { data, error } = await query;
@@ -77,7 +90,7 @@ export function useInvoicesByContract(contractId: string | undefined) {
       if (!contractId) return [];
       const { data, error } = await supabase
         .from('invoices')
-        .select('*')
+        .select('id,created_at,number,title,value,total_value,status,currency,due_date,paid_date,contract_id,client_id')
         .eq('contract_id', contractId)
         .order('created_at', { ascending: false });
       if (error) throw new Error(error.message);

@@ -34,6 +34,8 @@ import AuditLogList from './components/AuditLogList';
 import SignatureWebhook from './components/SignatureWebhook';
 import NotificationsPage from './components/NotificationsPage';
 import BillingPortal from './components/BillingPortal';
+import CompaniesPage from './pages/admin/CompaniesPage';
+import PermissionsPage from './pages/admin/PermissionsPage';
 
 import { useGlobalLoading } from './contexts/GlobalLoadingContext';
 import { useAuth } from './contexts/AuthContext';
@@ -65,6 +67,20 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+/**
+ * Requer Super Admin.
+ * Se o utilizador estiver autenticado mas não for Super Admin, redireciona para /dashboard.
+ */
+const SuperAdminRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, isSuperAdmin, isLoading } = useAuth();
+
+  if (isLoading) return <LoadingScreen message="A validar acesso..." />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!isSuperAdmin) return <Navigate to="/dashboard" replace />;
+
+  return <>{children}</>;
+};
+
 /** Redireciona utilizadores já autenticados para o dashboard (ou rota pendente). */
 function RedirectIfAuthenticated({ children, fallback }: { children: React.ReactNode; fallback?: string }) {
   const { user, isLoading } = useAuth();
@@ -84,16 +100,16 @@ function RedirectIfAuthenticated({ children, fallback }: { children: React.React
 // ─── Rotas ────────────────────────────────────────────
 
 function AppRoutes() {
-  const { isLoading } = useAuth();
   const { isLoading: globalLoading, loadingMessage } = useGlobalLoading();
 
-  if (isLoading || globalLoading) {
+  // Loading global apenas para operações específicas, não para carregar a app
+  if (globalLoading) {
     return <LoadingScreen message={loadingMessage || 'A carregar...'} />;
   }
 
   return (
     <Routes>
-      <Route path="/" element={<RedirectIfAuthenticated><LandingPage /></RedirectIfAuthenticated>} />
+      <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<RedirectIfAuthenticated fallback="/dashboard"><AuthenticationScreen /></RedirectIfAuthenticated>} />
 
       {/* Rotas protegidas (utilizador autenticado) dentro do Layout */}
@@ -129,6 +145,10 @@ function AppRoutes() {
         <Route path="/admin/plan-history" element={<AdminRoute><AdminPlanHistory /></AdminRoute>} />
         <Route path="/admin/approval-workflows" element={<AdminRoute><ApprovalWorkflowConfig /></AdminRoute>} />
         <Route path="/admin/audit-logs" element={<AdminRoute><AuditLogList /></AdminRoute>} />
+
+        {/* Rotas de Super Admin — requerem is_super_admin=true */}
+        <Route path="/admin/companies" element={<SuperAdminRoute><CompaniesPage /></SuperAdminRoute>} />
+        <Route path="/admin/permissions" element={<SuperAdminRoute><PermissionsPage /></SuperAdminRoute>} />
       </Route>
 
       {/* Captura de assinatura via QR — standalone, sem layout */}

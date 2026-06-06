@@ -1,8 +1,6 @@
 -- Trial period support
--- Adds trial_ends_at to profiles and a function to activate trial on signup.
-
-ALTER TABLE profiles
-  ADD COLUMN IF NOT EXISTS trial_ends_at timestamptz DEFAULT NULL;
+-- trial_ends_at já existe em profiles (core_tables.sql)
+-- Função para ativar trial automaticamente no signup
 
 -- Automatically start a 14-day trial when a new profile is created
 -- (i.e., when a new user signs up and their profile row is inserted).

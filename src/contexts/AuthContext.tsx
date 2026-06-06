@@ -17,6 +17,8 @@ interface AuthContextType {
   isInTrial: boolean;
   isBlocked: boolean;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
+  companyId: string | null;
   onboardingCompleted: boolean;
   setOnboardingCompleted: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -34,6 +36,8 @@ const AuthContext = createContext<AuthContextType>({
   isInTrial: false,
   isBlocked: false,
   isAdmin: false,
+  isSuperAdmin: false,
+  companyId: null,
   onboardingCompleted: false,
   setOnboardingCompleted: async () => {},
   signOut: async () => {},
@@ -50,13 +54,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
   const [isBlocked, setIsBlocked] = useState(false);
   const [onboardingCompleted, setOnboardingCompletedState] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [companyId, setCompanyId] = useState<string | null>(null);
   const { setIsLoading: setGlobalLoading } = useGlobalLoading();
 
   const fetchProfile = useCallback(async (userId: string) => {
     // Uma única query busca todos os campos necessários — evita dois roundtrips
     const { data } = await supabase
       .from('profiles')
-      .select('role, plan, plan_activated_at, plan_expires_at, trial_ends_at, is_blocked, onboarding_completed')
+      .select('role, plan, plan_activated_at, plan_expires_at, trial_ends_at, is_blocked, onboarding_completed, is_super_admin, company_id')
       .eq('id', userId)
       .maybeSingle();
 
@@ -72,6 +78,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setPlanExpiresAt(null);
       setTrialEndsAt(null);
       setIsBlocked(false);
+      setIsSuperAdmin(false);
+      setCompanyId(null);
       return;
     }
 
@@ -82,6 +90,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setTrialEndsAt(data.trial_ends_at || null);
     setIsBlocked(false);
     setOnboardingCompletedState(data.onboarding_completed === true);
+    setIsSuperAdmin(data.is_super_admin === true);
+    setCompanyId(data.company_id || null);
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -155,7 +165,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return (
     <AuthContext.Provider value={{
       user, session, isLoading, role, plan, planExpiresAt, trialEndsAt,
-      isInTrial, isBlocked, isAdmin, onboardingCompleted, setOnboardingCompleted,
+      isInTrial, isBlocked, isAdmin, isSuperAdmin, companyId, onboardingCompleted, setOnboardingCompleted,
       signOut, refreshProfile,
     }}>
       {children}

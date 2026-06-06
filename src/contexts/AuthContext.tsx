@@ -127,17 +127,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [user, fetchProfile]);
 
   const handleUserChange = useCallback(async (userId: string | null, email?: string) => {
-    if (userId) {
-      await fetchProfile(userId);
-      setSentryUser(userId, email);
-    } else {
+    try {
+      if (userId) {
+        await fetchProfile(userId);
+        setSentryUser(userId, email);
+      } else {
+        setRole(null);
+        setPlan('free');
+        setPlanExpiresAt(null);
+        setTrialEndsAt(null);
+        setIsBlocked(false);
+        setOnboardingCompletedState(false);
+        setSentryUser(null);
+      }
+    } catch (error) {
+      console.error('[Auth] Error in handleUserChange:', error);
+      // Garantir que o estado seja limpo mesmo com erro
       setRole(null);
       setPlan('free');
       setPlanExpiresAt(null);
       setTrialEndsAt(null);
       setIsBlocked(false);
       setOnboardingCompletedState(false);
-      setSentryUser(null);
+      setIsSuperAdmin(false);
+      setCompanyId(null);
     }
   }, [fetchProfile]);
 

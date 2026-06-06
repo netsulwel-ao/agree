@@ -23,13 +23,25 @@ export default function SignatureList() {
   useEffect(() => {
     if (!user) return;
     const fetch = async () => {
-      const { data } = await supabase
-        .from('user_signatures')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-      if (data) setSignatures(data);
-      setLoading(false);
+      try {
+        const { data, error } = await supabase
+          .from('user_signatures')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+        
+        if (error) {
+          console.error('Error fetching signatures:', error);
+          toast.error('Erro ao carregar assinaturas');
+        } else if (data) {
+          setSignatures(data);
+        }
+      } catch (err) {
+        console.error('Unexpected error fetching signatures:', err);
+        toast.error('Erro ao carregar assinaturas');
+      } finally {
+        setLoading(false);
+      }
     };
     fetch();
   }, [user]);

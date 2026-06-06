@@ -356,7 +356,7 @@ export default function Dashboard() {
           {statusData.length > 0 && (
             <div style={card}>
               <h3 style={{ fontSize: 14, fontWeight: 700, color: '#0d1117', marginBottom: 16 }}>Status dos Contratos</h3>
-              <ResponsiveContainer width="100%" height={200}>
+              <ResponsiveContainer width="100%" height={200} minWidth={0} minHeight={0}>
                 <PieChart>
                   <Pie data={statusData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80}>
                     {statusData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
@@ -378,7 +378,7 @@ export default function Dashboard() {
           {/* Risk Bar */}
           <div style={card}>
             <h3 style={{ fontSize: 14, fontWeight: 700, color: '#0d1117', marginBottom: 16 }}>Distribuição de Riscos</h3>
-            <ResponsiveContainer width="100%" height={200}>
+            <ResponsiveContainer width="100%" height={200} minWidth={0} minHeight={0}>
               <BarChart data={riskData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e5e9" />
                 <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#6b7280' }} />
@@ -394,7 +394,7 @@ export default function Dashboard() {
           {/* Monthly Trend */}
           <div style={card}>
             <h3 style={{ fontSize: 14, fontWeight: 700, color: '#0d1117', marginBottom: 16 }}>Evolução Mensal</h3>
-            <ResponsiveContainer width="100%" height={200}>
+            <ResponsiveContainer width="100%" height={200} minWidth={0} minHeight={0}>
               <AreaChart data={monthlyData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e5e9" />
                 <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#6b7280' }} />

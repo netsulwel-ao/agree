@@ -64,9 +64,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('[Auth] Starting Supabase query for profile...');
       const startTime = Date.now();
 
-      // Adicionar timeout manual de 10 segundos
+      // Adicionar timeout manual de 30 segundos (aumentado de 10s)
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Query timeout after 10s')), 10000);
+        setTimeout(() => reject(new Error('Query timeout after 30s')), 30000);
       });
 
       // Uma única query busca todos os campos necessários — evita dois roundtrips
@@ -82,11 +82,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         console.error('[Auth] Error fetching profile:', error);
+        // Não falhar completamente - usar valores padrão
+        setRole('user');
+        setPlan('free');
+        setPlanExpiresAt(null);
+        setTrialEndsAt(null);
+        setIsBlocked(false);
+        setOnboardingCompletedState(false);
+        setIsSuperAdmin(false);
+        setCompanyId(null);
         return;
       }
 
       if (!data) {
         console.warn('[Auth] No profile found for user:', userId);
+        // Criar perfil padrão se não existir
+        setRole('user');
+        setPlan('free');
+        setPlanExpiresAt(null);
+        setTrialEndsAt(null);
+        setIsBlocked(false);
+        setOnboardingCompletedState(false);
+        setIsSuperAdmin(false);
+        setCompanyId(null);
         return;
       }
 
@@ -117,8 +135,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setOnboardingCompletedState(data.onboarding_completed === true);
       setIsSuperAdmin(data.is_super_admin === true);
       setCompanyId(data.company_id || null);
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Auth] Unexpected error in fetchProfile:', error);
+      // Em caso de timeout ou erro, usar valores padrão para não bloquear a aplicação
+      setRole('user');
+      setPlan('free');
+      setPlanExpiresAt(null);
+      setTrialEndsAt(null);
+      setIsBlocked(false);
+      setOnboardingCompletedState(false);
+      setIsSuperAdmin(false);
+      setCompanyId(null);
     }
   }, []);
 

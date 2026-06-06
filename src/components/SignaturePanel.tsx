@@ -99,13 +99,22 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
 
   useEffect(() => {
     const fetchSignature = async () => {
-      const { data } = await supabase
-        .from('user_signatures')
-        .select('id, image_url, name')
-        .eq('user_id', user.id)
-        .eq('is_active', true)
-        .single();
-      if (data) setUserSignature(data);
+      try {
+        const { data, error } = await supabase
+          .from('user_signatures')
+          .select('id, image_url, name')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .single();
+        
+        if (error) {
+          console.warn('No active signature found or error fetching:', error.message);
+        } else if (data) {
+          setUserSignature(data);
+        }
+      } catch (err) {
+        console.warn('Error fetching user signature:', err);
+      }
     };
     fetchSignature();
   }, [user]);

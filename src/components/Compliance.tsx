@@ -29,11 +29,18 @@ export default function Compliance() {
     if (user) {
       const init = async () => {
         try {
-          const { data: profile } = await supabase
+          // Add timeout for profile query
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Profile query timeout after 15s')), 15000);
+          });
+
+          const queryPromise = supabase
             .from('profiles')
             .select('role')
             .eq('id', user.id)
             .single();
+
+          const { data: profile, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
 
           const role = profile?.role || 'user';
           setCurrentUserRole(role);
@@ -54,6 +61,8 @@ export default function Compliance() {
           }
         } catch (err) {
           console.error("Error initializing compliance:", err);
+          // Use default role on error
+          setCurrentUserRole('user');
         }
       };
       init();

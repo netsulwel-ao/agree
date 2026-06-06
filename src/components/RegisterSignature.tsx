@@ -151,22 +151,47 @@ const isLocalhost = window.location.hostname === 'localhost' || window.location.
 
   const pollForSessionImage = useCallback(async () => {
     if (!sessionId) return;
+    let retryCount = 0;
+    const maxRetries = 30; // Stop after 30 attempts (1 minute)
+    
     const check = async () => {
-      const { data } = await supabase.storage
-        .from('signatures')
-        .download(`sessions/${sessionId}.png`);
-      if (data) {
-        const blob = data;
-        setRawBlob(blob);
-        processAndPreview(blob);
-        return true;
+      try {
+        const { data, error } = await supabase.storage
+          .from('signatures')
+          .download(`sessions/${sessionId}.png`);
+        
+        if (error) {
+          console.warn('Storage download error:', error.message);
+          return false;
+        }
+        
+        if (data) {
+          const blob = data;
+          setRawBlob(blob);
+          processAndPreview(blob);
+          return true;
+        }
+        return false;
+      } catch (err) {
+        console.warn('Error polling for session image:', err);
+        return false;
       }
-      return false;
     };
-    const found = await check();
-    if (!found) {
-      setTimeout(() => pollForSessionImage(), 2000);
-    }
+    
+    const poll = async () => {
+      const found = await check();
+      if (!found && retryCount < maxRetries) {
+        retryCount++;
+        setTimeout(() => poll(), 2000);
+      } else if (!found) {
+        console.warn('Max retries reached for session image polling');
+        toast.error('Tempo esgotado. A imagem não foi recebida.');
+        setStep('choose-method');
+        setMethod(null);
+      }
+    };
+    
+    poll();
   }, [sessionId]);
 
   useEffect(() => {

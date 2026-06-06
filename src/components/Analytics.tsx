@@ -399,8 +399,8 @@ export default function Analytics() {
               Evolução Financeira
             </h2>
           </div>
-          <div style={{ padding: '24px', height: 350 }}>
-            <ResponsiveContainer width="100%" height="100%">
+          <div style={{ padding: '24px', height: 350, minWidth: 0 }}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <AreaChart data={financialData}>
                 <defs>
                   <linearGradient id="colorFinancial" x1="0" y1="0" x2="0" y2="1">
@@ -472,8 +472,8 @@ export default function Analytics() {
               Status dos Contratos
             </h2>
           </div>
-          <div style={{ padding: '24px', height: 300 }}>
-            <ResponsiveContainer width="100%" height="100%">
+          <div style={{ padding: '24px', height: 300, minWidth: 0 }}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <PieChart>
                 <Pie
                   data={statusData}
@@ -528,8 +528,8 @@ export default function Analytics() {
               Distribuição de Riscos
             </h2>
           </div>
-          <div style={{ padding: '24px', height: 300 }}>
-            <ResponsiveContainer width="100%" height="100%">
+          <div style={{ padding: '24px', height: 300, minWidth: 0 }}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <BarChart data={riskData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e5e9" />
                 <XAxis
@@ -590,8 +590,8 @@ export default function Analytics() {
               Novos Contratos vs Risco Assumido
             </h2>
           </div>
-          <div style={{ padding: '24px', height: 300 }}>
-            <ResponsiveContainer width="100%" height="100%">
+          <div style={{ padding: '24px', height: 300, minWidth: 0 }}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <BarChart data={correlationData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e5e9" />
                 <XAxis

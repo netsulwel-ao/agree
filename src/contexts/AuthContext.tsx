@@ -63,12 +63,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('[Auth] Fetching profile for user:', userId);
       console.log('[Auth] Starting Supabase query for profile...');
       const startTime = Date.now();
+
+      // Adicionar timeout manual de 10 segundos
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Query timeout after 10s')), 10000);
+      });
+
       // Uma única query busca todos os campos necessários — evita dois roundtrips
-      const { data, error } = await supabase
+      const queryPromise = supabase
         .from('profiles')
         .select('role, plan, plan_activated_at, plan_expires_at, trial_ends_at, is_blocked, onboarding_completed, is_super_admin, company_id')
         .eq('id', userId)
         .maybeSingle();
+
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
       console.log('[Auth] Supabase query completed in', Date.now() - startTime, 'ms');
       console.log('[Auth] Query result:', { data, error });
 

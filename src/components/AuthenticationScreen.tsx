@@ -38,11 +38,14 @@ export default function AuthenticationScreen() {
     setGlobalLoading(true);
     try {
       if (mode === 'login') {
-        const { error } = await supabase.auth.signInWithPassword({
+        console.log('[AuthScreen] Attempting login with email:', email);
+        const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
+        console.log('[AuthScreen] Login result:', { data, error });
         if (error) throw error;
+        console.log('[AuthScreen] Login successful, navigating to:', redirectTo);
         toast.success('Login realizado com sucesso!');
         navigate(redirectTo);
       } else if (mode === 'magic') {

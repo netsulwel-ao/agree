@@ -48,12 +48,12 @@ export default function ContractInvoicesTab({ contractId }: Props) {
       </div>
 
       {invoices.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 40, color: '#9ca3af' }}>
+        <div style={{ textAlign: 'center', padding: 40, color: '#9ca3af', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <DollarSign size={40} style={{ marginBottom: 8, opacity: 0.3 }} />
-          <p style={{ fontSize: 14 }}>Nenhuma factura associada a este contrato</p>
+          <p style={{ fontSize: 14, margin: 0 }}>Nenhuma factura associada a este contrato</p>
           <Link to={`/invoices/new?contract=${contractId}`}
             style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 12,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12,
               padding: '8px 16px', background: '#0d1117', color: '#fff',
               textDecoration: 'none', fontSize: 12, fontWeight: 600,
             }}

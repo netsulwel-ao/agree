@@ -406,9 +406,9 @@ export default function NegotiationRoom({ contract, user, isOwner, onUpdate }: N
 
         <div style={{ maxHeight: 400, overflowY: 'auto', padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
           {messages.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 32, color: '#9ca3af' }}>
+            <div style={{ textAlign: 'center', padding: 32, color: '#9ca3af', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
               <MessageSquare size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
-              <p style={{ fontSize: 13 }}>Nenhuma mensagem ainda. Inicia a discussão!</p>
+              <p style={{ fontSize: 13, margin: 0 }}>Nenhuma mensagem ainda. Inicia a discussão!</p>
             </div>
           ) : (
             messages.map(msg => {

@@ -137,13 +137,13 @@ export default function InvoiceList() {
               A carregar facturas...
             </div>
           ) : filtered.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 60, color: '#9ca3af' }}>
+            <div style={{ textAlign: 'center', padding: 60, color: '#9ca3af', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
               <DollarSign size={48} style={{ marginBottom: 12, opacity: 0.3 }} />
-              <p style={{ fontSize: 15 }}>{invoices.length === 0 ? 'Nenhuma factura criada' : 'Nenhuma factura encontrada'}</p>
+              <p style={{ fontSize: 15, margin: 0 }}>{invoices.length === 0 ? 'Nenhuma factura criada' : 'Nenhuma factura encontrada'}</p>
               {invoices.length === 0 && (
                 <Link to="/invoices/new"
                   style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 12,
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 12,
                     padding: '10px 20px', background: '#0d1117', color: '#fff',
                     textDecoration: 'none', fontSize: 14, fontWeight: 600,
                   }}

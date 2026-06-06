@@ -135,9 +135,9 @@ export default function NotificationsPage() {
         </div>
 
         {displayed.length === 0 ? (
-          <div style={{ padding: 60, textAlign: 'center' }}>
+          <div style={{ padding: 60, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
             <Bell size={48} style={{ color: '#d1d5db', marginBottom: 12 }} />
-            <p style={{ color: '#9ca3af', fontSize: 14 }}>
+            <p style={{ color: '#9ca3af', fontSize: 14, margin: 0 }}>
               {filter === 'unread' ? 'Nenhuma notificação não lida' : 'Nenhuma notificação'}
             </p>
           </div>

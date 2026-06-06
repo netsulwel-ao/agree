@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUserTemplates, useDeleteTemplate, useCreateTemplate, useUpdateTemplate } from '../hooks/useTemplates';
+import { useAuth } from '../contexts/AuthContext';
 import {
   FileText, Trash2, Edit3, Plus, X, Loader2, BookTemplate,
-  Star, Search, Check, AlertTriangle, Save
+  Star, Search, Check, AlertTriangle, Save, Crown, Zap, Building2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Template, TemplateField } from '../hooks/useTemplates';
@@ -21,6 +22,7 @@ const categoryBg: Record<string, string> = {
 
 export default function MyTemplates() {
   const navigate = useNavigate();
+  const { plan: userPlan } = useAuth();
   const { data: templates = [], isLoading } = useUserTemplates();
   const deleteTemplate = useDeleteTemplate();
   const createTemplate = useCreateTemplate();
@@ -43,6 +45,40 @@ export default function MyTemplates() {
     t.description?.toLowerCase().includes(search.toLowerCase()) ||
     t.category.toLowerCase().includes(search.toLowerCase())
   );
+
+  // Filtrar modelos por plano do usuário
+  const canAccessPlan = (templatePlan?: string) => {
+    if (!templatePlan) return true;
+    if (templatePlan === 'free') return true;
+    if (templatePlan === 'pro') return userPlan === 'pro' || userPlan === 'enterprise';
+    if (templatePlan === 'enterprise') return userPlan === 'enterprise';
+    return true;
+  };
+
+  const getPlanBadge = (templatePlan?: string) => {
+    if (!templatePlan || templatePlan === 'free') return null;
+    if (templatePlan === 'pro') {
+      return (
+        <span style={{
+          fontSize: 10, fontWeight: 600, padding: '2px 8px', background: 'rgba(59,130,246,0.1)',
+          color: '#3b82f6', borderRadius: 4, display: 'inline-flex', alignItems: 'center', gap: 4
+        }}>
+          <Zap size={10} /> Pro
+        </span>
+      );
+    }
+    if (templatePlan === 'enterprise') {
+      return (
+        <span style={{
+          fontSize: 10, fontWeight: 600, padding: '2px 8px', background: 'rgba(168,85,247,0.1)',
+          color: '#a855f7', borderRadius: 4, display: 'inline-flex', alignItems: 'center', gap: 4
+        }}>
+          <Crown size={10} /> Enterprise
+        </span>
+      );
+    }
+    return null;
+  };
 
   const resetForm = () => {
     setName('');
@@ -341,17 +377,23 @@ export default function MyTemplates() {
               {filtered.map(t => {
                 const color = categoryColors[t.category] || '#6b7280';
                 const bg = categoryBg[t.category] || 'rgba(13,17,23,0.06)';
+                const canAccess = canAccessPlan(t.plan);
+                const planBadge = getPlanBadge(t.plan);
+                
                 return (
                   <div key={t.id} style={{
                     background: '#fff', border: '1px solid #e2e5e9', overflow: 'hidden',
-                    transition: 'all .2s'
+                    transition: 'all .2s', opacity: canAccess ? 1 : 0.6
                   }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = '#0d1117'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e5e9'; e.currentTarget.style.boxShadow = 'none'; }}
+                    onMouseEnter={e => { if (canAccess) { e.currentTarget.style.borderColor = '#0d1117'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'; } }}
+                    onMouseLeave={e => { if (canAccess) { e.currentTarget.style.borderColor = '#e2e5e9'; e.currentTarget.style.boxShadow = 'none'; } }}
                   >
                     <div style={{ padding: 20 }}>
-                      <div style={{ width: 36, height: 36, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12, color }}>
-                        <FileText size={18} />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                        <div style={{ width: 36, height: 36, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color }}>
+                          <FileText size={18} />
+                        </div>
+                        {planBadge}
                       </div>
                       <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0d1117', marginBottom: 4 }}>{t.name}</h3>
                       <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 12, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
@@ -361,7 +403,7 @@ export default function MyTemplates() {
                         <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 10px', background: bg, color }}>
                           {t.category}
                         </span>
-                        {t.usage_count > 0 && (
+                        {t.usage_count && t.usage_count > 0 && (
                           <span style={{ fontSize: 10, color: '#9ca3af', display: 'flex', alignItems: 'center', gap: 3 }}>
                             <Star size={10} /> {t.usage_count} usos
                           </span>
@@ -372,22 +414,37 @@ export default function MyTemplates() {
                       </div>
                     </div>
                     <div style={{ padding: '12px 20px', borderTop: '1px solid #f0f2f4', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                      <button onClick={() => openEdit(t)}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px',
-                          background: '#f0f2f4', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#0d1117'
-                        }}
-                      >
-                        <Edit3 size={14} /> Editar
-                      </button>
-                      <button onClick={() => handleDelete(t.id, t.name)}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px',
-                          background: 'rgba(239,68,68,0.08)', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#ef4444'
-                        }}
-                      >
-                        <Trash2 size={14} /> Eliminar
-                      </button>
+                      {canAccess ? (
+                        <>
+                          <button onClick={() => openEdit(t)}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px',
+                              background: '#f0f2f4', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#0d1117'
+                            }}
+                          >
+                            <Edit3 size={14} /> Editar
+                          </button>
+                          <button onClick={() => handleDelete(t.id, t.name)}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px',
+                              background: 'rgba(239,68,68,0.08)', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#ef4444'
+                            }}
+                          >
+                            <Trash2 size={14} /> Eliminar
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => navigate('/pricing')}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px',
+                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', border: 'none',
+                            fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#fff'
+                          }}
+                        >
+                          <Crown size={14} /> Upgrade
+                        </button>
+                      )}
                     </div>
                   </div>
                 );

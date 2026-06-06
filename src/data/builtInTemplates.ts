@@ -9,6 +9,7 @@ export interface BuiltInTemplate {
   content: string;
   fields: { name: string; label: string; type: string; required: boolean }[];
   is_system: boolean;
+  plan: 'free' | 'pro' | 'enterprise';
 }
 
 export const BUILT_IN_TEMPLATES: BuiltInTemplate[] = [
@@ -18,6 +19,7 @@ export const BUILT_IN_TEMPLATES: BuiltInTemplate[] = [
     name: 'Contrato de Compra e Venda',
     description: 'Contrato comercial de compra e venda — design luxury navy com acento dourado',
     category: 'Comercial',
+    plan: 'free',
     content: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500;600&display=swap');
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -247,6 +249,7 @@ body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
     name: 'Acordo de Confidencialidade (NDA)',
     description: 'NDA bilateral — design confidencial charcoal com acento carmesim',
     category: 'Confidencialidade',
+    plan: 'free',
     content: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500;600&display=swap');
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -459,6 +462,7 @@ body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
     name: 'Contrato de Arrendamento',
     description: 'Arrendamento residencial — design atlas com verde floresta e linho quente',
     category: 'Imobiliário',
+    plan: 'free',
     content: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500;600&display=swap');
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -688,6 +692,7 @@ body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
     name: 'Contrato de Trabalho Sem Termo',
     description: 'Contrato laboral sem termo — design corporativo branco com acento carmim estruturado',
     category: 'Recursos Humanos',
+    plan: 'free',
     content: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500;600&display=swap');
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -923,6 +928,7 @@ body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
     name: 'Prestação de Serviços e Consultoria',
     description: 'Contrato de serviços e consultoria — design editorial espresso com energia de masthead',
     category: 'Serviços',
+    plan: 'free',
     content: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500;600&display=swap');
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -1150,6 +1156,7 @@ body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
     name: 'Contrato de Empreitada',
     description: 'Contrato de empreitada para obras e serviços — design industrial slate com acento laranja queimado',
     category: 'Construção',
+    plan: 'pro',
     content: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500;600&display=swap');
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -1297,6 +1304,7 @@ body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
     name: 'Contrato de Mandato',
     description: 'Contrato de mandato para representação — design formal burgundy com acento dourado suave',
     category: 'Jurídico',
+    plan: 'pro',
     content: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500;600&display=swap');
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -1440,6 +1448,7 @@ body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
     name: 'Contrato de Sociedade',
     description: 'Contrato de sociedade para parceria empresarial — design institucional azul marinho com acento prateado',
     category: 'Comercial',
+    plan: 'pro',
     content: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500;600&display=swap');
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -1586,6 +1595,7 @@ body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
     name: 'Contrato de Consultoria Empresarial',
     description: 'Contrato de consultoria empresarial — design clean moderno com acento índigo',
     category: 'Serviços',
+    plan: 'free',
     content: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500;600&display=swap');
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -1732,6 +1742,7 @@ body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
     name: 'Acordo de Confidencialidade Unilateral',
     description: 'NDA unilateral para divulgação segura de informação — design charcoal com acento âmbar',
     category: 'Confidencialidade',
+    plan: 'free',
     content: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500;600&display=swap');
 *{margin:0;padding:0;box-sizing:border-box;}

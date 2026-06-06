@@ -22,6 +22,7 @@ export interface Template {
   is_system: boolean;
   user_id?: string;
   usage_count?: number;
+  plan?: 'free' | 'pro' | 'enterprise';
 }
 
 export function useTemplates() {

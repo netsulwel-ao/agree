@@ -64,9 +64,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('[Auth] Starting Supabase query for profile...');
       const startTime = Date.now();
 
-      // Adicionar timeout manual de 30 segundos (aumentado de 10s)
+      // Check cache first for faster auth
+      const cacheKey = `profile_${userId}`;
+      const cachedProfile = localStorage.getItem(cacheKey);
+      if (cachedProfile) {
+        try {
+          const { data: cachedData, timestamp } = JSON.parse(cachedProfile);
+          // Use cache if less than 5 minutes old
+          if (Date.now() - timestamp < 300000) {
+            console.log('[Auth] Using cached profile data');
+            setRole(cachedData.role || 'user');
+            const p = (cachedData.plan as Plan) || 'free';
+            setPlan(p === 'pro' || p === 'enterprise' ? p : 'free');
+            setPlanExpiresAt(cachedData.plan_expires_at || null);
+            setTrialEndsAt(cachedData.trial_ends_at || null);
+            setIsBlocked(false);
+            setOnboardingCompletedState(cachedData.onboarding_completed === true);
+            setIsSuperAdmin(cachedData.is_super_admin === true);
+            setCompanyId(cachedData.company_id || null);
+            return;
+          }
+        } catch (e) {
+          console.warn('[Auth] Cache parse error, fetching fresh data');
+        }
+      }
+
+      // Reduced timeout to 5 seconds for faster auth
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Query timeout after 30s')), 30000);
+        setTimeout(() => reject(new Error('Query timeout after 5s')), 5000);
       });
 
       // Uma única query busca todos os campos necessários — evita dois roundtrips
@@ -82,6 +107,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         console.error('[Auth] Error fetching profile:', error);
+        // Try to use cached data even if stale
+        if (cachedProfile) {
+          try {
+            const { data: cachedData } = JSON.parse(cachedProfile);
+            setRole(cachedData.role || 'user');
+            const p = (cachedData.plan as Plan) || 'free';
+            setPlan(p === 'pro' || p === 'enterprise' ? p : 'free');
+            setPlanExpiresAt(cachedData.plan_expires_at || null);
+            setTrialEndsAt(cachedData.trial_ends_at || null);
+            setIsBlocked(false);
+            setOnboardingCompletedState(cachedData.onboarding_completed === true);
+            setIsSuperAdmin(cachedData.is_super_admin === true);
+            setCompanyId(cachedData.company_id || null);
+            return;
+          } catch (e) {
+            console.warn('[Auth] Stale cache also failed');
+          }
+        }
         // Não falhar completamente - usar valores padrão
         setRole('user');
         setPlan('free');
@@ -110,10 +153,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       console.log('[Auth] Profile loaded:', data);
 
+      // Cache the profile data
+      localStorage.setItem(cacheKey, JSON.stringify({ data, timestamp: Date.now() }));
+
       // Utilizador bloqueado — faz logout imediatamente antes de actualizar qualquer estado
       if (data.is_blocked === true) {
         console.warn('[Auth] User is blocked, signing out');
-        await supabase.auth.signOut();
+        // Clear all cached profile data
+      if (user) {
+        localStorage.removeItem(profile_);
+      }
+      // Clear all auth-related localStorage
+      localStorage.removeItem('sb-auth-token');
+      localStorage.removeItem('sb-refresh-token');
+      await supabase.auth.signOut();
         setUser(null);
         setSession(null);
         setRole(null);
@@ -137,6 +190,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCompanyId(data.company_id || null);
     } catch (error: any) {
       console.error('[Auth] Unexpected error in fetchProfile:', error);
+      // Try to use cached data on error
+      const cacheKey = `profile_${userId}`;
+      const cachedProfile = localStorage.getItem(cacheKey);
+      if (cachedProfile) {
+        try {
+          const { data: cachedData } = JSON.parse(cachedProfile);
+          setRole(cachedData.role || 'user');
+          const p = (cachedData.plan as Plan) || 'free';
+          setPlan(p === 'pro' || p === 'enterprise' ? p : 'free');
+          setPlanExpiresAt(cachedData.plan_expires_at || null);
+          setTrialEndsAt(cachedData.trial_ends_at || null);
+          setIsBlocked(false);
+          setOnboardingCompletedState(cachedData.onboarding_completed === true);
+          setIsSuperAdmin(cachedData.is_super_admin === true);
+          setCompanyId(cachedData.company_id || null);
+          return;
+        } catch (e) {
+          console.warn('[Auth] Cache fallback also failed');
+        }
+      }
       // Em caso de timeout ou erro, usar valores padrão para não bloquear a aplicação
       setRole('user');
       setPlan('free');
@@ -182,6 +255,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [fetchProfile]);
 
   useEffect(() => {
+    // Security: Clear sensitive data on new tab detection
+    const tabId = sessionStorage.getItem('auth_tab_id');
+    if (!tabId) {
+      // New tab detected - clear sensitive data
+      sessionStorage.setItem('auth_tab_id', Date.now().toString());
+      localStorage.removeItem('sb-auth-token');
+      localStorage.removeItem('sb-refresh-token');
+      // Clear all profile caches
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('profile_')) localStorage.removeItem(key);
+      });
+    }
+    
     let cancelled = false;
     // Carrega a sessão inicial e aguarda o perfil antes de marcar isLoading=false
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -192,7 +278,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
     }).catch(async () => {
       // Sess�o corrompida (ex: refresh token inv�lido) → limpa localStorage
-      try { await supabase.auth.signOut(); } catch {}
+      try { // Clear all cached profile data
+      if (user) {
+        localStorage.removeItem(profile_);
+      }
+      // Clear all auth-related localStorage
+      localStorage.removeItem('sb-auth-token');
+      localStorage.removeItem('sb-refresh-token');
+      await supabase.auth.signOut(); } catch {}
       if (!cancelled) setIsLoading(false);
     });
 
@@ -209,6 +302,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     setGlobalLoading(true);
     try {
+      // Clear all cached profile data
+      if (user) {
+        localStorage.removeItem(profile_);
+      }
+      // Clear all auth-related localStorage
+      localStorage.removeItem('sb-auth-token');
+      localStorage.removeItem('sb-refresh-token');
       await supabase.auth.signOut();
     } catch {
       // ignora erros de rede/sess�o
@@ -244,3 +344,5 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 export const useAuth = () => {
   return useContext(AuthContext);
 };
+
+

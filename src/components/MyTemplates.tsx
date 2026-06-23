@@ -4,9 +4,10 @@ import { useUserTemplates, useDeleteTemplate, useCreateTemplate, useUpdateTempla
 import { useAuth } from '../contexts/AuthContext';
 import {
   FileText, Trash2, Edit3, Plus, X, Loader2, BookTemplate,
-  Star, Search, Check, AlertTriangle, Save, Crown, Zap, Building2
+  Star, Search, Check, AlertTriangle, Save, Crown, Zap, Building2, Code2
 } from 'lucide-react';
 import { toast } from 'sonner';
+import RichTextEditor from './RichTextEditor';
 import type { Template, TemplateField } from '../hooks/useTemplates';
 
 const categoryColors: Record<string, string> = {
@@ -39,6 +40,7 @@ export default function MyTemplates() {
   const [content, setContent] = useState('');
   const [variables, setVariables] = useState<TemplateField[]>([]);
   const [saving, setSaving] = useState(false);
+  const [showSource, setShowSource] = useState(false);
 
   const filtered = templates.filter(t =>
     !search || t.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -259,17 +261,32 @@ export default function MyTemplates() {
                 />
               </div>
               <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 6 }}>Conteúdo (HTML) *</label>
-                <textarea value={content} onChange={e => setContent(e.target.value)}
-                  placeholder="<p>Entre as partes <strong>{{parte_nome}}</strong>...</p>"
-                  rows={12}
-                  style={{
-                    width: '100%', padding: '14px', fontSize: 13, border: '1.5px solid #e2e5e9',
-                    outline: 'none', fontFamily: "'Courier New', monospace", color: '#0d1117', resize: 'vertical', lineHeight: 1.6
-                  }}
-                  onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
-                  onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
-                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#6b7280' }}>Conteúdo *</label>
+                  <button type="button" onClick={() => setShowSource(v => !v)}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px',
+                      background: showSource ? '#0d1117' : '#f0f2f4', border: 'none',
+                      fontSize: 11, fontWeight: 600, cursor: 'pointer', color: showSource ? '#fff' : '#6b7280'
+                    }}
+                  >
+                    <Code2 size={13} /> {showSource ? 'Visual' : 'HTML'}
+                  </button>
+                </div>
+                {showSource ? (
+                  <textarea value={content} onChange={e => setContent(e.target.value)}
+                    placeholder="<p>Entre as partes <strong>{{parte_nome}}</strong>...</p>"
+                    rows={12}
+                    style={{
+                      width: '100%', padding: '14px', fontSize: 13, border: '1.5px solid #e2e5e9',
+                      outline: 'none', fontFamily: "'Courier New', monospace", color: '#0d1117', resize: 'vertical', lineHeight: 1.6
+                    }}
+                    onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
+                    onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
+                  />
+                ) : (
+                  <RichTextEditor content={content} onChange={setContent} placeholder="Escreva o conteúdo do contrato... Use {{nome_variavel}} para campos dinâmicos" />
+                )}
               </div>
 
               {/* Variables */}

@@ -64,13 +64,22 @@ export function useUserTemplates() {
     queryKey: ['user-templates', user?.id],
     queryFn: async () => {
       if (!user) return [];
+
+      const builtIns: Template[] = BUILT_IN_TEMPLATES.map(t => ({
+        ...t,
+        created_at: new Date().toISOString(),
+        fields: t.fields.map(f => ({ ...f, type: f.type as TemplateField['type'] })),
+        variables: [],
+        usage_count: 0,
+      }));
+
       const { data, error } = await supabase
         .from('contract_templates')
         .select('id,name,description,category,content,variables,is_system,user_id,usage_count,created_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
       if (error) throw new Error(error.message);
-      return (data || []) as Template[];
+      return [...builtIns, ...(data || [])] as Template[];
     },
     enabled: !!user,
   });

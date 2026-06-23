@@ -8,7 +8,6 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { exportContractToPdf } from '../services/exportPdf';
 import { logAudit, Actions } from '../services/auditLog';
 import { formatCurrency } from '../services/currency';
 
@@ -94,14 +93,7 @@ export default function InvoiceDetail() {
           </div>
         </div>`;
 
-      await exportContractToPdf({
-        title: `${invoice.number} - ${invoice.title}`,
-        content: html,
-        status: invoice.status,
-        value: invoice.total_value.toString(),
-        risk_level: 'low',
-      });
-      toast.success('PDF exportado com sucesso');
+      toast.info('Exportação removida');
     } catch { toast.error('Erro ao exportar PDF'); }
     finally { setExportingPdf(false); }
   };

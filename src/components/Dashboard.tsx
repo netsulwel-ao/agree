@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { useContracts } from '../hooks/useContracts';
 import { checkPlan, getLimits, trialDaysRemaining } from '../lib/plans';
@@ -15,7 +16,7 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, AreaChart, Area
 } from 'recharts';
-import { exportContractListToPdf } from '../services/exportPdf';
+
 import OnboardingWalkthrough from './OnboardingWalkthrough';
 
 const PIE_COLORS = ['#0d1117', '#f59e0b', '#ef4444', '#6b7280'];
@@ -32,7 +33,8 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { user, plan, isAdmin, isInTrial, trialEndsAt, onboardingCompleted, setOnboardingCompleted } = useAuth();
   const { openCheckout } = useCheckoutModal();
-  const { data: contracts = [], isLoading } = useContracts();
+  const { data: contractsData, isLoading } = useContracts();
+  const contracts = contractsData?.data ?? [];
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   const canUseCharts = checkPlan(plan, 'pro', isAdmin, trialEndsAt);
@@ -250,7 +252,7 @@ export default function Dashboard() {
             </div>
             {!isNewUser && canExport && (
               <button
-                onClick={async () => await exportContractListToPdf(contracts)}
+                onClick={() => toast.info('Exportação removida')}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 8,
                   padding: '10px 18px', background: 'rgba(255,255,255,0.1)',

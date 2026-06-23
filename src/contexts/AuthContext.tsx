@@ -60,19 +60,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchProfile = useCallback(async (userId: string) => {
     try {
-      console.log('[Auth] Fetching profile for user:', userId);
-      console.log('[Auth] Starting Supabase query for profile...');
-      const startTime = Date.now();
-
-      // Check cache first for faster auth
-      const cacheKey = `profile_${userId}`;
+      const cacheKey = `'profile_'${userId}`;
       const cachedProfile = localStorage.getItem(cacheKey);
       if (cachedProfile) {
         try {
           const { data: cachedData, timestamp } = JSON.parse(cachedProfile);
-          // Use cache if less than 5 minutes old
           if (Date.now() - timestamp < 300000) {
-            console.log('[Auth] Using cached profile data');
             setRole(cachedData.role || 'user');
             const p = (cachedData.plan as Plan) || 'free';
             setPlan(p === 'pro' || p === 'enterprise' ? p : 'free');
@@ -84,17 +77,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setCompanyId(cachedData.company_id || null);
             return;
           }
-        } catch (e) {
-          console.warn('[Auth] Cache parse error, fetching fresh data');
+        } catch {
+          // cache parse error, fetch fresh
         }
       }
 
-      // Reduced timeout to 5 seconds for faster auth
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('Query timeout after 5s')), 5000);
       });
 
-      // Uma única query busca todos os campos necessários — evita dois roundtrips
       const queryPromise = supabase
         .from('profiles')
         .select('role, plan, plan_activated_at, plan_expires_at, trial_ends_at, is_blocked, onboarding_completed, is_super_admin, company_id')
@@ -102,12 +93,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .maybeSingle();
 
       const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
-      console.log('[Auth] Supabase query completed in', Date.now() - startTime, 'ms');
-      console.log('[Auth] Query result:', { data, error });
 
       if (error) {
-        console.error('[Auth] Error fetching profile:', error);
-        // Try to use cached data even if stale
         if (cachedProfile) {
           try {
             const { data: cachedData } = JSON.parse(cachedProfile);
@@ -121,11 +108,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setIsSuperAdmin(cachedData.is_super_admin === true);
             setCompanyId(cachedData.company_id || null);
             return;
-          } catch (e) {
-            console.warn('[Auth] Stale cache also failed');
+          } catch {
+            // cached also failed
           }
         }
-        // Não falhar completamente - usar valores padrão
         setRole('user');
         setPlan('free');
         setPlanExpiresAt(null);
@@ -138,8 +124,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (!data) {
-        console.warn('[Auth] No profile found for user:', userId);
-        // Criar perfil padrão se não existir
         setRole('user');
         setPlan('free');
         setPlanExpiresAt(null);
@@ -151,17 +135,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      console.log('[Auth] Profile loaded:', data);
-
       // Cache the profile data
       localStorage.setItem(cacheKey, JSON.stringify({ data, timestamp: Date.now() }));
 
       // Utilizador bloqueado — faz logout imediatamente antes de actualizar qualquer estado
       if (data.is_blocked === true) {
-        console.warn('[Auth] User is blocked, signing out');
         // Clear all cached profile data
       if (user) {
-        localStorage.removeItem(profile_);
+        localStorage.removeItem('profile_');
       }
       // Clear all auth-related localStorage
       localStorage.removeItem('sb-auth-token');
@@ -188,10 +169,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setOnboardingCompletedState(data.onboarding_completed === true);
       setIsSuperAdmin(data.is_super_admin === true);
       setCompanyId(data.company_id || null);
-    } catch (error: any) {
-      console.error('[Auth] Unexpected error in fetchProfile:', error);
+    } catch {
       // Try to use cached data on error
-      const cacheKey = `profile_${userId}`;
+      const cacheKey = `'profile_'${userId}`;
       const cachedProfile = localStorage.getItem(cacheKey);
       if (cachedProfile) {
         try {
@@ -206,9 +186,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setIsSuperAdmin(cachedData.is_super_admin === true);
           setCompanyId(cachedData.company_id || null);
           return;
-        } catch (e) {
-          console.warn('[Auth] Cache fallback also failed');
-        }
+          } catch {
+          }
       }
       // Em caso de timeout ou erro, usar valores padrão para não bloquear a aplicação
       setRole('user');
@@ -240,8 +219,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setOnboardingCompletedState(false);
         setSentryUser(null);
       }
-    } catch (error) {
-      console.error('[Auth] Error in handleUserChange:', error);
+    } catch {
       // Garantir que o estado seja limpo mesmo com erro
       setRole(null);
       setPlan('free');
@@ -280,7 +258,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Sess�o corrompida (ex: refresh token inv�lido) → limpa localStorage
       try { // Clear all cached profile data
       if (user) {
-        localStorage.removeItem(profile_);
+        localStorage.removeItem('profile_');
       }
       // Clear all auth-related localStorage
       localStorage.removeItem('sb-auth-token');
@@ -304,7 +282,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       // Clear all cached profile data
       if (user) {
-        localStorage.removeItem(profile_);
+        localStorage.removeItem('profile_');
       }
       // Clear all auth-related localStorage
       localStorage.removeItem('sb-auth-token');

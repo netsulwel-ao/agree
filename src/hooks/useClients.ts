@@ -17,20 +17,33 @@ export interface Client {
   custom_fields?: Record<string, any>;
 }
 
-export function useClients() {
+const PAGE_SIZE = 20;
+
+export function useClients(page = 1, search = '') {
   const { user } = useAuth();
 
   return useQuery({
-    queryKey: ['clients', user?.id],
+    queryKey: ['clients', user?.id, page, search],
     queryFn: async () => {
-      if (!user) return [];
-      const { data, error } = await supabase
+      if (!user) return { data: [], count: 0 };
+
+      let query = supabase
         .from('clients')
-        .select('id,created_at,updated_at,name,email,phone,status,category,tags,notes,owner_id')
-        .eq('owner_id', user.id)
-        .order('name', { ascending: true });
+        .select('id,created_at,updated_at,name,email,phone,status,category,tags,notes,owner_id', { count: 'exact' })
+        .eq('owner_id', user.id);
+
+      if (search) {
+        query = query.ilike('name', `%${search}%`);
+      }
+
+      const from = (page - 1) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+      const { data, error, count } = await query
+        .order('name', { ascending: true })
+        .range(from, to);
+
       if (error) throw new Error(error.message);
-      return (data || []) as Client[];
+      return { data: (data || []) as Client[], count: count || 0 };
     },
     enabled: !!user,
   });

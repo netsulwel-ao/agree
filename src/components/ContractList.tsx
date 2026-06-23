@@ -1,6 +1,6 @@
 ﻿import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useContracts } from '../hooks/useContracts';
+import { useContracts, type Contract } from '../hooks/useContracts';
 import { 
   Search, Filter, Eye, FileEdit, Trash2,
   Sparkles, Calendar as CalendarIcon, FileText, Download, X
@@ -9,7 +9,7 @@ import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '../lib/supabase';
 import { intelligentSearch } from '../services/gemini';
-import { exportContractListToPdf } from '../services/exportPdf';
+
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency } from '../services/currency';
@@ -17,11 +17,14 @@ import { formatCurrency } from '../services/currency';
 export default function ContractList() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { data: contracts = [], isLoading } = useContracts();
+  const [page, setPage] = useState(1);
+  const { data: contractsData, isLoading } = useContracts(page);
+  const contracts = contractsData?.data ?? [];
+  const totalPages = Math.max(1, Math.ceil((contractsData?.count ?? 0) / 20));
   const [searchTerm, setSearchTerm] = useState('');
   const [isAiSearching, setIsAiSearching] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [filteredContracts, setFilteredContracts] = useState(contracts);
+  const [filteredContracts, setFilteredContracts] = useState<Contract[]>(contracts);
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({
     status: '',
@@ -35,7 +38,7 @@ export default function ContractList() {
   const allTags = [...new Set(contracts.flatMap(c => c.tags || []))].sort();
 
   const filterContracts = () => {
-    let result = contracts;
+    let result = contractsData?.data ?? [];
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       result = result.filter(c =>
@@ -71,7 +74,7 @@ export default function ContractList() {
 
   React.useEffect(() => {
     filterContracts();
-  }, [contracts, searchTerm, selectedTags, filters]);
+  }, [contractsData, searchTerm, selectedTags, filters]);
 
   const clearFilters = () => {
     setFilters({ status: '', riskLevel: '', dateFrom: '', dateTo: '', valueMin: '', valueMax: '' });
@@ -94,7 +97,7 @@ export default function ContractList() {
     if (!searchTerm.trim()) { toast.error("Digite algo para a pesquisa inteligente"); return; }
     setIsAiSearching(true);
     try {
-      const results = await intelligentSearch(searchTerm, contracts);
+      const results = await intelligentSearch(searchTerm, contractsData?.data ?? []);
       setFilteredContracts(results);
       toast.success(`Encontrados ${results.length} contratos relevantes`);
     } catch { toast.error("Erro na pesquisa inteligente"); }
@@ -305,7 +308,7 @@ export default function ContractList() {
             Contratos em Gestão
           </h2>
           <button
-            onClick={async () => { await exportContractListToPdf(filteredContracts); }}
+            onClick={() => toast.info('Exportação removida')}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 6,
               fontSize: 12, fontWeight: 600, color: '#0d1117',
@@ -429,6 +432,35 @@ export default function ContractList() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div style={{
+            display: 'flex', justifyContent: 'center', alignItems: 'center',
+            gap: 12, padding: '16px 24px', borderTop: '1px solid #e2e5e9',
+            background: 'rgba(255,255,255,0.6)'
+          }}>
+            <button
+              disabled={page <= 1}
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              style={{
+                padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: page > 1 ? 'pointer' : 'default',
+                border: '1.5px solid #e2e5e9', background: page > 1 ? '#fff' : '#f7f9fb',
+                color: page > 1 ? '#0d1117' : '#9ca3af', fontFamily: "'Poppins',sans-serif"
+              }}
+            >Anterior</button>
+            <span style={{ fontSize: 13, color: '#6b7280' }}>Página {page} de {totalPages}</span>
+            <button
+              disabled={page >= totalPages}
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              style={{
+                padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: page < totalPages ? 'pointer' : 'default',
+                border: '1.5px solid #e2e5e9', background: page < totalPages ? '#fff' : '#f7f9fb',
+                color: page < totalPages ? '#0d1117' : '#9ca3af', fontFamily: "'Poppins',sans-serif"
+              }}
+            >Seguinte</button>
+          </div>
+        )}
       </div>
     </div>
   );

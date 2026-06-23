@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { PLAN_INFO, getUpgradeOptions } from '../lib/plans';
+import { PLAN_INFO, getUpgradeOptions, type Plan } from '../lib/plans';
 import { useCheckoutModal } from '../contexts/CheckoutModalContext';
 import { X, ArrowUpRight, CheckCircle, Loader, Upload, Landmark, FileText, AlertCircle, Wallet } from 'lucide-react';
 import AgreeLogo from '../Agree-logo.svg';
@@ -110,7 +110,7 @@ export default function CheckoutModal() {
       user_id: a.id,
       type: 'payment_request',
       title: renewal ? 'Renovação pendente' : 'Novo pedido de upgrade',
-      message: `${userEmail} solicitou o plano ${PLAN_INFO[plan].label} (${renewal ? 'renovação' : 'novo'}).`,
+      message: `${userEmail} solicitou o plano ${PLAN_INFO[plan as Plan].label} (${renewal ? 'renovação' : 'novo'}).`,
       reference_id: null,
       reference_type: 'payment_request',
     }));

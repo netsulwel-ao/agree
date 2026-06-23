@@ -18,7 +18,10 @@ const statusConfig: Record<string, { label: string; color: string; bg: string; i
 export default function InvoiceList() {
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
-  const { data: invoices = [], isLoading } = useInvoices(statusFilter || undefined);
+  const [page, setPage] = useState(1);
+  const { data: invoicesData, isLoading } = useInvoices(statusFilter || undefined, page, search);
+  const invoices = invoicesData?.data ?? [];
+  const totalPages = Math.max(1, Math.ceil((invoicesData?.count ?? 0) / 20));
 
   const filtered = invoices.filter(inv => {
     if (!search) return true;
@@ -197,6 +200,35 @@ export default function InvoiceList() {
           )}
         </div>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div style={{
+          display: 'flex', justifyContent: 'center', alignItems: 'center',
+          gap: 12, padding: '16px 24px', borderTop: '1px solid #e2e5e9',
+          background: 'rgba(255,255,255,0.6)'
+        }}>
+          <button
+            disabled={page <= 1}
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            style={{
+              padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: page > 1 ? 'pointer' : 'default',
+              border: '1.5px solid #e2e5e9', background: page > 1 ? '#fff' : '#f7f9fb',
+              color: page > 1 ? '#0d1117' : '#9ca3af', fontFamily: "'Poppins',sans-serif"
+            }}
+          >Anterior</button>
+          <span style={{ fontSize: 13, color: '#6b7280' }}>Página {page} de {totalPages}</span>
+          <button
+            disabled={page >= totalPages}
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            style={{
+              padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: page < totalPages ? 'pointer' : 'default',
+              border: '1.5px solid #e2e5e9', background: page < totalPages ? '#fff' : '#f7f9fb',
+              color: page < totalPages ? '#0d1117' : '#9ca3af', fontFamily: "'Poppins',sans-serif"
+            }}
+          >Seguinte</button>
+        </div>
+      )}
     </div>
   );
 }

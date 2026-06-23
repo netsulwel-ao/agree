@@ -70,6 +70,21 @@ async function requireAuth(req, res, next) {
   next();
 }
 
+// --- POST /api/invite-user ---
+app.post('/api/invite-user', requireAuth, async (req, res) => {
+  const { email, name } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email é obrigatório' });
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return res.status(503).json({ error: 'Serviço de autenticação não configurado' });
+
+  const { error } = await supabase.auth.admin.inviteUserByEmail(email, {
+    data: { name: name || undefined },
+  });
+  if (error) return res.status(400).json({ error: error.message });
+  res.json({ success: true });
+});
+
 // --- POST /api/send-email ---
 app.post('/api/send-email', requireAuth, async (req, res) => {
   const { to, subject, html } = req.body;

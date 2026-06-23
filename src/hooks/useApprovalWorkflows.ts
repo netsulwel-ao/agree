@@ -81,7 +81,7 @@ export function useApprovalWorkflows(includeInactive = false) {
             .in('step_id', stepIds);
           if (approvers) {
             for (const step of wf.steps) {
-              (step as any).approvers = approvers.filter(a => a.step_id === step.id);
+              step.approvers = approvers.filter(a => a.step_id === step.id);
             }
           }
         }

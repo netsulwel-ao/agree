@@ -261,7 +261,7 @@ export default function TemplateLibrary({ onSelectTemplate, onClose }: TemplateL
                           {template.category}
                         </span>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          {template.usage_count > 0 && (
+                          {(template.usage_count ?? 0) > 0 && (
                             <span style={{ fontSize: 10, color: '#9ca3af', display: 'flex', alignItems: 'center', gap: 3 }}>
                               <Star size={10} /> {template.usage_count}
                             </span>

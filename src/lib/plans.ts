@@ -27,7 +27,6 @@ export interface PlanLimits {
   maxVersions: number;
   hasPrioritySupport: boolean;
   maxApiKeys: number;
-  hasGoogleIntegration: boolean;
   hasMultiCurrency: boolean;
   hasSignatureProviders: boolean;
   hasExternalSignatureProviders: boolean;
@@ -48,7 +47,6 @@ export const PLANS: Record<Plan, PlanLimits> = {
     maxVersions: 3,
     hasPrioritySupport: false,
     maxApiKeys: 0,
-    hasGoogleIntegration: false,
     hasMultiCurrency: true,
     hasSignatureProviders: false,
     hasExternalSignatureProviders: false,
@@ -67,7 +65,6 @@ export const PLANS: Record<Plan, PlanLimits> = {
     maxVersions: 50,
     hasPrioritySupport: false,
     maxApiKeys: 1,
-    hasGoogleIntegration: true,
     hasMultiCurrency: true,
     hasSignatureProviders: true,
     hasExternalSignatureProviders: false,
@@ -86,7 +83,6 @@ export const PLANS: Record<Plan, PlanLimits> = {
     maxVersions: Infinity,
     hasPrioritySupport: true,
     maxApiKeys: 10,
-    hasGoogleIntegration: true,
     hasMultiCurrency: true,
     hasSignatureProviders: true,
     hasExternalSignatureProviders: true,

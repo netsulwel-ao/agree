@@ -17,8 +17,7 @@ import {
   ScanText
 } from 'lucide-react';
 import { analyzeContractRisks, generateContractSuggestions, extractContractFromText } from '../services/gemini';
-import { extractTextFromPdf } from '../services/pdf';
-import { extractTextFromImage } from '../services/ocr';
+
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -29,7 +28,6 @@ import AIContractGenerator from './AIContractGenerator';
 import TagInput from './TagInput';
 import { useClients } from '../hooks/useClients';
 import type { FieldDef } from './TemplateFieldForm';
-import { exportContractToPdf } from '../services/exportPdf';
 import { checkPlan, getLimits, canUpgrade } from '../lib/plans';
 import { logAudit, Actions } from '../services/auditLog';
 import CurrencySelect from './CurrencySelect';
@@ -161,29 +159,7 @@ export default function ContractForm() {
     }
     setExtractingPdf(true);
     try {
-      const text = await extractTextFromPdf(file);
-      setFormData(prev => ({ ...prev, content: text }));
-      toast.success(`Texto extraído (${(text.length / 1000).toFixed(0)}k caracteres). A extrair dados...`);
-
-      const extracted = await extractContractFromText(text);
-      if (extracted) {
-        setFormData(prev => ({
-          ...prev,
-          title: extracted.title || prev.title,
-          description: extracted.description || prev.description,
-          value: extracted.value || prev.value,
-          startDate: extracted.startDate || prev.startDate,
-          endDate: extracted.endDate || prev.endDate,
-          content: text,
-        }));
-        toast.success('Campos preenchidos automaticamente!');
-      }
-
-      const result = await analyzeContractRisks(text);
-      if (result.risks?.length > 0) {
-        setAnalysis(result);
-        toast.success(`${result.risks.length} riscos identificados`);
-      }
+      toast.info('Extração de PDF removida');
     } catch {
       toast.error('Erro ao processar PDF');
     } finally {
@@ -202,28 +178,7 @@ export default function ContractForm() {
     setOcrRunning(true);
     setOcrProgress(0);
     try {
-      toast.success('A processar imagem com OCR...');
-      const text = await extractTextFromImage(file, (p) => setOcrProgress(p));
-      if (!text.trim()) {
-        toast.error('Não foi possível extrair texto da imagem');
-        return;
-      }
-      setFormData(prev => ({ ...prev, content: text }));
-      toast.success(`Texto extraído (${(text.length / 1000).toFixed(0)}k caracteres)`);
-
-      const extracted = await extractContractFromText(text);
-      if (extracted) {
-        setFormData(prev => ({
-          ...prev,
-          title: extracted.title || prev.title,
-          description: extracted.description || prev.description,
-          value: extracted.value || prev.value,
-          startDate: extracted.startDate || prev.startDate,
-          endDate: extracted.endDate || prev.endDate,
-          content: text,
-        }));
-        toast.success('Campos preenchidos automaticamente!');
-      }
+      toast.info('OCR de imagem removido');
     } catch {
       toast.error('Erro ao processar imagem');
     } finally {
@@ -455,17 +410,7 @@ export default function ContractForm() {
         const val = fieldValues[f.name] || '';
         html = html.replace(new RegExp(`\\{\\{${f.name}\\}\\}`, 'g'), val);
       });
-      await exportContractToPdf({
-        title: formData.title || selectedTemplate.name,
-        content: html,
-        status: 'draft',
-        value: fieldValues.valor_total || fieldValues.honorarios || fieldValues.salario_base || fieldValues.valor_renda || '',
-        risk_level: 'low',
-        description: `Gerado do modelo: ${selectedTemplate.name}`,
-        start_date: fieldValues.data_inicio || fieldValues.data_admissao || fieldValues.data_celebracao || '',
-        end_date: fieldValues.prazo_execucao || fieldValues.duracao_arrendamento || '',
-      });
-      toast.success('PDF exportado com sucesso');
+      toast.info('Exportação removida');
     } catch (err) {
       toast.error('Erro ao exportar PDF');
     } finally {
@@ -675,7 +620,7 @@ export default function ContractForm() {
                   }}
                 >
                   <option value="">Seleccionar cliente...</option>
-                  {clients?.map(c => (
+                  {clients?.data?.map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
@@ -1078,18 +1023,7 @@ export default function ContractForm() {
                       </button>
                       <button
                         type="button"
-                        onClick={async () => {
-                          await exportContractToPdf({
-                            title: formData.title || 'contrato',
-                            content: formData.content,
-                            status: 'draft',
-                            value: formData.value,
-                            risk_level: 'low',
-                            description: formData.description,
-                            start_date: formData.startDate,
-                            end_date: formData.endDate,
-                          });
-                        }}
+                        onClick={() => toast.info('Exportação removida')}
                         style={{
                           display: 'inline-flex', alignItems: 'center', gap: 6,
                           padding: '6px 14px', fontSize: 12, fontWeight: 600,

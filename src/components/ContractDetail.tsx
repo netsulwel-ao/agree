@@ -33,7 +33,6 @@ import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import AgreeLogo from '../Agree-logo.svg';
-import { exportContractToPdf } from '../services/exportPdf';
 import { analyzeContractRisks } from '../services/gemini';
 import { sendApprovalRequest, sendStatusChangeEmail, canSendEmail } from '../services/emailNotifications';
 import { logAudit, Actions } from '../services/auditLog';
@@ -46,9 +45,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { checkPlan } from '../lib/plans';
 import { formatCurrency } from '../services/currency';
-import GoogleCalendarModal from './GoogleCalendarModal';
-import GoogleDocsExport from './GoogleDocsExport';
-import ExternalSignaturePanel from './ExternalSignaturePanel';
 import { ReminderForm, ReminderList } from './ReminderForm';
 import { getRenewalHistory, renewContract, RenewalHistory } from '../services/reminders';
 
@@ -479,7 +475,7 @@ export default function ContractDetail() {
             Eliminar
           </button>
           <button
-            onClick={async () => { await exportContractToPdf(contract); }}
+            onClick={() => toast.info('Exportação removida')}
             style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -519,7 +515,6 @@ export default function ContractDetail() {
               Calendar
             </button>
           )}
-          {checkPlan(plan, 'pro') && <GoogleDocsExport userId={user?.id || ''} contract={contract} />}
           {contract.status === 'approved' && contract.end_date && (
             <button
               onClick={() => {
@@ -1633,27 +1628,15 @@ export default function ContractDetail() {
         <>
           <SignaturePanel
             contract={contract}
-            user={user}
+            user={user!}
             onUpdate={fetchContractData}
           />
-          {checkPlan(plan, 'enterprise') && (
-            <div style={{ marginTop: 24 }}>
-              <ExternalSignaturePanel contractId={contractId} contract={contract} user={user} />
-            </div>
-          )}
         </>
       )}
 
-      {activeTab === 'approvals' && <ContractApprovalsTab contractId={contractId} contract={contract} user={user} />}
+      {activeTab === 'approvals' && <ContractApprovalsTab contractId={contractId!} contract={contract} user={user} />}
 
-      {activeTab === 'invoices' && <ContractInvoicesTab contractId={contractId} />}
-
-      <GoogleCalendarModal
-        isOpen={showCalendarModal}
-        onClose={() => setShowCalendarModal(false)}
-        userId={user?.id || ''}
-        contract={contract}
-      />
+      {activeTab === 'invoices' && <ContractInvoicesTab contractId={contractId!} />}
 
       {/* Renewal Modal */}
       {showRenewModal && (

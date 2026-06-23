@@ -37,31 +37,25 @@ export interface Invoice {
   client?: { name: string; email?: string } | null;
 }
 
-export function useInvoices(statusFilter?: string) {
+const PAGE_SIZE = 20;
+
+export function useInvoices(statusFilter?: string, page = 1, search = '') {
   return useQuery({
-    queryKey: ['invoices', statusFilter],
+    queryKey: ['invoices', statusFilter, page, search],
     queryFn: async () => {
       let query = supabase
         .from('invoices')
-        .select(`
-          id,
-          created_at,
-          number,
-          title,
-          value,
-          total_value,
-          status,
-          issued_date,
-          due_date,
-          currency,
-          contract:contracts(title),
-          client:clients(name, email)
-        `)
+        .select('*', { count: 'exact' })
         .order('created_at', { ascending: false });
+
       if (statusFilter) query = query.eq('status', statusFilter);
-      const { data, error } = await query;
+      if (search) query = query.ilike('title', `%${search}%`);
+
+      const from = (page - 1) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+      const { data, error, count } = await query.range(from, to);
       if (error) throw new Error(error.message);
-      return (data || []) as Invoice[];
+      return { data: (data || []) as Invoice[], count: count || 0 };
     },
   });
 }
@@ -120,7 +114,6 @@ export function useCreateInvoice() {
     }) => {
       if (!user) throw new Error('Not authenticated');
 
-      // Generate invoice number
       const { data: numData, error: numError } = await supabase.rpc('generate_invoice_number');
       if (numError) throw numError;
       const number = numData as string;

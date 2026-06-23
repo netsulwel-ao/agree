@@ -4,7 +4,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { RotateCw, Landmark, Wallet, Shield, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { checkPlan } from '../lib/plans';
-import ExchangeRatePanel from './ExchangeRatePanel';
 import SignatureProviderConfig from './SignatureProviderConfig';
 
 interface PaymentSettings {
@@ -289,12 +288,6 @@ export default function AdminSettings() {
       {checkPlan(plan, 'enterprise') && (
         <div style={{ marginTop: 24 }}>
           <SignatureProviderConfig />
-        </div>
-      )}
-
-      {checkPlan(plan, 'pro') && (
-        <div style={{ marginTop: 24 }}>
-          <ExchangeRatePanel />
         </div>
       )}
 

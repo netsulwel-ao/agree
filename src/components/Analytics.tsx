@@ -432,8 +432,8 @@ export default function Analytics() {
                   }}
                   itemStyle={{ color: '#0d1117', fontFamily: "'Poppins',sans-serif" }}
                   labelStyle={{ color: '#6b7280', fontFamily: "'Poppins',sans-serif" }}
-                  formatter={(value: number) => [
-                    new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(value),
+                  formatter={(value: any) => [
+                    new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(Number(value)),
                     'Valor'
                   ]}
                 />

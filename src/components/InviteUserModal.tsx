@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
-import { X, Mail, Send, CheckCircle } from 'lucide-react';
+import { X, Mail, Send, CheckCircle, AlertCircle } from 'lucide-react';
 
 interface InviteUserModalProps {
   open: boolean;
@@ -20,10 +20,19 @@ export default function InviteUserModal({ open, onClose }: InviteUserModalProps)
     e.preventDefault();
     setLoading(true);
     try {
-      const { error } = await supabase.auth.admin.inviteUserByEmail(email, {
-        data: { name: name || undefined },
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/invite-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({ email, name }),
       });
-      if (error) throw error;
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Erro ao enviar convite');
+      }
       setSent(true);
     } catch (error: any) {
       toast.error(error.message || 'Erro ao enviar convite');

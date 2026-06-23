@@ -38,14 +38,11 @@ export default function AuthenticationScreen() {
     setGlobalLoading(true);
     try {
       if (mode === 'login') {
-        console.log('[AuthScreen] Attempting login with email:', email);
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
-        console.log('[AuthScreen] Login result:', { data, error });
         if (error) throw error;
-        console.log('[AuthScreen] Login successful, navigating to:', redirectTo);
         toast.success('Login realizado com sucesso!');
         navigate(redirectTo);
       } else if (mode === 'magic') {
@@ -66,9 +63,7 @@ export default function AuthenticationScreen() {
           email,
           password,
           options: {
-            data: {
-              name,
-            },
+            data: { name },
             emailRedirectTo: window.location.origin + '/confirmado'
           }
         });
@@ -94,9 +89,7 @@ export default function AuthenticationScreen() {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: {
-          redirectTo: window.location.origin + '/login'
-        }
+        options: { redirectTo: window.location.origin + '/login' }
       });
       if (error) throw error;
     } catch (error: any) {
@@ -399,10 +392,9 @@ export default function AuthenticationScreen() {
 
             <p className="mt-6 text-xs text-slate-400 leading-relaxed">
               Ao continuar, confirmas que tens mais de 18 anos e aceitas os{' '}
-              <a href="#" className="text-slate-900 hover:underline font-medium">Termos de Serviço</a>
+              <a href="/termos" className="text-slate-900 hover:underline font-medium">Termos de Serviço</a>
               {' '}e{' '}
-              <a href="#" className="text-slate-900 hover:underline font-medium">Política de Privacidade</a> do Agree.
-              {/** TODO: add actual pages for Terms and Privacy */}
+              <a href="/privacidade" className="text-slate-900 hover:underline font-medium">Política de Privacidade</a> do Agree.
             </p>
             </>
             )}

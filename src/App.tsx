@@ -1,44 +1,50 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
-import Dashboard from './components/Dashboard';
-import ContractList from './components/ContractList';
-import ContractForm from './components/ContractForm';
-import ContractDetail from './components/ContractDetail';
-import Analytics from './components/Analytics';
-import Compliance from './components/Compliance';
-import LandingPage from './components/LandingPage';
-import AuthenticationScreen from './components/AuthenticationScreen';
 import LoadingScreen from './components/LoadingScreen';
-import RegisterSignature from './components/RegisterSignature';
-import SignatureList from './components/SignatureList';
-import CaptureSignature from './components/CaptureSignature';
-import EmailConfirmed from './components/EmailConfirmed';
-import AdminUsers from './components/AdminUsers';
-import AdminPayments from './components/AdminPayments';
-import AdminSettings from './components/AdminSettings';
-import AdminPlanHistory from './components/AdminPlanHistory';
-import ProfileSettings from './components/ProfileSettings';
-import ResetPassword from './components/ResetPassword';
-import ClientList from './components/ClientList';
-import ClientForm from './components/ClientForm';
-import ClientDetail from './components/ClientDetail';
-import MyTemplates from './components/MyTemplates';
-import ApprovalWorkflowConfig from './components/ApprovalWorkflowConfig';
-import ApprovalRequestList from './components/ApprovalRequestList';
-import ApprovalDetail from './components/ApprovalDetail';
-import InvoiceList from './components/InvoiceList';
-import InvoiceForm from './components/InvoiceForm';
-import InvoiceDetail from './components/InvoiceDetail';
-import AuditLogList from './components/AuditLogList';
-import SignatureWebhook from './components/SignatureWebhook';
-import NotificationsPage from './components/NotificationsPage';
-import BillingPortal from './components/BillingPortal';
-import CompaniesPage from './pages/admin/CompaniesPage';
-import PermissionsPage from './pages/admin/PermissionsPage';
+
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const ContractList = lazy(() => import('./components/ContractList'));
+const ContractForm = lazy(() => import('./components/ContractForm'));
+const ContractDetail = lazy(() => import('./components/ContractDetail'));
+const Analytics = lazy(() => import('./components/Analytics'));
+const Compliance = lazy(() => import('./components/Compliance'));
+const LandingPage = lazy(() => import('./components/LandingPage'));
+const AuthenticationScreen = lazy(() => import('./components/AuthenticationScreen'));
+const RegisterSignature = lazy(() => import('./components/RegisterSignature'));
+const SignatureList = lazy(() => import('./components/SignatureList'));
+const CaptureSignature = lazy(() => import('./components/CaptureSignature'));
+const EmailConfirmed = lazy(() => import('./components/EmailConfirmed'));
+const AdminUsers = lazy(() => import('./components/AdminUsers'));
+const AdminPayments = lazy(() => import('./components/AdminPayments'));
+const AdminSettings = lazy(() => import('./components/AdminSettings'));
+const AdminPlanHistory = lazy(() => import('./components/AdminPlanHistory'));
+const ProfileSettings = lazy(() => import('./components/ProfileSettings'));
+const ResetPassword = lazy(() => import('./components/ResetPassword'));
+const ClientList = lazy(() => import('./components/ClientList'));
+const ClientForm = lazy(() => import('./components/ClientForm'));
+const ClientDetail = lazy(() => import('./components/ClientDetail'));
+const MyTemplates = lazy(() => import('./components/MyTemplates'));
+const ApprovalWorkflowConfig = lazy(() => import('./components/ApprovalWorkflowConfig'));
+const ApprovalRequestList = lazy(() => import('./components/ApprovalRequestList'));
+const ApprovalDetail = lazy(() => import('./components/ApprovalDetail'));
+const InvoiceList = lazy(() => import('./components/InvoiceList'));
+const InvoiceForm = lazy(() => import('./components/InvoiceForm'));
+const InvoiceDetail = lazy(() => import('./components/InvoiceDetail'));
+const AuditLogList = lazy(() => import('./components/AuditLogList'));
+const NotificationsPage = lazy(() => import('./components/NotificationsPage'));
+const BillingPortal = lazy(() => import('./components/BillingPortal'));
+const CompaniesPage = lazy(() => import('./pages/admin/CompaniesPage'));
+const PermissionsPage = lazy(() => import('./pages/admin/PermissionsPage'));
+const Termos = lazy(() => import('./components/Termos'));
+const Privacidade = lazy(() => import('./components/Privacidade'));
 
 import { useGlobalLoading } from './contexts/GlobalLoadingContext';
 import { useAuth } from './contexts/AuthContext';
+
+function Lazy({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<LoadingScreen message="A carregar..." />}>{children}</Suspense>;
+}
 
 // ─── Guards de rota ────────────────────────────────────
 
@@ -109,57 +115,56 @@ function AppRoutes() {
 
   return (
     <Routes>
-      <Route path="/" element={<LandingPage />} />
-      <Route path="/login" element={<RedirectIfAuthenticated fallback="/dashboard"><AuthenticationScreen /></RedirectIfAuthenticated>} />
+      <Route path="/" element={<Lazy><LandingPage /></Lazy>} />
+      <Route path="/login" element={<RedirectIfAuthenticated fallback="/dashboard"><Lazy><AuthenticationScreen /></Lazy></RedirectIfAuthenticated>} />
 
       {/* Rotas protegidas (utilizador autenticado) dentro do Layout */}
       <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/contracts" element={<ContractList />} />
-        <Route path="/contracts/new" element={<ContractForm />} />
-        <Route path="/contracts/:id/edit" element={<ContractForm />} />
-        <Route path="/contracts/:id" element={<ContractDetail />} />
-        <Route path="/analytics" element={<Analytics />} />
-        <Route path="/compliance" element={<Compliance />} />
-        <Route path="/signatures" element={<SignatureList />} />
-        <Route path="/signatures/register" element={<RegisterSignature />} />
-        <Route path="/clients" element={<ClientList />} />
-        <Route path="/clients/new" element={<ClientForm />} />
-        <Route path="/clients/:id/edit" element={<ClientForm />} />
-        <Route path="/clients/:id" element={<ClientDetail />} />
-        <Route path="/templates" element={<MyTemplates />} />
-        <Route path="/invoices" element={<InvoiceList />} />
-        <Route path="/invoices/new" element={<InvoiceForm />} />
-        <Route path="/invoices/:id" element={<InvoiceDetail />} />
-        <Route path="/invoices/:id/edit" element={<InvoiceForm />} />
-        <Route path="/approvals" element={<ApprovalRequestList />} />
-        <Route path="/approvals/:id" element={<ApprovalDetail />} />
-        <Route path="/profile" element={<ProfileSettings />} />
-        <Route path="/notifications" element={<NotificationsPage />} />
-        <Route path="/billing" element={<BillingPortal />} />
+        <Route path="/dashboard" element={<Lazy><Dashboard /></Lazy>} />
+        <Route path="/contracts" element={<Lazy><ContractList /></Lazy>} />
+        <Route path="/contracts/new" element={<Lazy><ContractForm /></Lazy>} />
+        <Route path="/contracts/:id/edit" element={<Lazy><ContractForm /></Lazy>} />
+        <Route path="/contracts/:id" element={<Lazy><ContractDetail /></Lazy>} />
+        <Route path="/analytics" element={<Lazy><Analytics /></Lazy>} />
+        <Route path="/compliance" element={<Lazy><Compliance /></Lazy>} />
+        <Route path="/signatures" element={<Lazy><SignatureList /></Lazy>} />
+        <Route path="/signatures/register" element={<Lazy><RegisterSignature /></Lazy>} />
+        <Route path="/clients" element={<Lazy><ClientList /></Lazy>} />
+        <Route path="/clients/new" element={<Lazy><ClientForm /></Lazy>} />
+        <Route path="/clients/:id/edit" element={<Lazy><ClientForm /></Lazy>} />
+        <Route path="/clients/:id" element={<Lazy><ClientDetail /></Lazy>} />
+        <Route path="/templates" element={<Lazy><MyTemplates /></Lazy>} />
+        <Route path="/invoices" element={<Lazy><InvoiceList /></Lazy>} />
+        <Route path="/invoices/new" element={<Lazy><InvoiceForm /></Lazy>} />
+        <Route path="/invoices/:id" element={<Lazy><InvoiceDetail /></Lazy>} />
+        <Route path="/invoices/:id/edit" element={<Lazy><InvoiceForm /></Lazy>} />
+        <Route path="/approvals" element={<Lazy><ApprovalRequestList /></Lazy>} />
+        <Route path="/approvals/:id" element={<Lazy><ApprovalDetail /></Lazy>} />
+        <Route path="/profile" element={<Lazy><ProfileSettings /></Lazy>} />
+        <Route path="/notifications" element={<Lazy><NotificationsPage /></Lazy>} />
+        <Route path="/billing" element={<Lazy><BillingPortal /></Lazy>} />
 
         {/* Rotas de administração — requerem role=admin */}
-        <Route path="/admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
-        <Route path="/admin/payments" element={<AdminRoute><AdminPayments /></AdminRoute>} />
-        <Route path="/admin/settings" element={<AdminRoute><AdminSettings /></AdminRoute>} />
-        <Route path="/admin/plan-history" element={<AdminRoute><AdminPlanHistory /></AdminRoute>} />
-        <Route path="/admin/approval-workflows" element={<AdminRoute><ApprovalWorkflowConfig /></AdminRoute>} />
-        <Route path="/admin/audit-logs" element={<AdminRoute><AuditLogList /></AdminRoute>} />
+        <Route path="/admin/users" element={<AdminRoute><Lazy><AdminUsers /></Lazy></AdminRoute>} />
+        <Route path="/admin/payments" element={<AdminRoute><Lazy><AdminPayments /></Lazy></AdminRoute>} />
+        <Route path="/admin/settings" element={<AdminRoute><Lazy><AdminSettings /></Lazy></AdminRoute>} />
+        <Route path="/admin/plan-history" element={<AdminRoute><Lazy><AdminPlanHistory /></Lazy></AdminRoute>} />
+        <Route path="/admin/approval-workflows" element={<AdminRoute><Lazy><ApprovalWorkflowConfig /></Lazy></AdminRoute>} />
+        <Route path="/admin/audit-logs" element={<AdminRoute><Lazy><AuditLogList /></Lazy></AdminRoute>} />
 
         {/* Rotas de Super Admin — requerem is_super_admin=true */}
-        <Route path="/admin/companies" element={<SuperAdminRoute><CompaniesPage /></SuperAdminRoute>} />
-        <Route path="/admin/permissions" element={<SuperAdminRoute><PermissionsPage /></SuperAdminRoute>} />
+        <Route path="/admin/companies" element={<SuperAdminRoute><Lazy><CompaniesPage /></Lazy></SuperAdminRoute>} />
+        <Route path="/admin/permissions" element={<SuperAdminRoute><Lazy><PermissionsPage /></Lazy></SuperAdminRoute>} />
       </Route>
 
       {/* Captura de assinatura via QR — standalone, sem layout */}
-      <Route path="/capture-signature/:sessionId" element={<CaptureSignature />} />
+      <Route path="/capture-signature/:sessionId" element={<Lazy><CaptureSignature /></Lazy>} />
 
       {/* Confirmação de email / recuperação de password — standalone */}
-      <Route path="/confirmado" element={<EmailConfirmed />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
-
-      {/* Webhook de fornecedor de assinaturas */}
-      <Route path="/signature-webhook" element={<SignatureWebhook />} />
+      <Route path="/confirmado" element={<Lazy><EmailConfirmed /></Lazy>} />
+      <Route path="/reset-password" element={<Lazy><ResetPassword /></Lazy>} />
+      <Route path="/termos" element={<Lazy><Termos /></Lazy>} />
+      <Route path="/privacidade" element={<Lazy><Privacidade /></Lazy>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

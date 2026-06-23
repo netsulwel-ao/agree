@@ -12,8 +12,11 @@ export default function ClientList() {
   const navigate = useNavigate();
   const { user, plan, isAdmin } = useAuth();
   const { openCheckout } = useCheckoutModal();
-  const { data: clients = [], isLoading } = useClients();
   const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
+  const { data: clientsData, isLoading } = useClients(page, searchTerm);
+  const clients = clientsData?.data ?? [];
+  const totalPages = Math.max(1, Math.ceil((clientsData?.count ?? 0) / 20));
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState('');
 
@@ -276,6 +279,35 @@ export default function ClientList() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div style={{
+            display: 'flex', justifyContent: 'center', alignItems: 'center',
+            gap: 12, padding: '16px 24px', borderTop: '1px solid #e2e5e9',
+            background: 'rgba(255,255,255,0.6)'
+          }}>
+            <button
+              disabled={page <= 1}
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              style={{
+                padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: page > 1 ? 'pointer' : 'default',
+                border: '1.5px solid #e2e5e9', background: page > 1 ? '#fff' : '#f7f9fb',
+                color: page > 1 ? '#0d1117' : '#9ca3af', fontFamily: "'Poppins',sans-serif"
+              }}
+            >Anterior</button>
+            <span style={{ fontSize: 13, color: '#6b7280' }}>Página {page} de {totalPages}</span>
+            <button
+              disabled={page >= totalPages}
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              style={{
+                padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: page < totalPages ? 'pointer' : 'default',
+                border: '1.5px solid #e2e5e9', background: page < totalPages ? '#fff' : '#f7f9fb',
+                color: page < totalPages ? '#0d1117' : '#9ca3af', fontFamily: "'Poppins',sans-serif"
+              }}
+            >Seguinte</button>
+          </div>
+        )}
       </div>
     </div>
   );

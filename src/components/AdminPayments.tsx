@@ -121,7 +121,7 @@ export default function AdminPayments() {
     }
 
     setRequests(prev =>
-      prev.map(r => (r.id === req.id ? { ...r, status: 'approved' as const, approved_by: user?.id } : r))
+      prev.map(r => (r.id === req.id ? { ...r, status: 'approved' as const, approved_by: user?.id ?? null } : r))
     );
     setProcessingId(null);
   };
@@ -130,7 +130,7 @@ export default function AdminPayments() {
     setProcessingId(req.id);
     const { error } = await supabase
       .from('payment_requests')
-      .update({ status: 'rejected', approved_by: user?.id })
+      .update({ status: 'rejected', approved_by: user?.id ?? null })
       .eq('id', req.id);
 
     if (error) {
@@ -147,7 +147,7 @@ export default function AdminPayments() {
         reference_id: req.id,
       });
       setRequests(prev =>
-        prev.map(r => (r.id === req.id ? { ...r, status: 'rejected' as const, approved_by: user?.id } : r))
+        prev.map(r => (r.id === req.id ? { ...r, status: 'rejected' as const, approved_by: user?.id ?? null } : r))
       );
     }
     setProcessingId(null);

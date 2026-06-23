@@ -105,7 +105,7 @@ export default function SignatureProviderConfig() {
                   <div style={{ position: 'relative' }}>
                     <input
                       type={f.secret && !showSecret ? 'password' : 'text'}
-                      value={p.config[f.key] || ''}
+                      value={(p.config as any)[f.key] || ''}
                       onChange={e => updateConfig(p.id, f.key, e.target.value)}
                       placeholder={f.placeholder}
                       style={{

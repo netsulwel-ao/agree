@@ -116,7 +116,7 @@ const providers: Record<string, ProviderApi> = {
       });
       if (!res.ok) throw new Error(`DocuSign error: ${await res.text()}`);
       const data = await res.json();
-      return { requestId: data.envelopeId, envelopeUrl: null };
+      return { requestId: data.envelopeId };
     },
 
     async getStatus({ requestId, config }) {
@@ -126,24 +126,24 @@ const providers: Record<string, ProviderApi> = {
       if (!res.ok) throw new Error(`DocuSign error: ${await res.text()}`);
       const data = await res.json();
       return {
-        status: mapDocusignStatus(data.status),
-        signers: [],
+        status: data.status === 'completed' ? 'signed' : data.status === 'declined' ? 'declined' : data.status,
+        signers: (data.recipients?.signers || []).map((s: any) => ({
+          name: s.name,
+          email: s.email,
+          status: s.status === 'signed' ? 'signed' as const : s.status === 'declined' ? 'declined' as const : 'awaiting' as const,
+          signed_at: s.signedDateTime,
+        })),
       };
     },
 
     async voidEnvelope({ requestId, config, reason }) {
-      const res = await fetch(`${config.base_url}/v2.1/accounts/${config.account_id}/envelopes/${requestId}`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${config.api_key}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status: 'voided', voidedReason: reason || 'Cancelled' }),
+      await fetch(`${config.base_url}/v2.1/accounts/${config.account_id}/envelopes/${requestId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${config.api_key}` },
+        body: JSON.stringify({ voidedReason: reason || 'Voided by user' }),
       });
-      if (!res.ok) throw new Error(`DocuSign error: ${await res.text()}`);
     },
   },
-
   hellosign: {
     async sendEnvelope({ title, content, signers, config }) {
       const formData = new FormData();
@@ -233,7 +233,7 @@ const providers: Record<string, ProviderApi> = {
       });
       if (!inviteRes.ok) throw new Error(`SignNow invite error: ${await inviteRes.text()}`);
       const invite = await inviteRes.json();
-      return { requestId: doc.id, envelopeUrl: null };
+      return { requestId: doc.id };
     },
 
     async getStatus({ requestId, config }) {
@@ -303,14 +303,6 @@ export async function voidProviderRequest(
 }
 
 // ─── Helpers ───────────────────────────────────────────
-
-function mapDocusignStatus(s: string): string {
-  const map: Record<string, string> = {
-    sent: 'sent', delivered: 'viewed', completed: 'signed',
-    declined: 'declined', voided: 'voided', signing: 'viewed',
-  };
-  return map[s] || s;
-}
 
 function mapHellosignStatus(complete: boolean, declined: boolean): string {
   if (complete) return 'signed';

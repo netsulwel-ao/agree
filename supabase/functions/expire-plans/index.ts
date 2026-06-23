@@ -17,7 +17,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const APP_URL = Deno.env.get('APP_URL') || 'https://agree-tqzf.onrender.com';
+const APP_URL = Deno.env.get('APP_URL') || 'https://agree.netsulwel.tech';
 const SMTP_HOST = Deno.env.get('SMTP_HOST');
 const SMTP_PORT = Deno.env.get('SMTP_PORT') || '587';
 const SMTP_USER = Deno.env.get('SMTP_USER');

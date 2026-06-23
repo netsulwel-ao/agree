@@ -26,7 +26,7 @@ const smtpHost = process.env.SMTP_HOST;
 const smtpPort = process.env.SMTP_PORT;
 const smtpUser = process.env.SMTP_USER;
 const smtpPass = process.env.SMTP_PASS;
-const emailFrom = process.env.EMAIL_FROM || 'Agree <noreply@agree-tqzf.onrender.com>';
+const emailFrom = process.env.EMAIL_FROM || 'Agree <noreply@agree.netsulwel.tech>';
 
 function getTransporter() {
   if (!smtpHost || !smtpUser || !smtpPass) return null;

@@ -90,6 +90,7 @@ export default function MyTemplates() {
     setVariables([]);
     setEditingId(null);
     setShowCreate(false);
+    setShowSource(false);
   };
 
   const openEdit = (t: Template) => {
@@ -263,15 +264,26 @@ export default function MyTemplates() {
               <div style={{ marginBottom: 16 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#6b7280' }}>Conteúdo *</label>
-                  <button type="button" onClick={() => setShowSource(v => !v)}
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px',
-                      background: showSource ? '#0d1117' : '#f0f2f4', border: 'none',
-                      fontSize: 11, fontWeight: 600, cursor: 'pointer', color: showSource ? '#fff' : '#6b7280'
-                    }}
-                  >
-                    <Code2 size={13} /> {showSource ? 'Visual' : 'HTML'}
-                  </button>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button type="button" onClick={() => setShowSource(false)}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px',
+                        background: !showSource ? '#0d1117' : '#f0f2f4', border: 'none',
+                        fontSize: 11, fontWeight: 600, cursor: 'pointer', color: !showSource ? '#fff' : '#6b7280'
+                      }}
+                    >
+                      Pré-visualizar
+                    </button>
+                    <button type="button" onClick={() => setShowSource(true)}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px',
+                        background: showSource ? '#0d1117' : '#f0f2f4', border: 'none',
+                        fontSize: 11, fontWeight: 600, cursor: 'pointer', color: showSource ? '#fff' : '#6b7280'
+                      }}
+                    >
+                      <Code2 size={13} /> HTML
+                    </button>
+                  </div>
                 </div>
                 {showSource ? (
                   <textarea value={content} onChange={e => setContent(e.target.value)}
@@ -285,7 +297,14 @@ export default function MyTemplates() {
                     onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
                   />
                 ) : (
-                  <RichTextEditor content={content} onChange={setContent} placeholder="Escreva o conteúdo do contrato... Use {{nome_variavel}} para campos dinâmicos" />
+                  <iframe
+                    srcDoc={content}
+                    title="Pré-visualização do modelo"
+                    style={{
+                      width: '100%', height: 600, border: '1.5px solid #e2e5e9',
+                      background: '#fff'
+                    }}
+                  />
                 )}
               </div>
 

@@ -41,6 +41,15 @@ export default function MyTemplates() {
   const [variables, setVariables] = useState<TemplateField[]>([]);
   const [saving, setSaving] = useState(false);
   const [showSource, setShowSource] = useState(false);
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
+
+  const replaceVars = (html: string, vals: Record<string, string>) => {
+    let result = html;
+    for (const [key, val] of Object.entries(vals)) {
+      result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), val || `<span style="color:#ccc;border-bottom:1px dashed #ccc;">{{${key}}}</span>`);
+    }
+    return result;
+  };
 
   const filtered = templates.filter(t =>
     !search || t.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -91,6 +100,7 @@ export default function MyTemplates() {
     setEditingId(null);
     setShowCreate(false);
     setShowSource(false);
+    setFieldValues({});
   };
 
   const openEdit = (t: Template) => {
@@ -99,6 +109,7 @@ export default function MyTemplates() {
     setCategory(t.category);
     setContent(t.content);
     setVariables(t.variables || []);
+    setFieldValues({});
     setEditingId(t.id);
     setShowCreate(true);
   };
@@ -298,7 +309,7 @@ export default function MyTemplates() {
                   />
                 ) : (
                   <iframe
-                    srcDoc={content}
+                    srcDoc={replaceVars(content, fieldValues)}
                     title="Pré-visualização do modelo"
                     style={{
                       width: '100%', height: 600, border: '1.5px solid #e2e5e9',
@@ -362,6 +373,55 @@ export default function MyTemplates() {
                   </div>
                 ))}
               </div>
+
+              {/* Test values */}
+              {variables.length > 0 && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    <div style={{ width: 3, height: 14, background: '#0d1117', borderRadius: 2 }} />
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#0d1117' }}>Testar campos — preenche para ver o preview</span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    {variables.map(v => (
+                      <div key={v.name}>
+                        <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#6b7280', marginBottom: 4 }}>
+                          {v.label || v.name} {v.required && <span style={{ color: '#ef4444' }}>*</span>}
+                        </label>
+                        {v.type === 'textarea' ? (
+                          <textarea value={fieldValues[v.name] || ''} onChange={e => setFieldValues(prev => ({ ...prev, [v.name]: e.target.value }))}
+                            rows={3}
+                            style={{
+                              width: '100%', padding: '8px 10px', fontSize: 13, border: '1.5px solid #e2e5e9',
+                              outline: 'none', fontFamily: "'Poppins',sans-serif", color: '#0d1117', resize: 'vertical'
+                            }}
+                            onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
+                            onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
+                          />
+                        ) : v.type === 'date' ? (
+                          <input type="date" value={fieldValues[v.name] || ''} onChange={e => setFieldValues(prev => ({ ...prev, [v.name]: e.target.value }))}
+                            style={{
+                              width: '100%', padding: '8px 10px', fontSize: 13, border: '1.5px solid #e2e5e9',
+                              outline: 'none', fontFamily: "'Poppins',sans-serif", color: '#0d1117'
+                            }}
+                            onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
+                            onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
+                          />
+                        ) : (
+                          <input type="text" value={fieldValues[v.name] || ''} onChange={e => setFieldValues(prev => ({ ...prev, [v.name]: e.target.value }))}
+                            placeholder={v.label || v.name}
+                            style={{
+                              width: '100%', padding: '8px 10px', fontSize: 13, border: '1.5px solid #e2e5e9',
+                              outline: 'none', fontFamily: "'Poppins',sans-serif", color: '#0d1117'
+                            }}
+                            onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
+                            onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div style={{ display: 'flex', gap: 10 }}>
                 <button onClick={handleSave} disabled={saving}

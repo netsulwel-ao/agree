@@ -411,51 +411,67 @@ export default function ContractForm() {
         const val = fieldValues[f.name] || '';
         html = html.replace(new RegExp(`\\{\\{${f.name}\\}\\}`, 'g'), val);
       });
-
-      // Render HTML in off-screen div, capture with html2canvas, generate PDF
-      const container = document.createElement('div');
-      container.style.cssText = 'position:fixed;left:-9999px;top:0;width:820px;z-index:-1';
-      container.innerHTML = html;
-      document.body.appendChild(container);
-
-      // Wait for fonts/images to render
-      await new Promise(r => setTimeout(r, 500));
-
-      const { default: html2canvas } = await import('html2canvas');
-      const { default: jsPDF } = await import('jspdf');
-
-      const canvas = await html2canvas(container, {
-        scale: 2, useCORS: true, logging: false,
-        width: 820, height: container.scrollHeight,
-      });
-      document.body.removeChild(container);
-
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-
-      let heightLeft = pdfHeight;
-      let position = 0;
-      const pageHeight = pdf.internal.pageSize.getHeight();
-
-      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
-      heightLeft -= pageHeight;
-
-      while (heightLeft > 0) {
-        position = heightLeft - pdfHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
-        heightLeft -= pageHeight;
-      }
-
-      pdf.save(`${selectedTemplate.name.replace(/\s+/g, '_')}.pdf`);
-      toast.success('PDF exportado com sucesso!');
-    } catch (err) {
+      await generatePdf(html, selectedTemplate.name);
+    } catch {
       toast.error('Erro ao exportar PDF');
     } finally {
       setExportingPdf(false);
     }
+  };
+
+  const handleExportContent = async () => {
+    if (!formData.content?.trim()) {
+      toast.error('O contrato está vazio');
+      return;
+    }
+    setExportingPdf(true);
+    try {
+      await generatePdf(formData.content, formData.title || 'contrato');
+    } catch {
+      toast.error('Erro ao exportar PDF');
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
+  const generatePdf = async (html: string, filename: string) => {
+    const container = document.createElement('div');
+    container.style.cssText = 'position:fixed;left:-9999px;top:0;width:820px;z-index:-1';
+    container.innerHTML = html;
+    document.body.appendChild(container);
+
+    await new Promise(r => setTimeout(r, 500));
+
+    const { default: html2canvas } = await import('html2canvas');
+    const { default: jsPDF } = await import('jspdf');
+
+    const canvas = await html2canvas(container, {
+      scale: 2, useCORS: true, logging: false,
+      width: 820, height: container.scrollHeight,
+    });
+    document.body.removeChild(container);
+
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+    const pageHeight = pdf.internal.pageSize.getHeight();
+
+    let heightLeft = pdfHeight;
+    let position = 0;
+
+    pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
+    heightLeft -= pageHeight;
+
+    while (heightLeft > 0) {
+      position = heightLeft - pdfHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
+      heightLeft -= pageHeight;
+    }
+
+    pdf.save(`${filename.replace(/\s+/g, '_')}.pdf`);
+    toast.success('PDF exportado com sucesso!');
   };
 
   return (
@@ -1063,7 +1079,7 @@ export default function ContractForm() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => toast.info('Exportação removida')}
+                        onClick={handleExportContent}
                         style={{
                           display: 'inline-flex', alignItems: 'center', gap: 6,
                           padding: '6px 14px', fontSize: 12, fontWeight: 600,

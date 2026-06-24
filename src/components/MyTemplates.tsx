@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUserTemplates, useDeleteTemplate, useCreateTemplate, useUpdateTemplate } from '../hooks/useTemplates';
 import { useAuth } from '../contexts/AuthContext';
@@ -38,10 +38,21 @@ export default function MyTemplates() {
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
   const [content, setContent] = useState('');
-  const [variables, setVariables] = useState<TemplateField[]>([]);
   const [saving, setSaving] = useState(false);
   const [showSource, setShowSource] = useState(false);
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
+
+  const detectedVars = useMemo(() => {
+    const matches = content.match(/\{\{(\w+)\}\}/g);
+    if (!matches) return [];
+    const unique = [...new Set(matches.map(m => m.replace(/\{|\}/g, '')))];
+    return unique.map(name => ({
+      name,
+      label: name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+      type: 'text' as const,
+      required: true,
+    }));
+  }, [content]);
 
   const replaceVars = (html: string, vals: Record<string, string>) => {
     let result = html;
@@ -96,7 +107,6 @@ export default function MyTemplates() {
     setDescription('');
     setCategory('');
     setContent('');
-    setVariables([]);
     setEditingId(null);
     setShowCreate(false);
     setShowSource(false);
@@ -108,7 +118,6 @@ export default function MyTemplates() {
     setDescription(t.description || '');
     setCategory(t.category);
     setContent(t.content);
-    setVariables(t.variables || []);
     setFieldValues({});
     setEditingId(t.id);
     setShowCreate(true);
@@ -120,6 +129,10 @@ export default function MyTemplates() {
       return;
     }
     setSaving(true);
+    const varsToSave: TemplateField[] = detectedVars.map(v => ({
+      ...v,
+      type: v.name.toLowerCase().includes('data') ? 'date' as const : v.name.toLowerCase().includes('valor') || v.name.toLowerCase().includes('preco') ? 'currency' as const : 'text' as const,
+    }));
     try {
       if (editingId) {
         await updateTemplate.mutateAsync({
@@ -128,7 +141,7 @@ export default function MyTemplates() {
           description: description.trim(),
           category: category.trim(),
           content,
-          variables,
+          variables: varsToSave,
         });
         toast.success('Modelo actualizado');
       } else {
@@ -137,7 +150,7 @@ export default function MyTemplates() {
           description: description.trim(),
           category: category.trim(),
           content,
-          variables,
+          variables: varsToSave,
         });
         toast.success('Modelo criado');
       }
@@ -155,18 +168,6 @@ export default function MyTemplates() {
       onSuccess: () => toast.success('Modelo eliminado'),
       onError: () => toast.error('Erro ao eliminar modelo'),
     });
-  };
-
-  const addVariable = () => {
-    setVariables(prev => [...prev, { name: '', label: '', type: 'text', required: false }]);
-  };
-
-  const updateVariable = (idx: number, field: Partial<TemplateField>) => {
-    setVariables(prev => prev.map((v, i) => i === idx ? { ...v, ...field } : v));
-  };
-
-  const removeVariable = (idx: number) => {
-    setVariables(prev => prev.filter((_, i) => i !== idx));
   };
 
   const containerStyle: React.CSSProperties = {
@@ -319,108 +320,52 @@ export default function MyTemplates() {
                 )}
               </div>
 
-              {/* Variables */}
-              <div style={{ marginBottom: 20 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: '#6b7280' }}>Variáveis (campos dinâmicos)</span>
-                  <button onClick={addVariable}
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 6,
-                      padding: '6px 12px', background: '#f0f2f4', border: 'none',
-                      fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#0d1117'
-                    }}
-                  >
-                    <Plus size={14} /> Adicionar Campo
-                  </button>
-                </div>
-                {variables.length === 0 && (
-                  <p style={{ fontSize: 12, color: '#9ca3af' }}>Nenhuma variável definida. Usa <code>{'{{var_name}}'}</code> no conteúdo.</p>
-                )}
-                {variables.map((v, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-                    <input type="text" value={v.name} onChange={e => updateVariable(i, { name: e.target.value })}
-                      placeholder="var_name" style={{
-                        width: 140, padding: '8px 10px', fontSize: 12, border: '1.5px solid #e2e5e9',
-                        outline: 'none', fontFamily: "'Courier New', monospace", color: '#0d1117'
-                      }}
-                    />
-                    <input type="text" value={v.label} onChange={e => updateVariable(i, { label: e.target.value })}
-                      placeholder="Rótulo" style={{
-                        flex: 1, padding: '8px 10px', fontSize: 12, border: '1.5px solid #e2e5e9',
-                        outline: 'none', fontFamily: "'Poppins',sans-serif", color: '#0d1117'
-                      }}
-                    />
-                    <select value={v.type} onChange={e => updateVariable(i, { type: e.target.value as any })}
-                      style={{
-                        width: 100, padding: '8px 10px', fontSize: 12, border: '1.5px solid #e2e5e9',
-                        outline: 'none', fontFamily: "'Poppins',sans-serif", color: '#0d1117', background: '#fff'
-                      }}
-                    >
-                      <option value="text">Texto</option>
-                      <option value="textarea">Área</option>
-                      <option value="date">Data</option>
-                      <option value="currency">Valor</option>
-                    </select>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#6b7280', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                      <input type="checkbox" checked={v.required} onChange={e => updateVariable(i, { required: e.target.checked })} />
-                      Obrigatório
-                    </label>
-                    <button onClick={() => removeVariable(i)}
-                      style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 4 }}
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              {/* Test values */}
-              {variables.length > 0 && (
+              {/* Auto-detected fields */}
+              {detectedVars.length > 0 && (
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                     <div style={{ width: 3, height: 14, background: '#0d1117', borderRadius: 2 }} />
-                    <span style={{ fontSize: 12, fontWeight: 600, color: '#0d1117' }}>Testar campos — preenche para ver o preview</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#0d1117' }}>Preenche os campos para testar o modelo</span>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    {variables.map(v => (
-                      <div key={v.name}>
-                        <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#6b7280', marginBottom: 4 }}>
-                          {v.label || v.name} {v.required && <span style={{ color: '#ef4444' }}>*</span>}
-                        </label>
-                        {v.type === 'textarea' ? (
-                          <textarea value={fieldValues[v.name] || ''} onChange={e => setFieldValues(prev => ({ ...prev, [v.name]: e.target.value }))}
-                            rows={3}
-                            style={{
-                              width: '100%', padding: '8px 10px', fontSize: 13, border: '1.5px solid #e2e5e9',
-                              outline: 'none', fontFamily: "'Poppins',sans-serif", color: '#0d1117', resize: 'vertical'
-                            }}
-                            onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
-                            onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
-                          />
-                        ) : v.type === 'date' ? (
-                          <input type="date" value={fieldValues[v.name] || ''} onChange={e => setFieldValues(prev => ({ ...prev, [v.name]: e.target.value }))}
-                            style={{
-                              width: '100%', padding: '8px 10px', fontSize: 13, border: '1.5px solid #e2e5e9',
-                              outline: 'none', fontFamily: "'Poppins',sans-serif", color: '#0d1117'
-                            }}
-                            onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
-                            onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
-                          />
-                        ) : (
-                          <input type="text" value={fieldValues[v.name] || ''} onChange={e => setFieldValues(prev => ({ ...prev, [v.name]: e.target.value }))}
-                            placeholder={v.label || v.name}
-                            style={{
-                              width: '100%', padding: '8px 10px', fontSize: 13, border: '1.5px solid #e2e5e9',
-                              outline: 'none', fontFamily: "'Poppins',sans-serif", color: '#0d1117'
-                            }}
-                            onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
-                            onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
-                          />
-                        )}
-                      </div>
-                    ))}
+                    {detectedVars.map(v => {
+                      const isDate = v.name.toLowerCase().includes('data');
+                      const isCurrency = v.name.toLowerCase().includes('valor') || v.name.toLowerCase().includes('preco');
+                      return (
+                        <div key={v.name}>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: '#6b7280', marginBottom: 4 }}>
+                            {v.label} <span style={{ color: '#ef4444' }}>*</span>
+                          </label>
+                          {isDate ? (
+                            <input type="date" value={fieldValues[v.name] || ''} onChange={e => setFieldValues(prev => ({ ...prev, [v.name]: e.target.value }))}
+                              style={{
+                                width: '100%', padding: '8px 10px', fontSize: 13, border: '1.5px solid #e2e5e9',
+                                outline: 'none', fontFamily: "'Poppins',sans-serif", color: '#0d1117'
+                              }}
+                              onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
+                              onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
+                            />
+                          ) : (
+                            <input type="text" value={fieldValues[v.name] || ''} onChange={e => setFieldValues(prev => ({ ...prev, [v.name]: e.target.value }))}
+                              placeholder={v.label}
+                              style={{
+                                width: '100%', padding: '8px 10px', fontSize: 13, border: '1.5px solid #e2e5e9',
+                                outline: 'none', fontFamily: "'Poppins',sans-serif", color: '#0d1117'
+                              }}
+                              onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
+                              onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
+              )}
+              {detectedVars.length === 0 && !showSource && (
+                <p style={{ fontSize: 12, color: '#9ca3af', marginBottom: 16 }}>
+                  Usa <code style={{ background: '#f0f2f4', padding: '2px 6px' }}>{'{{nome_variavel}}'}</code> no conteúdo para criar campos dinâmicos
+                </p>
               )}
 
               <div style={{ display: 'flex', gap: 10 }}>

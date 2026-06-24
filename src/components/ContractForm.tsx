@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { 
   Save, 
@@ -38,6 +38,7 @@ export default function ContractForm() {
   const { id: editId } = useParams<{ id: string }>();
   const isEditing = !!editId;
   const [analyzing, setAnalyzing] = useState(false);
+  const printRef = useRef<HTMLDivElement>(null);
   const [generating, setGenerating] = useState(false);
   const [extractingPdf, setExtractingPdf] = useState(false);
   const [ocrRunning, setOcrRunning] = useState(false);
@@ -400,7 +401,7 @@ export default function ContractForm() {
       .filter((f: FieldDef) => f.required && !fieldValues[f.name]?.trim())
       .map((f: FieldDef) => f.label);
     if (missing.length > 0) {
-      toast.error(`Campos obrigat\u00f3rios: ${missing.join(', ')}`);
+      toast.error(`Campos obrigatórios: ${missing.join(', ')}`);
       return;
     }
     setExportingPdf(true);
@@ -410,7 +411,46 @@ export default function ContractForm() {
         const val = fieldValues[f.name] || '';
         html = html.replace(new RegExp(`\\{\\{${f.name}\\}\\}`, 'g'), val);
       });
-      toast.info('Exportação removida');
+
+      // Render HTML in off-screen div, capture with html2canvas, generate PDF
+      const container = document.createElement('div');
+      container.style.cssText = 'position:fixed;left:-9999px;top:0;width:820px;z-index:-1';
+      container.innerHTML = html;
+      document.body.appendChild(container);
+
+      // Wait for fonts/images to render
+      await new Promise(r => setTimeout(r, 500));
+
+      const { default: html2canvas } = await import('html2canvas');
+      const { default: jsPDF } = await import('jspdf');
+
+      const canvas = await html2canvas(container, {
+        scale: 2, useCORS: true, logging: false,
+        width: 820, height: container.scrollHeight,
+      });
+      document.body.removeChild(container);
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+      let heightLeft = pdfHeight;
+      let position = 0;
+      const pageHeight = pdf.internal.pageSize.getHeight();
+
+      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft > 0) {
+        position = heightLeft - pdfHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
+        heightLeft -= pageHeight;
+      }
+
+      pdf.save(`${selectedTemplate.name.replace(/\s+/g, '_')}.pdf`);
+      toast.success('PDF exportado com sucesso!');
     } catch (err) {
       toast.error('Erro ao exportar PDF');
     } finally {

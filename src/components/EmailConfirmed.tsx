@@ -19,8 +19,15 @@ export default function EmailConfirmed() {
       const type = hashParams.get('type');
 
       if (!accessToken) {
-        setStatus('error');
-        setErrorMsg('Link de confirmação inválido ou expirado.');
+        // O supabase-js pode já ter consumido o hash (detectSessionInUrl limpa o URL).
+        // Nesse caso a sessão já está estabelecida — confirma antes de dar erro.
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          setStatus('success');
+        } else {
+          setStatus('error');
+          setErrorMsg('Link de confirmação inválido ou expirado.');
+        }
         return;
       }
 

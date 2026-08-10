@@ -141,10 +141,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Utilizador bloqueado — faz logout imediatamente antes de actualizar qualquer estado
       if (data.is_blocked === true) {
         // Clear all cached profile data
-      if (user) {
-        localStorage.removeItem('profile_');
-      }
-      // Clear all auth-related localStorage
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('profile_')) localStorage.removeItem(key);
+        });
+        // Clear all auth-related localStorage
       localStorage.removeItem('sb-auth-token');
       localStorage.removeItem('sb-refresh-token');
       await supabase.auth.signOut();
@@ -257,9 +257,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }).catch(async () => {
       // Sess�o corrompida (ex: refresh token inv�lido) → limpa localStorage
       try { // Clear all cached profile data
-      if (user) {
-        localStorage.removeItem('profile_');
-      }
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('profile_')) localStorage.removeItem(key);
+        });
       // Clear all auth-related localStorage
       localStorage.removeItem('sb-auth-token');
       localStorage.removeItem('sb-refresh-token');
@@ -281,9 +281,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setGlobalLoading(true);
     try {
       // Clear all cached profile data
-      if (user) {
-        localStorage.removeItem('profile_');
-      }
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('profile_')) localStorage.removeItem(key);
+      });
       // Clear all auth-related localStorage
       localStorage.removeItem('sb-auth-token');
       localStorage.removeItem('sb-refresh-token');

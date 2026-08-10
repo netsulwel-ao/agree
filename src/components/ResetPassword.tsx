@@ -15,19 +15,53 @@ export default function ResetPassword() {
   const location = useLocation();
 
   useEffect(() => {
+    let settled = false;
+    let errorTimer: ReturnType<typeof setTimeout>;
+
+    const showForm = () => {
+      settled = true;
+      setStep('form');
+    };
+
+    const showError = (msg: string) => {
+      if (settled) return;
+      settled = true;
+      setStep('error');
+      setErrorMsg(msg);
+    };
+
+    // 1) O hash pode ainda estar no URL (supabase ainda não o consumiu)
     const hashParams = new URLSearchParams(location.hash.replace('#', '?'));
     const type = hashParams.get('type');
     const accessToken = hashParams.get('access_token');
 
     if (type === 'recovery' && accessToken) {
-      setStep('form');
-    } else if (type === 'recovery' && !accessToken) {
-      setStep('error');
-      setErrorMsg('Link de recuperação inválido ou expirado.');
-    } else {
-      setStep('error');
-      setErrorMsg('Link inválido. Usa o link que recebeste no email.');
+      showForm();
+      return;
     }
+
+    // 2) Com detectSessionInUrl, o supabase-js consome o hash e limpa o URL.
+    //    Nesse caso a sessão já está estabelecida — confirma via getSession.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (settled) return;
+      if (session) {
+        showForm();
+        return;
+      }
+      // 3) Janela para o evento PASSWORD_RECOVERY chegar antes de dar erro
+      errorTimer = setTimeout(() => {
+        showError('Link de recuperação inválido ou expirado.');
+      }, 2000);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') showForm();
+    });
+
+    return () => {
+      clearTimeout(errorTimer);
+      subscription.unsubscribe();
+    };
   }, [location.hash]);
 
   const handleReset = async (e: React.FormEvent) => {

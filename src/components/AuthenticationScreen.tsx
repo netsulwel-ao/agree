@@ -4,9 +4,9 @@ import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import {
-  ArrowRight, ArrowLeft, Shield,
-  Bell, Zap, CheckCircle, BarChart3,
-  Mail, RotateCw
+  ArrowRight, ArrowLeft,
+  CheckCircle,
+  Mail
 } from 'lucide-react';
 import { useGlobalLoading } from '../contexts/GlobalLoadingContext';
 import AgreeLogo from '../Agree-logo.svg';
@@ -24,13 +24,6 @@ export default function AuthenticationScreen() {
   const [searchParams] = useSearchParams();
   const redirectTo = searchParams.get('redirect') || '/dashboard';
   const { setIsLoading: setGlobalLoading } = useGlobalLoading();
-
-  const features = [
-    { icon: <Shield size={20} />, title: 'Segurança Total', desc: 'Criptografia de ponta a ponta, conforme ICP-Brasil e legislação angolana.' },
-    { icon: <Bell size={20} />, title: 'Alertas Inteligentes', desc: 'Nunca mais perca um prazo de renovação ou vencimento de contrato.' },
-    { icon: <Zap size={20} />, title: 'IA Ajudante', desc: 'Extração automática de dados, sugestões de cláusulas e análise de risco.' },
-    { icon: <BarChart3 size={20} />, title: 'Analytics em Tempo Real', desc: 'Dashboards completos do teu portfólio de contratos.' }
-  ];
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,90 +91,123 @@ export default function AuthenticationScreen() {
   };
 
   return (
-    <div className="font-[Poppins] bg-white text-slate-900 min-h-screen flex flex-col md:flex-row">
-      {/* Left Side - Branding */}
-      <div className="flex-1 bg-gradient-to-b from-slate-900 to-slate-950 p-12 flex flex-col justify-between min-h-screen">
-        <div>
-          <button
-            onClick={() => navigate('/')}
-            className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white border-none px-4 py-2 cursor-pointer transition-all mb-12 w-max"
-          >
-            <ArrowLeft size={18} />
-            <span className="text-sm font-semibold">Voltar à página inicial</span>
-          </button>
+    <div className="page-mesh auth-wrap" style={{ fontFamily: "'Poppins', sans-serif", color: '#0d1117', minHeight: '100vh', overflowX: 'hidden' }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,500&display=swap');
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-          <div className="flex items-center gap-1 mb-9 bg-white px-3 py-2 w-max">
-            <img src={AgreeLogo} alt="" style={{ height: 36, display: 'block' }} />
-            <span className="text-[23px] font-extrabold text-slate-900 tracking-tight" style={{ marginLeft: -2 }}>Agree</span>
-          </div>
+        .auth-wrap { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
 
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="text-4xl font-extrabold text-white leading-tight mb-4 tracking-tight"
-          >
-            {mode === 'login' ? 'Bem-vindo de volta!' : mode === 'signup' ? 'Começa a transformar a gestão de contratos hoje' : 'Recuperar o acesso'}
-          </motion.h1>
+        .page-mesh {
+          background-color: #f5f7f9;
+          background-image:
+            radial-gradient(40% 45% at 50% 12%, rgba(13,17,23,0.06) 0%, transparent 66%),
+            radial-gradient(32% 38% at 8% 28%, rgba(13,17,23,0.075) 0%, transparent 66%),
+            radial-gradient(34% 40% at 93% 34%, rgba(0,0,0,0.065) 0%, transparent 66%),
+            radial-gradient(38% 44% at 88% 62%, rgba(13,17,23,0.07) 0%, transparent 66%),
+            radial-gradient(34% 40% at 10% 74%, rgba(0,0,0,0.06) 0%, transparent 66%),
+            radial-gradient(40% 46% at 55% 90%, rgba(13,17,23,0.075) 0%, transparent 66%);
+          background-attachment: fixed;
+        }
 
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            className="text-[15px] text-white/70 leading-relaxed max-w-[400px] mb-10"
-          >
-            {mode === 'login'
-              ? 'Acede ao teu painel e continua a gerir os teus contratos com total controlo.'
-              : 'Junta-te a centenas de empresas angolanas que já simplificaram o seu fluxo de trabalho contratual.'
-            }
-          </motion.p>
+        .sheen-text {
+          background-image: linear-gradient(115deg, #0d1117 30%, #46505d 50%, #0d1117 70%);
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+        }
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {features.map((feature, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.2 + i * 0.1 }}
-                className="bg-white/5 border border-white/10 p-5"
-              >
-                <div className="w-10 h-10 bg-gradient-to-br from-neutral-800 to-neutral-900 flex items-center justify-center mb-3">
-                  {React.cloneElement(feature.icon as React.ReactElement<{ className?: string }>, { className: "text-white" })}
-                </div>
-                <div className="text-[13px] font-bold text-white mb-1">
-                  {feature.title}
-                </div>
-                <div className="text-xs text-white/60 leading-relaxed">
-                  {feature.desc}
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
+        .auth-cards {
+          display: flex;
+          flex-direction: row;
+          align-items: stretch;
+          width: 100%;
+          max-width: 920px;
+          box-shadow: 0 50px 100px -50px rgba(0,0,0,0.45);
+        }
+        .auth-card {
+          flex: 1 1 500px;
+          max-width: 500px;
+          background: #fff;
+          border: 1px solid #e2e5e9;
+          padding: 44px 40px;
+        }
+        .brand-card {
+          flex: 1 1 420px;
+          max-width: 420px;
+          background-color: #0d1117;
+          position: relative;
+          overflow: hidden;
+        }
+        .brand-card img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
 
-        <div className="flex items-center gap-5 flex-wrap pt-8 border-t border-white/10 mt-12">
-          {['10k+ contratos geridos', '500+ empresas', '98% taxa de retenção', 'Suporte 24/7'].map((label, i) => (
-            <div key={i} className="flex items-center gap-1.5">
-              <CheckCircle size={15} className="text-white/80" />
-              <span className="text-xs text-white/70">{label}</span>
+        .btn-primary {
+          display: inline-flex; align-items: center; gap: 8px;
+          background: #0d1117; color: #fff; border: none;
+          padding: 14px 24px; font-size: 15px; font-weight: 700;
+          cursor: pointer; font-family: 'Poppins', sans-serif;
+          transition: all .2s; white-space: nowrap;
+          justify-content: center; width: 100%;
+        }
+        .btn-primary:hover { background: #000000; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(13,17,23,0.3); }
+        .btn-primary:disabled { opacity: .6; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        .btn-outline {
+          display: inline-flex; align-items: center; gap: 8px;
+          background: transparent; color: #0d1117;
+          border: 1.5px solid #e2e5e9;
+          padding: 12px 22px; font-size: 14px; font-weight: 600;
+          cursor: pointer; font-family: 'Poppins', sans-serif;
+          transition: all .2s; white-space: nowrap;
+          justify-content: center; width: 100%;
+        }
+        .btn-outline:hover { border-color: #0d1117; background: #f9fafb; transform: translateY(-1px); }
+
+        .input-f {
+          width: 100%; padding: 13px 14px; font-size: 14px;
+          background: #f7f9fb; border: 1.5px solid #e2e5e9;
+          color: #0d1117; outline: none;
+          font-family: 'Poppins', sans-serif; transition: all .2s;
+        }
+        .input-f::placeholder { color: #b0b8c1; }
+        .input-f:focus { border-color: #0d1117; background: #fff; box-shadow: 0 0 0 3px rgba(13,17,23,0.06); }
+
+        .field-label {
+          display: block; font-size: 11px; font-weight: 700;
+          color: #6b7280; margin-bottom: 7px; letter-spacing: 1.2px;
+          text-transform: uppercase;
+        }
+
+        @media(max-width:900px){
+          .auth-cards { flex-direction: column; max-width: 460px; }
+          .brand-card { max-width: 100%; min-height: 220px; }
+          .auth-card { max-width: 100%; }
+        }
+      `}</style>
+
+      <div className="auth-cards">
+        {/* LEFT — Form */}
+        <div className="auth-card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 34 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <img src={AgreeLogo} alt="" style={{ height: 34, display: 'block' }} />
+              <span className="sheen-text" style={{ fontFamily: "'Poppins', sans-serif", fontSize: 21, fontWeight: 800, letterSpacing: -0.5, lineHeight: 1 }}>Agree</span>
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Right Side - Form */}
-      <div className="flex-1 bg-white flex flex-col justify-center items-center min-h-screen p-8 md:p-14">
-        <div className="w-full max-w-[420px]">
-
-          <div className="flex justify-end mb-8">
             {mode !== 'recovery' && (
-              <button 
-                onClick={() => setMode(mode === 'login' ? 'signup' : 'login')} 
-                className="text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors bg-transparent border-none cursor-pointer flex gap-1"
+              <button
+                onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: "'Poppins', sans-serif", fontSize: 13, color: '#6b7280', fontWeight: 600, transition: 'color .2s' }}
+                onMouseEnter={e => { e.currentTarget.style.color = '#0d1117'; }}
+                onMouseLeave={e => { e.currentTarget.style.color = '#6b7280'; }}
               >
                 {mode === 'login'
-                  ? <>Ainda não tens conta? <strong className="text-slate-900 hover:text-black">Criar conta</strong></>
-                  : <>Já tens uma conta? <strong className="text-slate-900 hover:text-black">Entrar</strong></>
+                  ? <>Criar conta</>
+                  : <>Entrar</>
                 }
               </button>
             )}
@@ -206,7 +232,7 @@ export default function AuthenticationScreen() {
                 }}>
                   <Mail size={28} color="#fff" />
                 </div>
-                <h2 className="text-2xl font-extrabold text-slate-900 mb-3 tracking-tight" style={{ textAlign: 'center' }}>
+                <h2 className="sheen-text" style={{ fontSize: 24, fontWeight: 800, marginBottom: 16, textAlign: 'center', letterSpacing: -0.5 }}>
                   Verifica o teu email
                 </h2>
                 <div style={{
@@ -243,22 +269,17 @@ export default function AuthenticationScreen() {
                 </div>
                 <button
                   onClick={() => { setSentReason(null); setMode('login'); }}
-                  style={{
-                    width: '100%', padding: '14px 24px', fontSize: 15, fontWeight: 700,
-                    background: '#0d1117', border: 'none', color: '#fff', cursor: 'pointer',
-                    fontFamily: "'Poppins', sans-serif",
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  }}
+                  className="btn-primary"
                 >
                   Voltar ao login <ArrowLeft size={16} />
                 </button>
               </motion.div>
             ) : (
             <>
-            <h2 className="text-2xl font-extrabold text-slate-900 mb-1.5 tracking-tight">
+            <h2 className="sheen-text" style={{ fontSize: 27, fontWeight: 800, letterSpacing: -0.8, lineHeight: 1.15, marginBottom: 8 }}>
               {mode === 'login' ? 'Entrar na tua conta' : mode === 'signup' ? 'Criar a tua conta' : mode === 'magic' ? 'Link mágico' : 'Recuperar senha'}
             </h2>
-            <p className="text-sm text-slate-500 mb-7 leading-relaxed">
+            <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 28, lineHeight: 1.65, fontWeight: 400 }}>
               {mode === 'login'
                 ? 'Escolhe o método de autenticação que preferes.'
                 : mode === 'signup'
@@ -274,15 +295,8 @@ export default function AuthenticationScreen() {
               {mode === 'login' && (
                 <button
                   onClick={() => setMode('magic')}
-                  style={{
-                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-                    background: '#fff', border: '2px solid #e2e5e9', padding: '11px 20px',
-                    fontSize: 14, fontWeight: 600, color: '#0d1117', cursor: 'pointer',
-                    fontFamily: "'Poppins', sans-serif", marginBottom: 10,
-                    transition: 'all .15s',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#0d1117'; e.currentTarget.style.background = '#f9fafb'; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e5e9'; e.currentTarget.style.background = '#fff'; }}
+                  className="btn-outline"
+                  style={{ marginBottom: 10 }}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="2" y="2" width="20" height="20" rx="4" />
@@ -295,7 +309,8 @@ export default function AuthenticationScreen() {
 
             <button
               onClick={handleGoogleSignIn}
-              className="w-full flex items-center justify-center gap-3 bg-white border-2 border-slate-200 px-6 py-3.5 text-[15px] font-semibold text-slate-900 cursor-pointer transition-all hover:bg-slate-50 hover:border-slate-300 mb-5"
+              className="btn-outline"
+              style={{ marginBottom: 5 }}
             >
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                 <path d="M19.6 10.227c0-.709-.064-1.39-.182-2.045H10v3.868h5.382a4.6 4.6 0 01-1.996 3.018v2.51h3.232c1.891-1.742 2.982-4.305 2.982-7.35z" fill="#4285F4"/>
@@ -306,99 +321,99 @@ export default function AuthenticationScreen() {
               {mode === 'login' ? 'Continuar com Google' : 'Criar conta com Google'}
             </button>
 
-            <div className="flex items-center gap-3.5 mb-5">
-              <div className="flex-1 h-px bg-slate-200" />
-              <span className="text-xs text-slate-400 font-medium">ou</span>
-              <div className="flex-1 h-px bg-slate-200" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, margin: '22px 0' }}>
+              <div style={{ flex: 1, height: 1, background: '#e2e5e9' }} />
+              <span style={{ fontSize: 12, color: '#9ca3af', fontWeight: 500 }}>ou</span>
+              <div style={{ flex: 1, height: 1, background: '#e2e5e9' }} />
             </div>
             </>
             )}
 
-            <form onSubmit={handleEmailSubmit} className="flex flex-col gap-4">
+            <form onSubmit={handleEmailSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
               {mode === 'signup' && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-900 mb-1.5 tracking-wide">
-                    NOME COMPLETO
-                  </label>
-                  <input 
-                    className="w-full px-4 py-3.5 text-[15px] bg-white border-2 border-slate-200 text-slate-900 outline-none transition-all focus:border-slate-900 focus:shadow-[0_0_0_3px_rgba(0,0,0,0.08)] placeholder:text-slate-400" 
-                    type="text" 
-                    value={name} 
-                    onChange={e => setName(e.target.value)} 
-                    placeholder="Como devemos te chamar?" 
-                    required 
+                  <label className="field-label">Nome completo</label>
+                  <input
+                    className="input-f"
+                    type="text"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    placeholder="Como devemos te chamar?"
+                    required
                   />
                 </div>
               )}
               <div>
-                <label className="block text-xs font-semibold text-slate-900 mb-1.5 tracking-wide">
-                  EMAIL
-                </label>
-                <input 
-                  className="w-full px-4 py-3.5 text-[15px] bg-white border-2 border-slate-200 text-slate-900 outline-none transition-all focus:border-slate-900 focus:shadow-[0_0_0_3px_rgba(0,0,0,0.08)] placeholder:text-slate-400" 
-                  type="email" 
-                  value={email} 
-                  onChange={e => setEmail(e.target.value)} 
-                  placeholder="teu@email.com" 
-                  required 
+                <label className="field-label">Email</label>
+                <input
+                  className="input-f"
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="teu@email.com"
+                  required
                 />
               </div>
               {mode !== 'recovery' && mode !== 'magic' && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-900 mb-1.5 tracking-wide">
-                    SENHA
-                  </label>
-                  <input 
-                    className="w-full px-4 py-3.5 text-[15px] bg-white border-2 border-slate-200 text-slate-900 outline-none transition-all focus:border-slate-900 focus:shadow-[0_0_0_3px_rgba(0,0,0,0.08)] placeholder:text-slate-400" 
-                    type="password" 
-                    value={password} 
-                    onChange={e => setPassword(e.target.value)} 
-                    placeholder="••••••••" 
-                    required 
+                  <label className="field-label">Senha</label>
+                  <input
+                    className="input-f"
+                    type="password"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    required
                   />
                 </div>
               )}
 
               {mode === 'login' && (
-                <div className="flex justify-end -mt-2">
-                  <button type="button" onClick={() => setMode('recovery')} className="text-xs font-semibold text-slate-700 hover:text-black bg-transparent border-none cursor-pointer">
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -8 }}>
+                  <button type="button" onClick={() => setMode('recovery')} style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: "'Poppins', sans-serif", transition: 'color .2s' }} onMouseEnter={e => { e.currentTarget.style.color = '#0d1117'; }} onMouseLeave={e => { e.currentTarget.style.color = '#6b7280'; }}>
                     Esqueci-me da senha
                   </button>
                 </div>
               )}
               {mode === 'magic' && (
-                <div className="flex justify-end -mt-2">
-                  <button type="button" onClick={() => setMode('login')} className="text-xs font-semibold text-slate-700 hover:text-black bg-transparent border-none cursor-pointer">
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -8 }}>
+                  <button type="button" onClick={() => setMode('login')} style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: "'Poppins', sans-serif" }}>
                     Voltar ao login
                   </button>
                 </div>
               )}
 
               <button
-                type="submit" 
-                disabled={loading} 
-                className="w-full flex items-center justify-center gap-2 bg-slate-900 text-white border-none py-3.5 px-6 text-[15px] font-bold cursor-pointer transition-all hover:bg-black hover:-translate-y-[1px] hover:shadow-[0_8px_24px_rgba(0,0,0,0.2)] mt-1 disabled:opacity-60 disabled:cursor-not-allowed"
+                type="submit"
+                disabled={loading}
+                className="btn-primary"
+                style={{ marginTop: 6 }}
               >
                 {loading ? 'Aguarda...' : (mode === 'login' ? 'Entrar no Agree' : mode === 'signup' ? 'Criar conta' : mode === 'magic' ? 'Enviar link mágico' : 'Enviar e-mail')}
                 {!loading && mode !== 'recovery' && mode !== 'magic' && <ArrowRight size={18} />}
               </button>
 
               {mode === 'recovery' && (
-                <button type="button" onClick={() => setMode('login')} className="mt-2 text-[15px] font-semibold text-slate-500 hover:text-slate-900 bg-transparent border-none cursor-pointer">
+                <button type="button" onClick={() => setMode('login')} className="btn-outline" style={{ marginTop: 4 }}>
                   Voltar ao Login
                 </button>
               )}
             </form>
 
-            <p className="mt-6 text-xs text-slate-400 leading-relaxed">
+            <p style={{ marginTop: 26, fontSize: 12, color: '#9ca3af', lineHeight: 1.6 }}>
               Ao continuar, confirmas que tens mais de 18 anos e aceitas os{' '}
-              <a href="/termos" className="text-slate-900 hover:underline font-medium">Termos de Serviço</a>
+              <a href="/termos" style={{ color: '#0d1117', fontWeight: 600 }}>Termos de Serviço</a>
               {' '}e{' '}
-              <a href="/privacidade" className="text-slate-900 hover:underline font-medium">Política de Privacidade</a> do Agree.
+              <a href="/privacidade" style={{ color: '#0d1117', fontWeight: 600 }}>Política de Privacidade</a> do Agree.
             </p>
             </>
             )}
           </motion.div>
+        </div>
+
+        {/* RIGHT — Branding image */}
+        <div className="brand-card">
+          <img src="/Branding.png" alt="Agree — Gestão de Contratos" />
         </div>
       </div>
     </div>

@@ -29,6 +29,8 @@ export function useTemplates() {
   return useQuery({
     queryKey: ['templates'],
     queryFn: async () => {
+      console.log('[useTemplates] Fetching templates...');
+      
       // 1. Built-in templates (always available, no DB required)
       const builtIns: Template[] = BUILT_IN_TEMPLATES.map(t => ({
         ...t,
@@ -37,6 +39,8 @@ export function useTemplates() {
         variables: [],
         usage_count: 0,
       }));
+      
+      console.log('[useTemplates] Built-in templates loaded:', builtIns.length);
 
       // 2. User-created templates from Supabase (if available)
       try {
@@ -45,13 +49,20 @@ export function useTemplates() {
           .select('id,name,description,category,content,variables,is_system,user_id,usage_count')
           .order('category', { ascending: true })
           .order('name', { ascending: true });
-        if (!error && data) {
-          return [...builtIns, ...(data as Template[]).filter(t => t.user_id)];
+        
+        if (error) {
+          console.error('[useTemplates] Error fetching user templates:', error);
+        } else if (data) {
+          console.log('[useTemplates] User templates loaded:', data.length);
+          // Include all templates from DB (both system and user-created)
+          return [...builtIns, ...(data as Template[])];
         }
-      } catch {
+      } catch (err) {
+        console.error('[useTemplates] Exception fetching user templates:', err);
         // Supabase unavailable — return built-ins only
       }
 
+      console.log('[useTemplates] Returning built-ins only');
       return builtIns;
     },
   });
@@ -72,6 +83,7 @@ export function useUserTemplates() {
         variables: [],
         usage_count: 0,
       }));
+
 
       const { data, error } = await supabase
         .from('contract_templates')

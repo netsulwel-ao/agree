@@ -373,6 +373,12 @@ const LandingPage = () => {
         <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 24px' }}>
           <div className="hero-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, alignItems: 'center', minHeight: '76vh' }}>
             <motion.div variants={heroContainer} initial="hidden" animate="show">
+              <motion.div variants={heroItem} style={{ marginBottom: 20 }}>
+                <span style={{ display: 'inline-block', padding: '7px 16px', border: '1px solid #e8eaed', background: '#fff', fontSize: 11, fontWeight: 700, letterSpacing: 1.4, textTransform: 'uppercase', color: '#0d1117', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
+                  Plataforma de Gestão de Contratos
+                </span>
+              </motion.div>
+
               <motion.h1 className="hero-h" variants={heroItem} style={{ marginBottom: 22 }}>
                 <span style={{ display: 'block', overflow: 'hidden' }}><motion.span variants={heroLine} className="sheen-text" style={{ display: 'block' }}>O fim das</motion.span></span>
                 <span style={{ display: 'block', overflow: 'hidden' }}><motion.span variants={heroLine} className="sheen-text" style={{ display: 'block' }}>pastas de</motion.span></span>
@@ -380,7 +386,8 @@ const LandingPage = () => {
               </motion.h1>
 
               <motion.p variants={heroItem} className="sheen-text" style={{ fontSize: 17, lineHeight: 1.75, maxWidth: 430, marginBottom: 36, fontWeight: 400 }}>
-                Centraliza o portfólio, automatiza aprovações e nunca mais perdes um prazo de renovação.
+                O Agree é a plataforma de gestão de contratos que centraliza o teu portfólio,
+                automatiza aprovações, assinatura digital e nunca mais perdes um prazo de renovação.
               </motion.p>
 
               <motion.div variants={heroItem} className="hero-btns" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 52 }}>

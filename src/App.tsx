@@ -9,7 +9,7 @@ const ContractForm = lazy(() => import('./components/ContractForm'));
 const ContractDetail = lazy(() => import('./components/ContractDetail'));
 const Analytics = lazy(() => import('./components/Analytics'));
 const Compliance = lazy(() => import('./components/Compliance'));
-const LandingPage = lazy(() => import('./components/LandingPage'));
+import LandingPage from './components/LandingPage';
 const AuthenticationScreen = lazy(() => import('./components/AuthenticationScreen'));
 const RegisterSignature = lazy(() => import('./components/RegisterSignature'));
 const SignatureList = lazy(() => import('./components/SignatureList'));

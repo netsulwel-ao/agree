@@ -7,7 +7,7 @@ import {
   FileSignature, TrendingUp, Clock, FileText
 } from 'lucide-react';
 import AgreeLogo from '../Agree-logo.svg';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 const heroContainer: Variants = {
   hidden: {},
@@ -763,6 +763,10 @@ const LandingPage = () => {
           </motion.div>
           <div style={{ borderTop: '1px solid #e2e5e9', paddingTop: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
             <span style={{ fontSize: 12, color: '#b0b8c1', fontWeight: 400 }}>© 2026 Agree. Todos os direitos reservados.</span>
+            <div style={{ display: 'flex', gap: 18 }}>
+              <Link to="/termos" className="footer-link" style={{ fontSize: 12 }}>Termos de Serviço</Link>
+              <Link to="/privacidade" className="footer-link" style={{ fontSize: 12 }}>Política de Privacidade</Link>
+            </div>
           </div>
         </div>
       </footer>

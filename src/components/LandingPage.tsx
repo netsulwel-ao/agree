@@ -380,9 +380,9 @@ const LandingPage = () => {
               </motion.div>
 
               <motion.h1 className="hero-h" variants={heroItem} style={{ marginBottom: 22 }}>
-                <span style={{ display: 'block', overflow: 'hidden' }}><motion.span variants={heroLine} className="sheen-text" style={{ display: 'block' }}>O fim das</motion.span></span>
-                <span style={{ display: 'block', overflow: 'hidden' }}><motion.span variants={heroLine} className="sheen-text" style={{ display: 'block' }}>pastas de</motion.span></span>
-                <span style={{ display: 'block', overflow: 'hidden' }}><motion.span variants={heroLine} style={{ display: 'block', WebkitTextStroke: '2px #0d1117', color: 'transparent' }}>email.</motion.span></span>
+                <span style={{ display: 'block', overflow: 'hidden' }}><motion.span variants={heroLine} className="sheen-text" style={{ display: 'block' }}>Agree:</motion.span></span>
+                <span style={{ display: 'block', overflow: 'hidden' }}><motion.span variants={heroLine} className="sheen-text" style={{ display: 'block' }}>o fim das</motion.span></span>
+                <span style={{ display: 'block', overflow: 'hidden' }}><motion.span variants={heroLine} style={{ display: 'block', WebkitTextStroke: '2px #0d1117', color: 'transparent' }}>pastas de email.</motion.span></span>
               </motion.h1>
 
               <motion.p variants={heroItem} className="sheen-text" style={{ fontSize: 17, lineHeight: 1.75, maxWidth: 430, marginBottom: 36, fontWeight: 400 }}>

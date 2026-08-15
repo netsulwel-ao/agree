@@ -8,7 +8,6 @@ import {
   CheckCircle,
   Mail
 } from 'lucide-react';
-import { useGlobalLoading } from '../contexts/GlobalLoadingContext';
 import AgreeLogo from '../Agree-logo.svg';
 
 type SentReason = 'signup' | 'magic' | 'recovery' | null;
@@ -23,12 +22,10 @@ export default function AuthenticationScreen() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirectTo = searchParams.get('redirect') || '/dashboard';
-  const { setIsLoading: setGlobalLoading } = useGlobalLoading();
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setGlobalLoading(true);
     try {
       if (mode === 'login') {
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -73,7 +70,6 @@ export default function AuthenticationScreen() {
       toast.error(error.message || 'Ocorreu um erro');
     } finally {
       setLoading(false);
-      setGlobalLoading(false);
     }
   };
 

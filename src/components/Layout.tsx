@@ -4,12 +4,13 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useCheckoutModal } from '../contexts/CheckoutModalContext';
 import CheckoutModal from './CheckoutModal';
-import { Toaster, toast } from 'sonner';
+import { toast } from 'sonner';
 import {
   LayoutDashboard, FileText, PlusCircle, LogOut,
   Bell, Menu, X, BarChart3, ShieldCheck,
   AlertTriangle, PenLine, Shield, CreditCard, Settings, RefreshCw, Users, CheckCheck,
-  MessageSquare, Clock, Send, CheckCircle2, Ban, BookTemplate, ThumbsUp, DollarSign, Activity, Building2, Lock
+  MessageSquare, Clock, Send, CheckCircle2, Ban, BookTemplate, ThumbsUp, DollarSign, Activity, Building2, Lock,
+  ChevronsLeft, ChevronsRight, Search, ChevronRight
 } from 'lucide-react';
 import { addDays, isBefore, isAfter, parseISO, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -34,12 +35,23 @@ interface Notification {
   reference_type?: string;
 }
 
+interface NavItem {
+  id: string;
+  label: string;
+  icon: any;
+  path: string;
+  children?: { id: string; label: string; icon: any; path: string }[];
+}
+
 export default function Layout() {
   const [alertCount, setAlertCount] = useState(0);
   const [alerts, setAlerts] = useState<AlertContract[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const { user, signOut, isAdmin, isSuperAdmin, plan, planExpiresAt } = useAuth();
   const { openCheckout, openRenewal } = useCheckoutModal();
@@ -149,19 +161,24 @@ export default function Layout() {
   // Close mobile sidebar on route change
   useEffect(() => {
     setMobileSidebarOpen(false);
+    setSearchQuery('');
   }, [location.pathname]);
 
-  const navItems = [
+  const navItems: NavItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { id: 'clients', label: 'Clientes', icon: Users, path: '/clients' },
-    { id: 'contracts', label: 'Meus Contratos', icon: FileText, path: '/contracts' },
+    {
+      id: 'contracts', label: 'Meus Contratos', icon: FileText, path: '/contracts',
+      children: [
+        { id: 'create', label: 'Novo Contrato', icon: PlusCircle, path: '/contracts/new' },
+      ],
+    },
     { id: 'invoices', label: 'Facturação', icon: DollarSign, path: '/invoices' },
     { id: 'analytics', label: 'Analytics', icon: BarChart3, path: '/analytics' },
     { id: 'signatures', label: 'Assinaturas', icon: PenLine, path: '/signatures' },
     { id: 'approvals', label: 'Aprovações', icon: ThumbsUp, path: '/approvals' },
     { id: 'templates', label: 'Modelos', icon: BookTemplate, path: '/templates' },
     { id: 'compliance', label: 'Segurança', icon: ShieldCheck, path: '/compliance' },
-    { id: 'create', label: 'Novo Contrato', icon: PlusCircle, path: '/contracts/new' },
   ];
 
   if (isAdmin) {
@@ -181,10 +198,33 @@ export default function Layout() {
   const displayName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'Usuário';
   const avatarLetter = displayName.charAt(0).toUpperCase();
   
-  const currentNav = navItems.find(i => location.pathname.startsWith(i.path));
+  const allNav = navItems.flatMap(i => [i, ...(i.children ?? [])]);
+  const currentNav = allNav.find(i => location.pathname === i.path)
+    || allNav.find(i => i.path !== '/dashboard' && location.pathname.startsWith(i.path));
+  const headerTitle = currentNav?.id === 'dashboard' ? 'Painel' : currentNav?.label || 'Detalhes';
 
   const unreadNotifications = notifications.filter(n => !n.read);
   const totalAlerts = alertCount + unreadNotifications.length;
+  const collapsed = sidebarCollapsed && !isMobile;
+  const q = searchQuery.trim().toLowerCase();
+  const filteredNavItems = navItems.filter(i =>
+    i.label.toLowerCase().includes(q) ||
+    (i.children ?? []).some(c => c.label.toLowerCase().includes(q))
+  );
+
+  const isChildRouteActive = (children?: NavItem['children']) =>
+    !!children?.some(c => location.pathname === c.path || location.pathname.startsWith(c.path));
+
+  const isNavActive = (item: NavItem) => {
+    if (location.pathname === item.path) return true;
+    if (isChildRouteActive(item.children)) return false;
+    return item.path !== '/dashboard' && location.pathname.startsWith(item.path);
+  };
+
+  const isGroupOpen = (item: NavItem) => expandedGroups[item.id] ?? isChildRouteActive(item.children);
+  const toggleGroup = (item: NavItem) => {
+    setExpandedGroups(p => ({ ...p, [item.id]: !isGroupOpen(item) }));
+  };
 
   return (
     <div style={{
@@ -270,27 +310,49 @@ export default function Layout() {
           color: rgba(148,163,184,0.9);
         }
         .sidebar .nav-link {
-          display: flex; align-items: center; gap: 14px;
-          padding: 14px 18px; font-size: 14px; font-weight: 500;
-          color: rgba(255,255,255,0.55); border-radius: 14px; transition: all .2s;
-          width: 100%; cursor: pointer; border: none; text-decoration: none;
-          background: transparent; font-family: 'Poppins', sans-serif;
-          position: relative;
+          display: flex; align-items: center; gap: 10px;
+          height: 40px; margin: 2px 8px; padding: 0 10px;
+          font-size: 14px; font-weight: 300;
+          color: #6b7280; border-radius: 9px;
+          transition: background 150ms ease, color 150ms ease;
+          width: auto; cursor: pointer; border: none; text-decoration: none;
+          background: transparent; font-family: 'Inter', 'Poppins', sans-serif;
+          position: relative; white-space: nowrap;
         }
-        .sidebar .nav-link:hover { background: rgba(255,255,255,0.08); color: #fff; }
+        .sidebar .nav-link:hover { background: rgba(0,0,0,0.04); color: #0d1117; }
         .sidebar .nav-link.active {
-          background: rgba(255,255,255,0.12); color: #fff;
+          background: #ffffff; color: #000000;
           font-weight: 600;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.06);
         }
         .sidebar .nav-link-logout { color: #f87171 !important; }
         .sidebar .nav-link-logout:hover {
-          color: #fca5a5 !important;
-          background: rgba(239,68,68,0.2) !important;
+          color: #ef4444 !important;
+          background: rgba(239,68,68,0.12) !important;
         }
+        .sidebar.collapsed .nav-link { justify-content: center; margin: 2px 6px; padding: 0; }
+        .nav-label {
+          overflow: hidden; white-space: nowrap;
+          transition: opacity 150ms ease, width 150ms ease;
+        }
+        .sidebar.collapsed .nav-label { opacity: 0; width: 0; }
+        .sidebar-logo {
+          transition: padding 150ms ease, justify-content 150ms ease;
+        }
+        .sidebar.collapsed .sidebar-logo { justify-content: center; padding: 0; }
+        .sidebar-toggle {
+          display: flex; align-items: center; justify-content: center;
+          height: 40px; margin: 4px 6px; border: none; cursor: pointer;
+          background: transparent; color: #6b7280;
+          border-radius: 9px; flex-shrink: 0;
+          font-family: 'Inter', 'Poppins', sans-serif;
+          transition: background 150ms ease, color 150ms ease;
+        }
+        .sidebar-toggle:hover { background: rgba(0,0,0,0.04); color: #0d1117; }
         .sidebar-nav::-webkit-scrollbar { width: 4px; }
         .sidebar-nav::-webkit-scrollbar-track { background: transparent; }
-        .sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
-        .sidebar-nav::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
+        .sidebar-nav::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 4px; }
+        .sidebar-nav::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.25); }
         @media (max-width: 768px) {
           .sidebar-desktop { transform: translateX(-100%); transition: transform 0.3s ease; }
           .sidebar-desktop.open { transform: translateX(0); }
@@ -311,14 +373,13 @@ export default function Layout() {
           .stats-grid { grid-template-columns: 1fr !important; }
           .sidebar-desktop { width: 100% !important; }
         }
-        .sidebar-desktop { transition: transform 0.3s ease; }
+        .sidebar-desktop { transition: transform 0.3s ease, width 180ms ease; }
+        .main-content { transition: margin-left 180ms ease; }
       `}</style>
 
       {/* Background blobs */}
       <div style={{ position: 'absolute', top: -150, left: -150, width: 600, height: 600, background: 'radial-gradient(circle, rgba(13,17,23,0.15) 0%, transparent 70%)', borderRadius: '50%', filter: 'blur(80px)', pointerEvents: 'none' }} />
       <div style={{ position: 'absolute', bottom: -200, right: -150, width: 700, height: 700, background: 'radial-gradient(circle, rgba(13,17,23,0.1) 0%, transparent 70%)', borderRadius: '50%', filter: 'blur(100px)', pointerEvents: 'none' }} />
-
-      <Toaster position="top-right" richColors />
 
       {/* Mobile overlay */}
       {isMobile && mobileSidebarOpen && (
@@ -333,11 +394,11 @@ export default function Layout() {
 
       {/* Sidebar */}
       <aside
-        className={`sidebar sidebar-desktop ${mobileSidebarOpen ? 'open' : ''}`}
+        className={`sidebar sidebar-desktop ${mobileSidebarOpen ? 'open' : ''} ${collapsed ? 'collapsed' : ''}`}
         style={{
-          width: isMobile ? 280 : 260,
-          background: '#0d1117',
-          boxShadow: isMobile && mobileSidebarOpen ? '0 0 40px rgba(0,0,0,0.4)' : '4px 0 24px rgba(0,0,0,0.15)',
+          width: isMobile ? 280 : collapsed ? 68 : 240,
+          background: '#f7f7f7',
+          boxShadow: isMobile && mobileSidebarOpen ? '0 0 40px rgba(0,0,0,0.3)' : '4px 0 24px rgba(0,0,0,0.06)',
           display: 'flex',
           flexDirection: 'column',
           position: 'fixed',
@@ -345,164 +406,312 @@ export default function Layout() {
           top: 0,
           bottom: 0,
           zIndex: 40,
+          overflow: 'hidden',
         }}
       >
-        {/* Topo fixo — Logo */}
-        <div style={{ padding: '32px 28px 8px', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }} aria-label="Agree">
-            <img
-              src={AgreeLogo}
-              alt=""
-              style={{ height: 36, display: 'block', filter: 'brightness(0) invert(1)' }}
-            />
+        {/* Topo fixo — Logo (rail) */}
+        <div className="sidebar-logo" style={{
+          height: 64, flexShrink: 0, display: 'flex', alignItems: 'center',
+          justifyContent: collapsed ? 'center' : 'flex-start', gap: 6,
+          padding: collapsed ? 0 : '0 18px',
+        }}>
+          <img
+            src={AgreeLogo}
+            alt=""
+            style={{ height: 30, display: 'block', flexShrink: 0 }}
+          />
+          {!collapsed && (
             <span style={{
               fontFamily: "'Poppins', sans-serif",
-              fontSize: 23,
+              fontSize: 22,
               fontWeight: 800,
-              color: '#ffffff',
+              color: '#0d1117',
               letterSpacing: -0.5,
               lineHeight: 1,
               marginLeft: -2,
+              whiteSpace: 'nowrap',
             }}>Agree</span>
-          </div>
+          )}
         </div>
+
+        {/* Busca */}
+        {!collapsed && (
+          <div style={{ padding: '0 8px 10px', flexShrink: 0 }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              height: 34, padding: '0 10px',
+              background: 'rgba(0,0,0,0.04)', borderRadius: 8,
+            }}>
+              <Search size={16} color="#9ca3af" style={{ flexShrink: 0 }} />
+              <input
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Pesquisar..."
+                style={{
+                  flex: 1, border: 'none', outline: 'none', background: 'transparent',
+                  fontSize: 13, fontWeight: 300, color: '#0d1117',
+                  fontFamily: "'Inter','Poppins',sans-serif",
+                }}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 2, display: 'flex' }}
+                  title="Limpar"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Meio scrollável — Nav */}
         <nav className="sidebar-nav" style={{
-          display: 'flex', flexDirection: 'column', gap: 10,
+          display: 'flex', flexDirection: 'column', gap: 2,
           flex: 1, overflowY: 'auto', minHeight: 0,
-          padding: '20px 28px',
+          padding: '10px 0',
         }}>
-          {navItems.map((item) => (
-            <Link
-              key={item.id}
-              to={item.path}
-              className={`nav-link ${(location.pathname === item.path || (item.path !== '/dashboard' && location.pathname.startsWith(item.path))) ? 'active' : ''}`}
-            >
-              <item.icon size={18} />
-              {item.label}
-              {/* Badge de alertas no Dashboard */}
-              {item.id === 'dashboard' && totalAlerts > 0 && (
-                <span style={{
-                  marginLeft: 'auto',
-                  background: '#ef4444',
-                  color: '#fff',
-                  fontSize: 10,
-                  fontWeight: 700,
-                  padding: '2px 7px',
-                  fontFamily: "'Poppins',sans-serif",
-                  minWidth: 20,
-                  textAlign: 'center'
-                }}>
-                  {alertCount}
-                </span>
-              )}
-            </Link>
-          ))}
+          {filteredNavItems.length === 0 && !collapsed && (
+            <p style={{ fontSize: 12, fontWeight: 300, color: '#9ca3af', textAlign: 'center', padding: '12px 8px', fontFamily: "'Inter','Poppins',sans-serif" }}>
+              Sem resultados
+            </p>
+          )}
+          {filteredNavItems.map((item) => {
+            const childActive = isChildRouteActive(item.children);
+            const visibleChildren = q
+              ? (item.children ?? []).filter(c => c.label.toLowerCase().includes(q))
+              : (item.children ?? []);
+            return (
+              <React.Fragment key={item.id}>
+                <Link
+                  to={item.path}
+                  className={`nav-link ${isNavActive(item) ? 'active' : ''}`}
+                  title={collapsed ? item.label : undefined}
+                  onClick={() => item.children && toggleGroup(item)}
+                >
+                  <item.icon size={20} style={{ flexShrink: 0 }} />
+                  <span className="nav-label">{item.label}</span>
+                  {/* Badge de alertas no Dashboard */}
+                  {item.id === 'dashboard' && totalAlerts > 0 && !collapsed && (
+                    <span style={{
+                      marginLeft: 'auto',
+                      background: '#ef4444',
+                      color: '#fff',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      padding: '2px 7px',
+                      fontFamily: "'Poppins',sans-serif",
+                      minWidth: 20,
+                      textAlign: 'center'
+                    }}>
+                      {alertCount}
+                    </span>
+                  )}
+                  {item.children && !collapsed && (
+                    <span
+                      onClick={e => { e.preventDefault(); e.stopPropagation(); toggleGroup(item); }}
+                      style={{
+                        marginLeft: 'auto', color: isGroupOpen(item) ? '#0d1117' : '#9ca3af',
+                        display: 'inline-flex', cursor: 'pointer', transition: 'transform .2s, color .2s',
+                        transform: isGroupOpen(item) ? 'rotate(90deg)' : 'none',
+                      }}
+                      title={isGroupOpen(item) ? 'Recolher' : 'Expandir'}
+                    >
+                      <ChevronRight size={14} />
+                    </span>
+                  )}
+                </Link>
+                {!collapsed && isGroupOpen(item) && visibleChildren.length > 0 && (
+                  <div style={{
+                    display: 'flex', flexDirection: 'column', gap: 2,
+                    margin: '0 8px', paddingLeft: 12, marginLeft: 18,
+                    borderLeft: '1px solid rgba(0,0,0,0.08)',
+                  }}>
+                    {visibleChildren.map(child => (
+                      <Link
+                        key={child.id}
+                        to={child.path}
+                        className="nav-link"
+                        style={{
+                          height: 36, margin: 0, padding: '0 10px', fontSize: 13,
+                        }}
+                      >
+                        <span style={{ width: 20, display: 'inline-flex', justifyContent: 'center', flexShrink: 0 }}>
+                          <child.icon size={15} style={{ flexShrink: 0 }} />
+                        </span>
+                        <span className="nav-label">{child.label}</span>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </React.Fragment>
+            );
+          })}
         </nav>
 
         {/* Fundo fixo — User + Logout */}
-        <div style={{ padding: '0 28px 28px', flexShrink: 0 }}>
-          <div style={{
-            background: 'rgba(255,255,255,0.06)',
-            padding: 18,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
+        <div className="sidebar-user" style={{
+          borderTop: '1px solid rgba(0,0,0,0.06)',
+          padding: collapsed ? '10px 0' : '0 8px 8px',
+          flexShrink: 0,
+        }}>
+          {!collapsed ? (
+            <>
+              <div style={{ background: '#ffffff', padding: 14, marginTop: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+                  <div style={{
+                    width: 40, height: 40, flexShrink: 0,
+                    background: '#0d1117',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 14, fontWeight: 800, color: '#ffffff',
+                  }}>
+                    {avatarLetter}
+                  </div>
+                  <div style={{ flex: 1, overflow: 'hidden' }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: '#0d1117', fontFamily: "'Poppins',sans-serif", marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {displayName}
+                    </p>
+                    <p style={{ fontSize: 11, color: '#9ca3af', fontFamily: "'Poppins',sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {user?.email}
+                    </p>
+                  </div>
+                </div>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14,
+                  padding: '7px 12px',
+                  background: plan === 'enterprise' ? 'rgba(250,204,21,0.15)' : plan === 'pro' ? 'rgba(59,130,246,0.15)' : 'rgba(0,0,0,0.04)',
+                }}>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em',
+                    color: plan === 'enterprise' ? '#b45309' : plan === 'pro' ? '#2563eb' : '#9ca3af',
+                    flex: 1,
+                  }}>
+                    {plan === 'enterprise' ? 'Enterprise' : plan === 'pro' ? 'Pro' : 'Free'}
+                  </span>
+                  {plan === 'free' && (
+                    <span onClick={() => openCheckout()} style={{ fontSize: 10, color: '#60a5fa', fontWeight: 600, cursor: 'pointer' }}>
+                      Upgrade
+                    </span>
+                  )}
+                  {plan === 'pro' && (
+                    <div style={{ display: 'flex', gap: 12 }}>
+                      <span onClick={() => openCheckout()} style={{ fontSize: 10, color: '#60a5fa', fontWeight: 600, cursor: 'pointer' }}>
+                        Upgrade
+                      </span>
+                      <span onClick={() => openRenewal('pro')} style={{ fontSize: 10, color: '#22c55e', fontWeight: 600, cursor: 'pointer' }}>
+                        Renovar
+                      </span>
+                    </div>
+                  )}
+                  {plan === 'enterprise' && (
+                    <span onClick={() => openRenewal('enterprise')} style={{ fontSize: 10, color: '#22c55e', fontWeight: 600, cursor: 'pointer' }}>
+                      Renovar
+                    </span>
+                  )}
+                </div>
+                {planExpiresAt && (plan === 'pro' || plan === 'enterprise') && (
+                  <div style={{ fontSize: 10, color: '#9ca3af', textAlign: 'center', marginBottom: 14 }}>
+                    Expira em {new Date(planExpiresAt).toLocaleDateString('pt-PT')}
+                  </div>
+                )}
+                <Link
+                  to="/billing"
+                  className="nav-link"
+                  style={{ background: '#ffffff', textDecoration: 'none', marginBottom: 8 }}
+                >
+                  <CreditCard size={20} />
+                  <span className="nav-label">Billing</span>
+                </Link>
+                <Link
+                  to="/profile"
+                  className="nav-link nav-link-logout"
+                  style={{ background: '#ffffff', textDecoration: 'none', marginBottom: 8 }}
+                >
+                  <Settings size={20} />
+                  <span className="nav-label">Perfil</span>
+                </Link>
+                <button
+                  onClick={async () => {
+                    await signOut();
+                  }}
+                  className="nav-link nav-link-logout"
+                  style={{ background: 'rgba(239,68,68,0.12)' }}
+                >
+                  <LogOut size={20} />
+                  <span className="nav-label">Sair</span>
+                </button>
+              </div>
+            </>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <div style={{
-                width: 44, height: 44,
-                background: '#ffffff',
+                width: 36, height: 36, flexShrink: 0,
+                background: '#0d1117',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 15, fontWeight: 800, color: '#0d1117',
+                fontSize: 13, fontWeight: 800, color: '#ffffff',
+                margin: '2px auto 4px',
               }}>
                 {avatarLetter}
               </div>
-              <div style={{ flex: 1, overflow: 'hidden' }}>
-                <p style={{ fontSize: 14, fontWeight: 600, color: '#ffffff', fontFamily: "'Poppins',sans-serif", marginBottom: 2 }}>
-                  {displayName}
-                </p>
-                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', fontFamily: "'Poppins',sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {user?.email}
-                </p>
-              </div>
+              <Link
+                to="/billing"
+                className="nav-link"
+                title="Billing"
+                style={{ background: 'transparent', textDecoration: 'none' }}
+              >
+                <CreditCard size={20} />
+              </Link>
+              <Link
+                to="/profile"
+                className="nav-link nav-link-logout"
+                title="Perfil"
+                style={{ background: 'transparent', textDecoration: 'none' }}
+              >
+                <Settings size={20} />
+              </Link>
+              <button
+                onClick={async () => {
+                  await signOut();
+                }}
+                className="nav-link nav-link-logout"
+                title="Sair"
+                style={{ background: 'rgba(239,68,68,0.12)' }}
+              >
+                <LogOut size={20} />
+              </button>
             </div>
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16,
-              padding: '8px 14px',
-              background: plan === 'enterprise' ? 'rgba(250,204,21,0.15)' : plan === 'pro' ? 'rgba(59,130,246,0.15)' : 'rgba(255,255,255,0.05)',
-            }}>
-              <span style={{
-                fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em',
-                color: plan === 'enterprise' ? '#facc15' : plan === 'pro' ? '#60a5fa' : 'rgba(255,255,255,0.4)',
-                flex: 1,
-              }}>
-                {plan === 'enterprise' ? 'Enterprise' : plan === 'pro' ? 'Pro' : 'Free'}
-              </span>
-              {plan === 'free' && (
-                <span onClick={() => openCheckout()} style={{ fontSize: 10, color: '#60a5fa', fontWeight: 600, cursor: 'pointer' }}>
-                  Upgrade
-                </span>
-              )}
-              {plan === 'pro' && (
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <span onClick={() => openCheckout()} style={{ fontSize: 10, color: '#60a5fa', fontWeight: 600, cursor: 'pointer' }}>
-                    Upgrade
-                  </span>
-                  <span onClick={() => openRenewal('pro')} style={{ fontSize: 10, color: '#22c55e', fontWeight: 600, cursor: 'pointer' }}>
-                    Renovar
-                  </span>
-                </div>
-              )}
-              {plan === 'enterprise' && (
-                <span onClick={() => openRenewal('enterprise')} style={{ fontSize: 10, color: '#22c55e', fontWeight: 600, cursor: 'pointer' }}>
-                  Renovar
-                </span>
-              )}
-              </div>
-            {planExpiresAt && (plan === 'pro' || plan === 'enterprise') && (
-              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', textAlign: 'center', marginBottom: 16 }}>
-                Expira em {new Date(planExpiresAt).toLocaleDateString('pt-PT')}
-              </div>
-            )}
-            <Link
-              to="/billing"
-              className="nav-link"
-              style={{ background: 'rgba(255,255,255,0.06)', textDecoration: 'none', marginBottom: 10 }}
-            >
-              <CreditCard size={18} />
-              Billing
-            </Link>
-            <Link
-              to="/profile"
-              className="nav-link nav-link-logout"
-              style={{ background: 'rgba(255,255,255,0.06)', textDecoration: 'none', marginBottom: 10 }}
-            >
-              <Settings size={18} />
-              Perfil
-            </Link>
-            <button
-              onClick={async () => {
-                await signOut();
-              }}
-              className="nav-link nav-link-logout"
-              style={{ background: 'rgba(239,68,68,0.12)' }}
-            >
-              <LogOut size={18} />
-              Sair
-            </button>
-          </div>
+          )}
         </div>
+
+        {/* Toggle recolher/expandir (desktop) */}
+        {!isMobile && (
+          <button
+            onClick={() => setSidebarCollapsed(c => !c)}
+            className="sidebar-toggle"
+            title={collapsed ? 'Expandir' : 'Recolher'}
+            style={{
+              borderTop: '1px solid rgba(0,0,0,0.06)',
+              justifyContent: collapsed ? 'center' : 'flex-end',
+              paddingRight: collapsed ? 0 : 12,
+              color: '#6b7280',
+            }}
+          >
+            {collapsed ? <ChevronsRight size={20} /> : <ChevronsLeft size={20} />}
+          </button>
+        )}
       </aside>
 
       {/* Main Content */}
       <main className="main-content" style={{
-        flex: 1, marginLeft: isMobile ? 0 : 260, display: 'flex',
-        flexDirection: 'column', height: '100vh', padding: isMobile ? 12 : 24
+        flex: 1, marginLeft: isMobile ? 0 : collapsed ? 68 : 240, display: 'flex',
+        flexDirection: 'column', height: '100vh', padding: isMobile ? 12 : '12px 24px 24px 24px'
       }}>
         {/* Top Header */}
         <header className="header-desktop" style={{
           background: 'rgba(255,255,255,0.45)', backdropFilter: 'blur(30px)',
           padding: '20px 28px', display: 'flex', alignItems: 'center',
-          justifyContent: 'space-between', position: 'sticky', top: isMobile ? 12 : 24,
+          justifyContent: 'space-between', position: 'sticky', top: 12,
           zIndex: 30, marginBottom: 24, boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
@@ -519,7 +728,7 @@ export default function Layout() {
             )}
             <div>
               <h2 style={{ fontFamily: "'Poppins',sans-serif", fontSize: 20, fontWeight: 700, color: '#0d1117', marginBottom: 4 }}>
-                {currentNav?.label || 'Detalhes'}
+                {headerTitle}
               </h2>
               <p style={{ fontSize: 13, color: '#6b7280', fontFamily: "'Poppins',sans-serif" }}>
                 Gerencie os seus contratos com total controlo

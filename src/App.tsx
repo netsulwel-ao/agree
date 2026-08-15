@@ -1,10 +1,11 @@
-import React, { lazy, Suspense } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import React, { lazy, Suspense, useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import LoadingScreen from './components/LoadingScreen';
 
 const Dashboard = lazy(() => import('./components/Dashboard'));
 const ContractList = lazy(() => import('./components/ContractList'));
+const ContractEntry = lazy(() => import('./components/ContractEntry'));
 const ContractForm = lazy(() => import('./components/ContractForm'));
 const ContractDetail = lazy(() => import('./components/ContractDetail'));
 const Analytics = lazy(() => import('./components/Analytics'));
@@ -41,6 +42,7 @@ const Privacidade = lazy(() => import('./components/Privacidade'));
 
 import { useGlobalLoading } from './contexts/GlobalLoadingContext';
 import { useAuth } from './contexts/AuthContext';
+import { Toaster, toast } from 'sonner';
 
 function Lazy({ children }: { children: React.ReactNode }) {
   return <Suspense fallback={<LoadingScreen message="A carregar..." />}>{children}</Suspense>;
@@ -103,6 +105,39 @@ function RedirectIfAuthenticated({ children, fallback }: { children: React.React
   return <>{children}</>;
 }
 
+/**
+ * Captura erros de auth vindos do Supabase no hash do URL
+ * (ex.: `#error=access_denied&error_code=otp_expired&error_description=...`).
+ * Mostra o erro num toast e limpa o URL.
+ */
+function AuthErrorHandler() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (!hash || !hash.startsWith('#error')) return;
+
+    const params = new URLSearchParams(hash.slice(1));
+    const errorCode = params.get('error_code');
+    const errorDescription = params.get('error_description');
+
+    let message = errorDescription ? decodeURIComponent(errorDescription) : 'Falha na autenticação.';
+    if (errorCode === 'otp_expired') {
+      message = 'O link que usaste expirou ou já foi utilizado. Gera um novo.';
+    } else if (errorCode === 'otp_disabled') {
+      message = 'O email não está confirmado ou o login por link está desativado.';
+    } else if (errorCode === 'invalid_credentials' || errorCode === 'email_not_confirmed') {
+      message = 'Credenciais inválidas ou email ainda não confirmado.';
+    }
+
+    window.history.replaceState(null, '', window.location.pathname);
+    toast.error(message, { duration: 6000 });
+    navigate('/login', { replace: true });
+  }, [navigate]);
+
+  return null;
+}
+
 // ─── Rotas ────────────────────────────────────────────
 
 function AppRoutes() {
@@ -122,7 +157,7 @@ function AppRoutes() {
       <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route path="/dashboard" element={<Lazy><Dashboard /></Lazy>} />
         <Route path="/contracts" element={<Lazy><ContractList /></Lazy>} />
-        <Route path="/contracts/new" element={<Lazy><ContractForm /></Lazy>} />
+        <Route path="/contracts/new" element={<Lazy><ContractEntry /></Lazy>} />
         <Route path="/contracts/:id/edit" element={<Lazy><ContractForm /></Lazy>} />
         <Route path="/contracts/:id" element={<Lazy><ContractDetail /></Lazy>} />
         <Route path="/analytics" element={<Lazy><Analytics /></Lazy>} />
@@ -172,5 +207,11 @@ function AppRoutes() {
 }
 
 export default function App() {
-  return <AppRoutes />;
+  return (
+    <>
+      <AuthErrorHandler />
+      <AppRoutes />
+      <Toaster position="top-right" richColors />
+    </>
+  );
 }

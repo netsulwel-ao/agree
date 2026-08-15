@@ -26,12 +26,12 @@ const defaultPrefs: Prefs = {
 };
 
 export default function NotificationPreferences() {
-  const { user, plan, isAdmin } = useAuth();
+  const { user, plan, isAdmin, trialEndsAt } = useAuth();
   const [prefs, setPrefs] = useState<Prefs>(defaultPrefs);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const canConfigure = checkPlan(plan, 'enterprise', isAdmin);
+  const canConfigure = checkPlan(plan, 'enterprise', isAdmin, trialEndsAt);
 
   useEffect(() => {
     if (!user) return;

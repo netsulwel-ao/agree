@@ -33,7 +33,8 @@ export function useClients(page = 1, search = '') {
         .eq('owner_id', user.id);
 
       if (search) {
-        query = query.ilike('name', `%${search}%`);
+        const like = `%${search}%`;
+        query = query.or(`name.ilike.${like},email.ilike.${like},phone.ilike.${like}`);
       }
 
       const from = (page - 1) * PAGE_SIZE;
@@ -46,6 +47,7 @@ export function useClients(page = 1, search = '') {
       return { data: (data || []) as Client[], count: count || 0 };
     },
     enabled: !!user,
+    placeholderData: (prev: any) => prev,
   });
 }
 

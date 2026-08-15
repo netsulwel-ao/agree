@@ -12,13 +12,13 @@ import { ptBR } from 'date-fns/locale';
 export default function ClientDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user, plan, isAdmin } = useAuth();
+  const { user, plan, isAdmin, trialEndsAt } = useAuth();
   const { data: client, isLoading, refetch } = useClient(id);
 
-  const canUseTags = checkPlan(plan, 'pro', isAdmin);
-  const canUseCategory = checkPlan(plan, 'pro', isAdmin);
-  const canUseContractHistory = checkPlan(plan, 'pro', isAdmin);
-  const canUseCustomFields = checkPlan(plan, 'enterprise', isAdmin);
+  const canUseTags = checkPlan(plan, 'pro', isAdmin, trialEndsAt);
+  const canUseCategory = checkPlan(plan, 'pro', isAdmin, trialEndsAt);
+  const canUseContractHistory = checkPlan(plan, 'pro', isAdmin, trialEndsAt);
+  const canUseCustomFields = checkPlan(plan, 'enterprise', isAdmin, trialEndsAt);
 
   const [contracts, setContracts] = useState<any[]>([]);
 

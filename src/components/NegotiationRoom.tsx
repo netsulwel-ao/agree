@@ -37,7 +37,7 @@ interface NegotiationRoomProps {
 }
 
 export default function NegotiationRoom({ contract, user, isOwner, onUpdate }: NegotiationRoomProps) {
-  const { plan, isAdmin } = useAuth();
+  const { plan, isAdmin, trialEndsAt } = useAuth();
   const { openCheckout } = useCheckoutModal();
   const [collaborators, setCollaborators] = useState<Collaborator[]>(contract.collaborators || []);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -94,7 +94,7 @@ export default function NegotiationRoom({ contract, user, isOwner, onUpdate }: N
       toast.error('Este email já foi convidado');
       return;
     }
-    const limits = getLimits(plan);
+    const limits = getLimits(plan, trialEndsAt);
     if (collaborators.length >= limits.maxCollaboratorsPerContract) {
       toast.error('Limite de colaboradores atingido.');
       return;
@@ -207,7 +207,7 @@ export default function NegotiationRoom({ contract, user, isOwner, onUpdate }: N
     }
   };
 
-  if (!checkPlan(plan, 'pro', isAdmin)) {
+  if (!checkPlan(plan, 'pro', isAdmin, trialEndsAt)) {
     return (
       <div style={{
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',

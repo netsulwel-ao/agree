@@ -35,7 +35,7 @@ const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#6366f1'];
 const VIBRANT = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
 export default function Analytics() {
-  const { user, plan, isAdmin } = useAuth();
+  const { user, plan, isAdmin, trialEndsAt } = useAuth();
   const { openCheckout } = useCheckoutModal();
   const [contracts, setContracts] = useState<any[]>([]);
 
@@ -150,7 +150,7 @@ export default function Analytics() {
     highRisk: contracts.filter(c => c.risk_level === 'high').length
   };
 
-  if (!checkPlan(plan, 'pro', isAdmin)) {
+  if (!checkPlan(plan, 'pro', isAdmin, trialEndsAt)) {
     return (
       <div style={{
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',

@@ -3,29 +3,38 @@ import { useNavigate } from 'react-router-dom';
 import { useContracts, type Contract } from '../hooks/useContracts';
 import { 
   Search, Filter, Eye, FileEdit, Trash2,
-  Sparkles, Calendar as CalendarIcon, FileText, Download, X
+  Sparkles, Calendar as CalendarIcon, FileText, Download, X, Plus, Loader2
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '../lib/supabase';
 import { intelligentSearch } from '../services/gemini';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency } from '../services/currency';
+import { getLimits } from '../lib/plans';
+import { useCheckoutModal } from '../contexts/CheckoutModalContext';
 
 export default function ContractList() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, plan, trialEndsAt } = useAuth();
+  const { openCheckout } = useCheckoutModal();
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const { data: contractsData, isLoading } = useContracts(page);
   const contracts = contractsData?.data ?? [];
-  const totalPages = Math.max(1, Math.ceil((contractsData?.count ?? 0) / 20));
+  const totalCount = contractsData?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / 20));
   const [searchTerm, setSearchTerm] = useState('');
   const [isAiSearching, setIsAiSearching] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [filteredContracts, setFilteredContracts] = useState<Contract[]>(contracts);
   const [showFilters, setShowFilters] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Contract | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [filters, setFilters] = useState({
     status: '',
     riskLevel: '',
@@ -34,6 +43,8 @@ export default function ContractList() {
     valueMin: '',
     valueMax: '',
   });
+
+  const limits = getLimits(plan, trialEndsAt);
 
   const allTags = [...new Set(contracts.flatMap(c => c.tags || []))].sort();
 
@@ -96,12 +107,88 @@ export default function ContractList() {
   const handleAiSearch = async () => {
     if (!searchTerm.trim()) { toast.error("Digite algo para a pesquisa inteligente"); return; }
     setIsAiSearching(true);
+    const loadingToast = toast.loading('A analisar contratos...');
     try {
       const results = await intelligentSearch(searchTerm, contractsData?.data ?? []);
       setFilteredContracts(results);
-      toast.success(`Encontrados ${results.length} contratos relevantes`);
-    } catch { toast.error("Erro na pesquisa inteligente"); }
+      toast.dismiss(loadingToast);
+      if (results.length === 0) {
+        toast.info('Nenhum contrato relevante encontrado');
+      } else {
+        toast.success(`Encontrados ${results.length} contratos relevantes`);
+      }
+    } catch {
+      toast.dismiss(loadingToast);
+      toast.error("Erro na pesquisa inteligente");
+    }
     finally { setIsAiSearching(false); }
+  };
+
+  const handleExportPdf = async () => {
+    if (filteredContracts.length === 0) { toast.info('Não há contratos para exportar'); return; }
+    setExportingPdf(true);
+    const loadingToast = toast.loading('A gerar PDF...');
+    try {
+      const { default: jsPDF } = await import('jspdf');
+      const autoTable = (await import('jspdf-autotable')).default;
+      const doc = new jsPDF('landscape');
+      doc.setFontSize(14);
+      doc.text('Contratos em Gestão', 14, 16);
+      doc.setFontSize(9);
+      doc.setTextColor(120);
+      doc.text(`${filteredContracts.length} contratos — ${new Date().toLocaleDateString('pt-PT')}`, 14, 22);
+      autoTable(doc, {
+        startY: 28,
+        head: [['Título', 'Versão', 'Risco', 'Vencimento', 'Valor', 'Status']],
+        body: filteredContracts.map(c => [
+          c.title,
+          `v${c.version || '1.0'}`,
+          c.risk_level === 'high' ? 'Alto' : c.risk_level === 'medium' ? 'Médio' : 'Baixo',
+          c.end_date ? format(parseISO(c.end_date), 'dd/MM/yyyy') : 'N/A',
+          formatCurrency(Number(c.value) || 0, c.currency || 'AOA'),
+          getStatusBadge(c.status).label,
+        ]),
+        styles: { fontSize: 9, cellPadding: 4 },
+        headStyles: { fillColor: [13, 17, 23], textColor: 255, fontStyle: 'bold' },
+      });
+      doc.save(`contratos_${new Date().toISOString().slice(0, 10)}.pdf`);
+      toast.dismiss(loadingToast);
+      toast.success(`PDF exportado com ${filteredContracts.length} contrato${filteredContracts.length > 1 ? 's' : ''}`);
+    } catch {
+      toast.dismiss(loadingToast);
+      toast.error('Erro ao exportar PDF');
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
+  const handleCreate = () => {
+    if (totalCount >= limits.maxContracts) {
+      if (plan === 'free') { openCheckout('pro'); return; }
+      toast.error('Limite de contratos atingido');
+      return;
+    }
+    navigate('/contracts/new');
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const { error } = await supabase
+        .from('contracts')
+        .delete()
+        .eq('id', deleteTarget.id)
+        .eq('owner_id', user?.id);
+      if (error) throw new Error(error.message);
+      await queryClient.invalidateQueries({ queryKey: ['contracts'] });
+      setDeleteTarget(null);
+      toast.success('Contrato eliminado com sucesso');
+    } catch (err: any) {
+      toast.error(err?.message || 'Erro ao eliminar contrato');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -305,26 +392,72 @@ export default function ContractList() {
           background: 'rgba(255,255,255,0.6)'
         }}>
           <h2 style={{ fontSize: 15, fontWeight: 700, color: '#0d1117', fontFamily: "'Poppins',sans-serif" }}>
-            Contratos em Gestão
+            Contratos em Gestão ({totalCount})
           </h2>
-          <button
-            onClick={() => toast.info('Exportação removida')}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              fontSize: 12, fontWeight: 600, color: '#0d1117',
-              background: 'transparent', border: 'none', cursor: 'pointer',
-              fontFamily: "'Poppins',sans-serif", transition: 'color .2s'
-            }}
-            onMouseEnter={e => e.currentTarget.style.color = '#000000'}
-            onMouseLeave={e => e.currentTarget.style.color = '#0d1117'}
-          >
-            <Download size={14} /> Exportar PDF
-          </button>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <button
+              onClick={handleExportPdf}
+              disabled={exportingPdf}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                fontSize: 12, fontWeight: 600, color: '#6b7280',
+                background: 'transparent', border: 'none', cursor: exportingPdf ? 'not-allowed' : 'pointer',
+                fontFamily: "'Poppins',sans-serif", transition: 'color .2s'
+              }}
+              onMouseEnter={e => { if (!exportingPdf) e.currentTarget.style.color = '#0d1117'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = '#6b7280'; }}
+            >
+              {exportingPdf ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={14} />}
+              {exportingPdf ? 'A gerar...' : 'Exportar PDF'}
+            </button>
+            <button
+              onClick={handleCreate}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                background: '#0d1117', color: '#fff', border: '1.5px solid #0d1117',
+                fontFamily: "'Poppins',sans-serif", transition: 'background .2s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = '#000'}
+              onMouseLeave={e => e.currentTarget.style.background = '#0d1117'}
+            >
+              <Plus size={15} /> Novo Contrato
+            </button>
+          </div>
         </div>
 
         {/* Table */}
-        <div className="responsive-table" style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, fontFamily: "'Poppins',sans-serif" }}>
+        {totalCount === 0 && !searchTerm ? (
+          <div style={{ padding: '70px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+            <div style={{
+              width: 72, height: 72, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(13,17,23,0.08)', color: '#0d1117',
+            }}>
+              <FileText size={32} />
+            </div>
+            <div>
+              <p style={{ fontSize: 16, fontWeight: 700, color: '#0d1117' }}>Ainda não tens contratos</p>
+              <p style={{ fontSize: 13, color: '#6b7280', marginTop: 4, maxWidth: 340 }}>
+                Cria o teu primeiro contrato com o modelo inteligente da Agree ou parte de um modelo em branco.
+              </p>
+            </div>
+            <button
+              onClick={handleCreate}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                padding: '10px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                background: '#0d1117', color: '#fff', border: '1.5px solid #0d1117',
+                fontFamily: "'Poppins',sans-serif", transition: 'background .2s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = '#000'}
+              onMouseLeave={e => e.currentTarget.style.background = '#0d1117'}
+            >
+              <Plus size={16} /> Novo Contrato
+            </button>
+          </div>
+        ) : (
+          <div className="responsive-table" style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, fontFamily: "'Poppins',sans-serif" }}>
             <thead>
               <tr style={{ background: '#f7f9fb', borderBottom: '1px solid #e2e5e9' }}>
                 {['Identificação', 'Versão', 'Risco', 'Vencimento', 'Valor', 'Status', 'Ações'].map((h, i) => (
@@ -396,14 +529,7 @@ export default function ContractList() {
                         {[
                           { icon: <Eye size={15} />, hoverColor: '#0d1117', onClick: () => navigate(`/contracts/${contract.id}`) },
                           { icon: <FileEdit size={15} />, hoverColor: '#0d1117', onClick: () => navigate(`/contracts/${contract.id}/edit`) },
-                          { icon: <Trash2 size={15} />, hoverColor: '#ef4444', onClick: () => {
-                            if (window.confirm('Tens a certeza que pretendes eliminar este contrato? Esta acção é irreversível.')) {
-                              supabase.from('contracts').delete().eq('id', contract.id).eq('owner_id', user?.id).then(({ error }) => {
-                                if (error) { toast.error('Erro ao eliminar contrato'); return; }
-                                toast.success('Contrato eliminado com sucesso');
-                              });
-                            }
-                          }},
+                          { icon: <Trash2 size={15} />, hoverColor: '#ef4444', onClick: () => setDeleteTarget(contract) },
                         ].map((btn, bi) => (
                           <button
                             key={bi}
@@ -429,9 +555,10 @@ export default function ContractList() {
                   </td>
                 </tr>
               )}
-            </tbody>
-          </table>
-        </div>
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {/* Pagination */}
         {totalPages > 1 && (
@@ -462,6 +589,58 @@ export default function ContractList() {
           </div>
         )}
       </div>
+
+      {/* Delete confirmation modal */}
+      {deleteTarget && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+          zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+        }} onClick={() => { if (!deleting) setDeleteTarget(null); }}>
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#fff', width: '100%', maxWidth: 440, padding: 28,
+              fontFamily: "'Poppins',sans-serif",
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+              <h3 style={{ fontSize: 17, fontWeight: 700, color: '#0d1117' }}>Eliminar contrato</h3>
+              <button onClick={() => { if (!deleting) setDeleteTarget(null); }}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#6b7280', padding: 2 }}>
+                <X size={18} />
+              </button>
+            </div>
+            <p style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.6 }}>
+              Tens a certeza que pretendes eliminar <strong style={{ color: '#0d1117' }}>{deleteTarget.title}</strong>?
+              Esta acção é irreversível.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 24 }}>
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                style={{
+                  padding: '10px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                  border: '1.5px solid #e2e5e9', background: '#fff', color: '#6b7280',
+                  fontFamily: "'Poppins',sans-serif",
+                }}
+              >Cancelar</button>
+              <button
+                onClick={confirmDelete}
+                disabled={deleting}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                  padding: '10px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                  border: '1.5px solid #ef4444', background: '#ef4444', color: '#fff',
+                  fontFamily: "'Poppins',sans-serif",
+                }}
+              >
+                {deleting && <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />}
+                {deleting ? 'A eliminar...' : 'Eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -49,7 +49,7 @@ import { ReminderForm, ReminderList } from './ReminderForm';
 import { getRenewalHistory, renewContract, RenewalHistory } from '../services/reminders';
 
 export default function ContractDetail() {
-  const { user, plan, isAdmin } = useAuth();
+  const { user, plan, isAdmin, trialEndsAt } = useAuth();
   const navigate = useNavigate();
   const { id: contractId } = useParams<{ id: string }>();
   const [contract, setContract] = useState<any>(null);
@@ -499,7 +499,7 @@ export default function ContractDetail() {
             <Download size={16} />
             Exportar PDF
           </button>
-          {checkPlan(plan, 'pro') && (
+          {checkPlan(plan, 'pro', false, trialEndsAt) && (
             <button
               onClick={() => setShowCalendarModal(true)}
               style={{

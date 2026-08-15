@@ -59,6 +59,7 @@ export function useContracts(page = 1, search = '') {
       return { data: (data || []) as Contract[], count: count || 0 };
     },
     enabled: !!user,
+    placeholderData: (prev: any) => prev,
   });
 }
 

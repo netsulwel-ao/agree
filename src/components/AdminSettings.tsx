@@ -30,7 +30,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 export default function AdminSettings() {
-  const { user, plan, isLoading: authLoading } = useAuth();
+  const { user, plan, trialEndsAt, isLoading: authLoading } = useAuth();
   const [settings, setSettings] = useState<PaymentSettings>(defaults);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -285,7 +285,7 @@ export default function AdminSettings() {
         </button>
       )}
 
-      {checkPlan(plan, 'enterprise') && (
+      {checkPlan(plan, 'enterprise', false, trialEndsAt) && (
         <div style={{ marginTop: 24 }}>
           <SignatureProviderConfig />
         </div>

@@ -1,9 +1,9 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { 
-  Save, 
-  X, 
-  Sparkles, 
+import {
+  Save,
+  X,
+  Sparkles,
   AlertCircle,
   Calendar as CalendarIcon,
   DollarSign,
@@ -12,37 +12,45 @@ import {
   Loader2,
   Wand2,
   FileUp,
-  BookTemplate,
   Library,
-  ScanText
+  ChevronLeft,
+  FileText as FileTextIcon
 } from 'lucide-react';
 import { analyzeContractRisks, generateContractSuggestions, extractContractFromText } from '../services/gemini';
+import { extractPdfText } from '../services/pdf';
 
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import TemplateLibrary from './TemplateLibrary';
 import TemplateFieldForm from './TemplateFieldForm';
 import AIContractGenerator from './AIContractGenerator';
+import ContractClauseEditor from './ContractClauseEditor';
 import TagInput from './TagInput';
 import { useClients } from '../hooks/useClients';
 import type { FieldDef } from './TemplateFieldForm';
 import { checkPlan, getLimits, canUpgrade } from '../lib/plans';
 import { logAudit, Actions } from '../services/auditLog';
 import CurrencySelect from './CurrencySelect';
+import { useCheckoutModal } from '../contexts/CheckoutModalContext';
 
 export default function ContractForm() {
-  const { user, plan, isAdmin } = useAuth();
+  const { user, plan, isAdmin, trialEndsAt } = useAuth();
   const navigate = useNavigate();
   const { id: editId } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const isEditing = !!editId;
+  const mode = isEditing ? null : (searchParams.get('mode') || null);
+  const canUseAI = checkPlan(plan, 'pro', isAdmin, trialEndsAt);
+  const { openCheckout } = useCheckoutModal();
   const [analyzing, setAnalyzing] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
   const [generating, setGenerating] = useState(false);
   const [extractingPdf, setExtractingPdf] = useState(false);
-  const [ocrRunning, setOcrRunning] = useState(false);
-  const [ocrProgress, setOcrProgress] = useState(0);
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState('');
+  const [extractingText, setExtractingText] = useState(false);
   const [analysis, setAnalysis] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [loadingContract, setLoadingContract] = useState(isEditing);
@@ -111,11 +119,26 @@ export default function ContractForm() {
     fetchContract();
   }, [editId, user, navigate]);
 
+  // Modo "criar do zero" → abre a biblioteca de modelos automaticamente
+  useEffect(() => {
+    if (mode === 'template' && !isEditing) {
+      setShowTemplateLibrary(true);
+    }
+  }, [mode, isEditing]);
+
+  const requirePro = (feature: string): boolean => {
+    if (canUseAI) return true;
+    toast.info(`Esta funcionalidade requer o plano Pro (${feature})`);
+    openCheckout('pro');
+    return false;
+  };
+
   const handleAnalyze = async () => {
     if (!formData.content) {
       toast.error("Adicione o conteúdo do contrato para analisar");
       return;
     }
+    if (!requirePro('Análise de riscos')) return;
     setAnalyzing(true);
     try {
       const result = await analyzeContractRisks(formData.content);
@@ -133,6 +156,7 @@ export default function ContractForm() {
       toast.error("Preenche a descrição para gerar o contrato com IA");
       return;
     }
+    if (!requirePro('Geração de contratos com IA')) return;
     setGenerating(true);
     try {
       const generated = await generateContractSuggestions(
@@ -158,9 +182,21 @@ export default function ContractForm() {
       toast.error('Selecciona um ficheiro PDF');
       return;
     }
+    if (!requirePro('Extração de documentos PDF')) return;
     setExtractingPdf(true);
     try {
-      toast.info('Extração de PDF removida');
+      const text = await extractPdfText(file);
+      if (!text.trim()) {
+        toast.error('Não foi possível extrair texto do PDF. Verifica se é um documento digitalizado.');
+        return;
+      }
+      const limited = text.length > 40000 ? text.slice(0, 40000) : text;
+      setFormData(prev => ({
+        ...prev,
+        description: prev.description || limited.slice(0, 500),
+        content: prev.content ? prev.content + '\n\n' + limited : limited,
+      }));
+      toast.success('Texto extraído do PDF e adicionado ao contrato');
     } catch {
       toast.error('Erro ao processar PDF');
     } finally {
@@ -169,23 +205,22 @@ export default function ContractForm() {
     }
   };
 
-  const handleOcrUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      toast.error('Selecciona uma imagem (PNG, JPG)');
-      return;
-    }
-    setOcrRunning(true);
-    setOcrProgress(0);
+  const handlePasteText = async () => {
+    if (!pasteText.trim()) return;
+    if (!requirePro('Extração de texto')) return;
+    setExtractingText(true);
     try {
-      toast.info('OCR de imagem removido');
-    } catch {
-      toast.error('Erro ao processar imagem');
+      const limited = pasteText.length > 40000 ? pasteText.slice(0, 40000) : pasteText;
+      setFormData(prev => ({
+        ...prev,
+        description: prev.description || limited.slice(0, 500),
+        content: prev.content ? prev.content + '\n\n' + limited : limited,
+      }));
+      toast.success('Texto colado adicionado ao contrato');
+      setPasteOpen(false);
+      setPasteText('');
     } finally {
-      setOcrRunning(false);
-      setOcrProgress(0);
-      e.target.value = '';
+      setExtractingText(false);
     }
   };
 
@@ -215,7 +250,7 @@ export default function ContractForm() {
         .from('contracts')
         .select('id', { count: 'exact', head: true })
         .eq('owner_id', user.id);
-      const limits = getLimits(plan);
+      const limits = getLimits(plan, trialEndsAt);
       if (count && count >= limits.maxContracts) {
         toast.error('Limite de contratos atingido. Faça upgrade para o plano Pro.');
         setSaving(false);
@@ -395,34 +430,19 @@ export default function ContractForm() {
     setFieldValues(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleGeneratePdf = async () => {
-    if (!selectedTemplate) return;
-    const missing = (selectedTemplate.fields || [])
-      .filter((f: FieldDef) => f.required && !fieldValues[f.name]?.trim())
-      .map((f: FieldDef) => f.label);
-    if (missing.length > 0) {
-      toast.error(`Campos obrigatórios: ${missing.join(', ')}`);
-      return;
-    }
-    setExportingPdf(true);
-    try {
-      let html = selectedTemplate.content;
-      (selectedTemplate.fields || []).forEach((f: FieldDef) => {
-        const val = fieldValues[f.name] || '';
-        html = html.replace(new RegExp(`\\{\\{${f.name}\\}\\}`, 'g'), val);
-      });
-      await generatePdf(html, selectedTemplate.name);
-    } catch {
-      toast.error('Erro ao exportar PDF');
-    } finally {
-      setExportingPdf(false);
-    }
-  };
-
   const handleExportContent = async () => {
     if (!formData.content?.trim()) {
       toast.error('O contrato está vazio');
       return;
+    }
+    if (selectedTemplate) {
+      const missing = (selectedTemplate.fields || [])
+        .filter((f: FieldDef) => f.required && !fieldValues[f.name]?.trim())
+        .map((f: FieldDef) => f.label);
+      if (missing.length > 0) {
+        toast.error(`Campos obrigatórios do modelo: ${missing.join(', ')}`);
+        return;
+      }
     }
     setExportingPdf(true);
     try {
@@ -517,7 +537,7 @@ export default function ContractForm() {
             <div style={{ display: 'flex', gap: 12 }}>
               <button
                 type="button"
-                onClick={() => navigate('/contracts')}
+                onClick={() => navigate(isEditing ? '/contracts' : '/contracts/new')}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -574,6 +594,68 @@ export default function ContractForm() {
               </button>
             </div>
           </div>
+
+          {!isEditing && mode === 'document' && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 14,
+              padding: '14px 24px', background: '#0d1117', color: '#fff'
+            }}>
+              <FileUp size={20} color="#fff" />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>Modo: Importar documento existente</div>
+                <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>
+                  Cola o texto ou faz upload do PDF no editor de conteúdo. Revê e corrige os dados antes de salvar.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/contracts/new')}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  background: 'rgba(255,255,255,0.12)', color: '#fff',
+                  border: '1px solid rgba(255,255,255,0.25)',
+                  padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  fontFamily: "'Poppins',sans-serif", transition: 'background .2s'
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.12)'}
+              >
+                <ChevronLeft size={14} />
+                Voltar às opções
+              </button>
+            </div>
+          )}
+
+          {!isEditing && mode === 'draft' && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 14,
+              padding: '14px 24px', background: 'rgba(0,0,0,0.04)', borderBottom: '1px solid #e2e5e9'
+            }}>
+              <FileTextIcon size={20} color="#6b7280" />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#0d1117' }}>Modo: Rascunho</div>
+                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
+                  Guarda o contrato para retomar mais tarde. O documento final é criado depois, quando estiveres pronto.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/contracts/new')}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  background: '#fff', color: '#6b7280',
+                  border: '1px solid #e2e5e9',
+                  padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  fontFamily: "'Poppins',sans-serif", transition: 'background .2s'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#f7f9fb'; e.currentTarget.style.color = '#0d1117'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#6b7280'; }}
+              >
+                <ChevronLeft size={14} />
+                Voltar às opções
+              </button>
+            </div>
+          )}
 
           <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 24 }}>
             <div style={{
@@ -944,28 +1026,28 @@ export default function ContractForm() {
                         {extractingPdf ? <Loader2 size={14} className="animate-spin" /> : <FileUp size={14} />}
                         {extractingPdf ? 'Extraindo...' : 'Upload PDF'}
                       </label>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleOcrUpload}
-                        style={{ display: 'none' }}
-                        id="ocr-upload"
-                      />
-                      <label htmlFor="ocr-upload" style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 6,
-                        padding: '6px 12px', fontSize: 12, fontWeight: 600,
-                        background: '#fff', border: '1px solid #e2e5e9',
-                        color: ocrRunning ? '#0d1117' : '#6b7280',
-                        cursor: ocrRunning ? 'not-allowed' : 'pointer',
-                        transition: 'all .2s', fontFamily: "'Poppins',sans-serif",
-                        opacity: ocrRunning ? 0.8 : 1
-                      }}>
-                        {ocrRunning ? <Loader2 size={14} className="animate-spin" /> : <ScanText size={14} />}
-                        {ocrRunning ? `OCR ${Math.round(ocrProgress * 100)}%` : 'Digitalizar Imagem'}
-                      </label>
                       <button
                         type="button"
-                        onClick={() => setShowAIGenerator(true)}
+                        onClick={() => setPasteOpen(true)}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 6,
+                          padding: '6px 12px', fontSize: 12, fontWeight: 600,
+                          background: '#fff', border: '1px solid #e2e5e9',
+                          color: '#6b7280', cursor: 'pointer',
+                          transition: 'all .2s', fontFamily: "'Poppins',sans-serif"
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#f7f9fb'; e.currentTarget.style.color = '#0d1117'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#6b7280'; }}
+                      >
+                        <FileTextIcon size={14} />
+                        Colar Texto
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!requirePro('Geração de contratos com IA')) return;
+                          setShowAIGenerator(true);
+                        }}
                         style={{
                           display: 'inline-flex', alignItems: 'center', gap: 6,
                           padding: '6px 12px', fontSize: 12, fontWeight: 600,
@@ -1003,7 +1085,7 @@ export default function ContractForm() {
                   )}
                 </div>
               </div>
-              {selectedTemplate ? (
+              {selectedTemplate && (
                 <div style={{
                   background: '#fff',
                   border: '1.5px solid #e2e5e9',
@@ -1015,85 +1097,22 @@ export default function ContractForm() {
                     onChange={handleFieldChange}
                     templateName={selectedTemplate.name}
                   />
-                  <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end' }}>
-                    <button
-                      type="button"
-                      onClick={handleGeneratePdf}
-                      disabled={exportingPdf}
-                      style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 8,
-                        padding: '12px 28px',
-                        fontSize: 14, fontWeight: 700,
-                        background: exportingPdf ? '#e2e5e9' : '#0d1117',
-                        border: 'none', color: exportingPdf ? '#6b7280' : '#fff',
-                        cursor: exportingPdf ? 'not-allowed' : 'pointer',
-                        fontFamily: "'Poppins',sans-serif",
-                        transition: 'all .2s'
-                      }}
-                      onMouseEnter={e => { if (!exportingPdf) e.currentTarget.style.background = '#000'; }}
-                      onMouseLeave={e => { if (!exportingPdf) e.currentTarget.style.background = '#0d1117'; }}
-                    >
-                      {exportingPdf ? <Loader2 size={16} className="animate-spin" /> : <FileUp size={16} />}
-                      {exportingPdf ? 'A exportar...' : 'Exportar PDF'}
-                    </button>
-                  </div>
                 </div>
-              ) : (
-                <>
-                  <textarea
-                    value={formData.content}
-                    onChange={e => setFormData({ ...formData, content: e.target.value })}
-                    placeholder="Escreve ou cola o conte\u00fado completo do contrato aqui..."
-                    rows={16}
-                    style={{
-                      width: '100%',
-                      padding: '14px 16px',
-                      fontSize: 14,
-                      fontFamily: "'Poppins',sans-serif",
-                      background: '#fff',
-                      border: '1.5px solid #e2e5e9',
-                      color: '#0d1117',
-                      outline: 'none',
-                      resize: 'vertical',
-                      lineHeight: 1.7,
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                  {formData.content && (
-                    <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                      <button
-                        type="button"
-                        onClick={() => setShowSaveTemplate(true)}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', gap: 6,
-                          padding: '6px 12px', fontSize: 12, fontWeight: 600,
-                          background: 'transparent', border: 'none',
-                          color: '#6b7280', cursor: 'pointer',
-                          fontFamily: "'Poppins',sans-serif", transition: 'all .2s'
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.color = '#0d1117'; }}
-                        onMouseLeave={e => { e.currentTarget.style.color = '#6b7280'; }}
-                      >
-                        <BookTemplate size={14} />
-                        Guardar como Modelo
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleExportContent}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', gap: 6,
-                          padding: '6px 14px', fontSize: 12, fontWeight: 600,
-                          background: '#0d1117', border: 'none', color: '#fff',
-                          cursor: 'pointer', fontFamily: "'Poppins',sans-serif"
-                        }}
-                      >
-                        <FileUp size={14} />
-                        Exportar PDF
-                      </button>
-                    </div>
-                  )}
-                </>
               )}
+
+              <ContractClauseEditor
+                content={formData.content}
+                fieldValues={{
+                  ...fieldValues,
+                  titulo: formData.title || 'Contrato',
+                  data: new Date().toLocaleDateString('pt-PT'),
+                }}
+                onChange={html => setFormData(prev => ({ ...prev, content: html }))}
+                exportingPdf={exportingPdf}
+                onExportPdf={handleExportContent}
+                canUseAI={canUseAI}
+                onRequirePro={requirePro}
+              />
             </div>
 
             {analysis && (
@@ -1438,6 +1457,71 @@ export default function ContractForm() {
                 }}
               >
                 {savingTemplate ? 'Guardando...' : 'Guardar Modelo'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Colar Texto Modal */}
+      {pasteOpen && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 24, fontFamily: "'Poppins', sans-serif"
+        }} onClick={(e) => { if (e.target === e.currentTarget) setPasteOpen(false); }}>
+          <div style={{
+            background: '#fff', width: '100%', maxWidth: 560,
+            boxShadow: '0 24px 64px rgba(0,0,0,0.2)'
+          }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e5e9' }}>
+              <h2 style={{ fontSize: 18, fontWeight: 700, color: '#0d1117', fontFamily: "'Poppins',sans-serif" }}>
+                Colar Texto do Contrato
+              </h2>
+              <p style={{ fontSize: 13, color: '#6b7280', fontFamily: "'Poppins',sans-serif" }}>
+                Copia o conteúdo do documento existente e cola aqui. Podes também usar para textos copiados de Word.
+              </p>
+            </div>
+            <div style={{ padding: 24 }}>
+              <textarea
+                value={pasteText}
+                onChange={e => setPasteText(e.target.value)}
+                rows={10}
+                placeholder="Cola aqui o texto do contrato..."
+                style={{
+                  width: '100%', padding: '12px 14px', fontSize: 14,
+                  border: '1.5px solid #e2e5e9', outline: 'none', resize: 'vertical',
+                  fontFamily: "'Poppins',sans-serif", color: '#0d1117', lineHeight: 1.6
+                }}
+                onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
+                onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
+              />
+            </div>
+            <div style={{ padding: '16px 24px', borderTop: '1px solid #e2e5e9', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button
+                onClick={() => setPasteOpen(false)}
+                style={{
+                  padding: '10px 20px', fontSize: 14, fontWeight: 600,
+                  background: '#fff', border: '1px solid #e2e5e9', color: '#6b7280',
+                  cursor: 'pointer', fontFamily: "'Poppins',sans-serif"
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handlePasteText}
+                disabled={extractingText}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                  padding: '10px 20px', fontSize: 14, fontWeight: 600,
+                  background: '#0d1117', border: 'none', color: '#fff',
+                  cursor: extractingText ? 'not-allowed' : 'pointer',
+                  fontFamily: "'Poppins',sans-serif", opacity: extractingText ? 0.7 : 1
+                }}
+              >
+                {extractingText ? <Loader2 size={16} className="animate-spin" /> : <FileTextIcon size={16} />}
+                {extractingText ? 'Adicionando...' : 'Adicionar ao Contrato'}
               </button>
             </div>
           </div>

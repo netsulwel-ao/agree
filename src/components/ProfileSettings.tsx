@@ -9,7 +9,7 @@ import ApiDocs from './ApiDocs';
 import { checkPlan } from '../lib/plans';
 
 export default function ProfileSettings() {
-  const { user, plan } = useAuth();
+  const { user, plan, trialEndsAt } = useAuth();
   const [newEmail, setNewEmail] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -294,7 +294,7 @@ export default function ProfileSettings() {
           )}
         </motion.div>
 
-        {checkPlan(plan, 'pro') && (
+        {checkPlan(plan, 'pro', false, trialEndsAt) && (
           <div style={{ gridColumn: '1 / -1', marginTop: 24 }}>
             <ApiDocs />
           </div>

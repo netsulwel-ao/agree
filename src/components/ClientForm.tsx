@@ -10,15 +10,15 @@ import { toast } from 'sonner';
 export default function ClientForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user, plan, isAdmin } = useAuth();
+  const { user, plan, isAdmin, trialEndsAt } = useAuth();
   const { data: existing, isLoading: loadingExisting } = useClient(id);
   const createClient = useCreateClient();
   const updateClient = useUpdateClient();
   const isEdit = !!id;
 
-  const canUseTags = checkPlan(plan, 'pro', isAdmin);
-  const canUseCategory = checkPlan(plan, 'pro', isAdmin);
-  const canUseCustomFields = checkPlan(plan, 'enterprise', isAdmin);
+  const canUseTags = checkPlan(plan, 'pro', isAdmin, trialEndsAt);
+  const canUseCategory = checkPlan(plan, 'pro', isAdmin, trialEndsAt);
+  const canUseCustomFields = checkPlan(plan, 'enterprise', isAdmin, trialEndsAt);
 
   const [formData, setFormData] = useState({
     name: '',

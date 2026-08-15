@@ -82,7 +82,7 @@ async function sendNotificationEmail(to: string, name: string, contractTitle: st
 }
 
 export default function SignaturePanel({ contract, user, onUpdate }: SignaturePanelProps) {
-  const { plan, isAdmin } = useAuth();
+  const { plan, isAdmin, trialEndsAt } = useAuth();
   const { openCheckout } = useCheckoutModal();
   const [signatures, setSignatures] = useState<Signature[]>(contract.signatures || []);
   useEffect(() => {
@@ -279,7 +279,7 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
     }
   };
 
-  if (!checkPlan(plan, 'pro', isAdmin)) {
+  if (!checkPlan(plan, 'pro', isAdmin, trialEndsAt)) {
     return (
       <div style={{
         display: 'flex', alignItems: 'center', gap: 12,

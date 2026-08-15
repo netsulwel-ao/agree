@@ -255,7 +255,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await handleUserChange(session?.user?.id ?? null, session?.user?.email);
       setIsLoading(false);
     }).catch(async () => {
-      // Sess�o corrompida (ex: refresh token inv�lido) → limpa localStorage
+      // Sessão corrompida (ex: refresh token inválido) → limpa localStorage
       try { // Clear all cached profile data
         Object.keys(localStorage).forEach(key => {
           if (key.startsWith('profile_')) localStorage.removeItem(key);
@@ -289,7 +289,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.removeItem('sb-refresh-token');
       await supabase.auth.signOut();
     } catch {
-      // ignora erros de rede/sess�o
+      // ignora erros de rede/sessão
     } finally {
       setGlobalLoading(false);
     }

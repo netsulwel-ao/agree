@@ -15,7 +15,7 @@ import SignaturePad from './SignaturePad';
 type Step = 'choose-method' | 'draw' | 'capture' | 'preview' | 'saving';
 
 export default function RegisterSignature() {
-  const { user, plan, isAdmin } = useAuth();
+  const { user, plan, isAdmin, trialEndsAt } = useAuth();
   const { openCheckout } = useCheckoutModal();
   const navigate = useNavigate();
 
@@ -276,7 +276,7 @@ const isLocalhost = window.location.hostname === 'localhost' || window.location.
     }
   };
 
-  if (!checkPlan(plan, 'pro', isAdmin)) {
+  if (!checkPlan(plan, 'pro', isAdmin, trialEndsAt)) {
     return (
       <div style={{
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',

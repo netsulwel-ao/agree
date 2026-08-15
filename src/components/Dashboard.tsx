@@ -131,7 +131,7 @@ export default function Dashboard() {
 
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 24, fontFamily: "'Poppins',sans-serif" }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 24, fontFamily: "'Inter', sans-serif" }}>
         <style>{`@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}.sk{background:linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%);background-size:400px 100%;animation:shimmer 1.4s ease infinite}`}</style>
         <div className="sk" style={{ height: 160 }} />
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 20 }}>
@@ -145,7 +145,7 @@ export default function Dashboard() {
   const isNewUser = contracts.length === 0;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, fontFamily: "'Poppins',sans-serif" }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, fontFamily: "'Inter', sans-serif" }}>
 
       {/* Onboarding Walkthrough */}
       {showOnboarding && (
@@ -179,7 +179,7 @@ export default function Dashboard() {
             style={{
               padding: '8px 18px', background: '#fff', color: '#0d1117',
               border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-              fontFamily: "'Poppins', sans-serif", whiteSpace: 'nowrap',
+              fontFamily: "'Inter', sans-serif", whiteSpace: 'nowrap',
             }}
           >
             Subscrever agora
@@ -258,7 +258,7 @@ export default function Dashboard() {
                   padding: '10px 18px', background: 'rgba(255,255,255,0.1)',
                   border: '1px solid rgba(255,255,255,0.2)', color: '#fff',
                   fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                  fontFamily: "'Poppins',sans-serif", whiteSpace: 'nowrap',
+                  fontFamily: "'Inter', sans-serif", whiteSpace: 'nowrap',
                 }}
               >
                 <Download size={16} /> Exportar Relatório
@@ -281,7 +281,7 @@ export default function Dashboard() {
                     padding: '12px 20px', background: 'rgba(255,255,255,0.1)',
                     border: '1px solid rgba(255,255,255,0.15)', color: '#fff',
                     fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                    fontFamily: "'Poppins',sans-serif",
+                    fontFamily: "'Inter', sans-serif",
                     transition: 'all .2s', flex: 1, minWidth: 160,
                     justifyContent: 'center'
                   }}
@@ -310,7 +310,7 @@ export default function Dashboard() {
                 display: 'inline-flex', alignItems: 'center', gap: 8,
                 padding: '10px 18px', fontSize: 13, fontWeight: 600,
                 background: qa.bg, border: 'none', color: qa.color,
-                cursor: 'pointer', fontFamily: "'Poppins',sans-serif",
+                cursor: 'pointer', fontFamily: "'Inter', sans-serif",
                 transition: 'all .2s',
               }}
               onMouseEnter={e => { e.currentTarget.style.opacity = '0.8'; }}
@@ -428,7 +428,7 @@ export default function Dashboard() {
             style={{
               padding: '10px 20px', fontSize: 13, fontWeight: 600,
               background: '#0d1117', color: '#fff', border: 'none', cursor: 'pointer',
-              fontFamily: "'Poppins',sans-serif",
+              fontFamily: "'Inter', sans-serif",
             }}
           >
             Actualizar
@@ -458,7 +458,7 @@ export default function Dashboard() {
               display: 'inline-flex', alignItems: 'center', gap: 8,
               padding: '12px 24px', background: '#0d1117', color: '#fff',
               border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer',
-              fontFamily: "'Poppins',sans-serif"
+              fontFamily: "'Inter', sans-serif"
             }}>
               <Plus size={18} /> Criar Primeiro Contrato
             </button>
@@ -468,7 +468,7 @@ export default function Dashboard() {
               display: 'inline-flex', alignItems: 'center', gap: 8,
               padding: '12px 24px', background: '#fff', color: '#0d1117',
               border: '1px solid #e2e5e9', fontSize: 14, fontWeight: 600,
-              cursor: 'pointer', fontFamily: "'Poppins',sans-serif"
+              cursor: 'pointer', fontFamily: "'Inter', sans-serif"
             }}>
               Ver Tutorial
             </button>
@@ -488,7 +488,7 @@ export default function Dashboard() {
                 style={{
                   fontSize: 12, fontWeight: 600, color: '#6b7280',
                   background: 'none', border: 'none', cursor: 'pointer',
-                  fontFamily: "'Poppins',sans-serif",
+                  fontFamily: "'Inter', sans-serif",
                 }}
               >Ver todos</button>
             </div>

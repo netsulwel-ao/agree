@@ -39,6 +39,8 @@ const CompaniesPage = lazy(() => import('./pages/admin/CompaniesPage'));
 const PermissionsPage = lazy(() => import('./pages/admin/PermissionsPage'));
 const Termos = lazy(() => import('./components/Termos'));
 const Privacidade = lazy(() => import('./components/Privacidade'));
+const OAuthAuthorize = lazy(() => import('./pages/OAuthAuthorize'));
+
 
 import { useGlobalLoading } from './contexts/GlobalLoadingContext';
 import { useAuth } from './contexts/AuthContext';
@@ -200,6 +202,11 @@ function AppRoutes() {
       <Route path="/reset-password" element={<Lazy><ResetPassword /></Lazy>} />
       <Route path="/termos" element={<Lazy><Termos /></Lazy>} />
       <Route path="/privacidade" element={<Lazy><Privacidade /></Lazy>} />
+
+      {/* Ecrã de consentimento OAuth — apps externas a ligar-se ao Agree.
+          Fica fora do ProtectedRoute porque o próprio ecrã gere o login:
+          um utilizador novo tem de poder autorizar sem sessão previa. */}
+      <Route path="/oauth/authorize" element={<Lazy><OAuthAuthorize /></Lazy>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

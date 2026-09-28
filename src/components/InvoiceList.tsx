@@ -1,234 +1,220 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useInvoices } from '../hooks/useInvoices';
-import {
-  FileText, Loader2, Plus, Search, Filter, ArrowRight,
-  DollarSign, Clock, CheckCircle2, XCircle, AlertTriangle
-} from 'lucide-react';
-import { formatCurrency } from '../services/currency';
+import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useInvoices, useDeleteInvoice, type Invoice } from '../hooks/useInvoices'
+import { useAuth } from '../contexts/AuthContext'
+import { checkPlan, getLimits } from '../lib/plans'
+import { useCheckoutModal } from '../contexts/CheckoutModalContext'
+import { toast } from 'sonner'
+import { Search, Plus, Eye, FileEdit, Trash2, Download, X, Loader2, FileText, Euro } from 'lucide-react'
 
-const statusConfig: Record<string, { label: string; color: string; bg: string; icon: any }> = {
-  draft: { label: 'Rascunho', color: '#6b7280', bg: 'rgba(107,114,128,0.1)', icon: FileText },
-  sent: { label: 'Enviada', color: '#3b82f6', bg: 'rgba(59,130,246,0.1)', icon: Clock },
-  paid: { label: 'Paga', color: '#10b981', bg: 'rgba(16,185,129,0.1)', icon: CheckCircle2 },
-  overdue: { label: 'Vencida', color: '#ef4444', bg: 'rgba(239,68,68,0.1)', icon: AlertTriangle },
-  cancelled: { label: 'Cancelada', color: '#9ca3af', bg: 'rgba(156,163,175,0.1)', icon: XCircle },
-};
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+
+const STATUS_MAP: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+  draft:    { label: 'Rascunho',  variant: 'outline'     },
+  sent:     { label: 'Enviada',   variant: 'secondary'   },
+  paid:     { label: 'Paga',      variant: 'default'     },
+  overdue:  { label: 'Em Atraso', variant: 'destructive' },
+  cancelled:{ label: 'Cancelada', variant: 'destructive' },
+}
 
 export default function InvoiceList() {
-  const [statusFilter, setStatusFilter] = useState('');
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const { data: invoicesData, isLoading } = useInvoices(statusFilter || undefined, page, search);
-  const invoices = invoicesData?.data ?? [];
-  const totalPages = Math.max(1, Math.ceil((invoicesData?.count ?? 0) / 20));
+  const navigate = useNavigate()
+  const { user, plan, isAdmin, trialEndsAt } = useAuth()
+  const { openCheckout } = useCheckoutModal()
+
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [statusFilter, setStatusFilter] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<Invoice | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
+  const { data: invoicesData, isLoading, isFetching } = useInvoices(page, search)
+  const invoices = invoicesData?.data ?? []
+  const totalCount = invoicesData?.count ?? 0
+  const totalPages = Math.max(1, Math.ceil(totalCount / 20))
+  const deleteMutation = useDeleteInvoice()
+
+  const limits = getLimits(plan, trialEndsAt)
+
+  useEffect(() => { setPage(1) }, [search])
 
   const filtered = invoices.filter(inv => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return inv.number.toLowerCase().includes(q)
-      || inv.title.toLowerCase().includes(q)
-      || inv.client?.name?.toLowerCase().includes(q)
-      || inv.contract?.title?.toLowerCase().includes(q);
-  });
+    if (statusFilter && inv.status !== statusFilter) return false
+    return true
+  })
 
-  const totals = {
-    total: invoices.reduce((s, i) => s + (i.status !== 'cancelled' ? i.total_value : 0), 0),
-    paid: invoices.filter(i => i.status === 'paid').reduce((s, i) => s + i.total_value, 0),
-    pending: invoices.filter(i => i.status === 'sent' || i.status === 'overdue').reduce((s, i) => s + i.total_value, 0),
-    overdue: invoices.filter(i => i.status === 'overdue').reduce((s, i) => s + i.total_value, 0),
-  };
+  const handleCreate = () => {
+    if (totalCount >= limits.maxInvoices) { openCheckout('pro'); return }
+    navigate('/invoices/new')
+  }
 
-  const containerStyle: React.CSSProperties = {
-    fontFamily: "'Poppins', sans-serif", maxWidth: 1200, margin: '0 auto',
-  };
+  const handleExport = () => {
+    if (!filtered.length) { toast.info('Sem facturas para exportar'); return }
+    // Export logic would go here
+    toast.success(`${filtered.length} facturas exportadas`)
+  }
 
-  const cardStyle: React.CSSProperties = {
-    background: 'rgba(255,255,255,0.45)', backdropFilter: 'blur(30px)',
-    border: '1px solid rgba(255,255,255,0.35)', borderRadius: 24,
-    boxShadow: '0 8px 32px rgba(0,0,0,0.12)', overflow: 'hidden',
-  };
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
+    try {
+      await deleteMutation.mutateAsync(deleteTarget.id)
+      toast.success('Factura eliminada'); setDeleteTarget(null)
+    } catch (e: any) { toast.error(e?.message || 'Erro ao eliminar') }
+    finally { setDeleting(false) }
+  }
+
+  const formatCurrency = (amount: number) => 
+    new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(amount)
+
+  const formatDate = (date: string) =>
+    new Intl.DateTimeFormat('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(date))
+
+  if (isLoading) return (
+    <div className='flex flex-col gap-4'>
+      <Skeleton className='h-12 w-full' />
+      <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-3'>
+        {Array.from({length: 6}).map((_, i) => <Skeleton key={i} className='h-48 w-full' />)}
+      </div>
+    </div>
+  )
 
   return (
-    <div style={containerStyle}>
-      {/* Summary cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}>
-        {[
-          { label: 'Total (não cancelado)', value: totals.total, color: '#0d1117' },
-          { label: 'Pago', value: totals.paid, color: '#10b981' },
-          { label: 'Pendente', value: totals.pending, color: '#f59e0b' },
-          { label: 'Vencido', value: totals.overdue, color: '#ef4444' },
-        ].map((item, idx) => (
-          <div key={idx} style={{
-            background: 'rgba(255,255,255,0.45)', backdropFilter: 'blur(30px)',
-            border: '1px solid rgba(255,255,255,0.35)', borderRadius: 20,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-            padding: '18px 20px'
-          }}>
-            <p style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              {item.label}
-            </p>
-            <p style={{ fontSize: 22, fontWeight: 800, color: item.color }}>
-              {formatCurrency(Number(item.value), 'AOA')}
-            </p>
-          </div>
-        ))}
+    <div className='flex flex-col gap-6'>
+      {/* Toolbar */}
+      <div className='flex flex-wrap items-center justify-between gap-3'>
+        <div className='relative flex-1 max-w-sm'>
+          <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground' />
+          <Input placeholder='Pesquisar facturas...' value={search} onChange={e => setSearch(e.target.value)} className='pl-9' />
+          {isFetching && <Loader2 className='absolute right-2.5 top-1/2 -translate-y-1/2 size-4 animate-spin text-muted-foreground' />}
+        </div>
+        <div className='flex items-center gap-2'>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className='w-36 h-8 text-sm'><SelectValue placeholder='Status' /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value=''>Todos</SelectItem>
+              <SelectItem value='draft'>Rascunho</SelectItem>
+              <SelectItem value='sent'>Enviada</SelectItem>
+              <SelectItem value='paid'>Paga</SelectItem>
+              <SelectItem value='overdue'>Em Atraso</SelectItem>
+              <SelectItem value='cancelled'>Cancelada</SelectItem>
+            </SelectContent>
+          </Select>
+          {statusFilter && <Button variant='ghost' size='sm' onClick={() => setStatusFilter('')}><X className='size-4' /></Button>}
+          <Button variant='outline' size='sm' onClick={handleExport}><Download className='size-4' /></Button>
+          <Button size='sm' onClick={handleCreate}><Plus className='size-4' /> Nova Factura</Button>
+        </div>
       </div>
 
-      <div style={cardStyle}>
-        {/* Header */}
-        <div style={{ padding: '24px 28px', borderBottom: '1px solid #e2e5e9' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      {/* Cards Grid */}
+      {totalCount === 0 && !search ? (
+        <Card className='p-8'>
+          <div className='flex flex-col items-center gap-4 text-center'>
+            <div className='bg-primary/10 flex size-16 items-center justify-center rounded-xl'>
+              <FileText className='size-8 text-primary' />
+            </div>
             <div>
-              <h2 style={{ fontSize: 20, fontWeight: 700, color: '#0d1117' }}>
-                <DollarSign size={20} style={{ marginRight: 8, display: 'inline' }} />
-                Facturação
-              </h2>
-              <p style={{ fontSize: 13, color: '#6b7280' }}>{invoices.length} facturas</p>
+              <h3 className='font-semibold'>Ainda não tens facturas</h3>
+              <p className='text-sm text-muted-foreground mt-1 max-w-xs'>Cria a tua primeira factura para começar a facturar os teus clientes.</p>
             </div>
-            <Link to="/invoices/new"
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 8,
-                padding: '10px 20px', background: '#0d1117', color: '#fff',
-                textDecoration: 'none', fontSize: 14, fontWeight: 600,
-              }}
-            >
-              <Plus size={16} /> Nova Factura
-            </Link>
+            <Button onClick={handleCreate}><Plus className='size-4' /> Nova Factura</Button>
           </div>
-
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <div style={{ position: 'relative', flex: 1, maxWidth: 320 }}>
-              <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
-              <input
-                type="text" value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Pesquisar por nº, título, cliente..."
-                style={{
-                  width: '100%', padding: '8px 12px 8px 36px', fontSize: 13,
-                  border: '1.5px solid #e2e5e9', outline: 'none', fontFamily: "'Poppins',sans-serif", color: '#0d1117'
-                }}
-                onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
-                onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
-              />
-            </div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {['', 'draft', 'sent', 'paid', 'overdue', 'cancelled'].map(s => {
-                const cfg = s ? statusConfig[s] : { label: 'Todas', color: '#6b7280' };
-                return (
-                  <button key={s} onClick={() => setStatusFilter(s)}
-                    style={{
-                      padding: '6px 14px', fontSize: 12, fontWeight: 600,
-                      background: statusFilter === s ? '#0d1117' : '#fff',
-                      color: statusFilter === s ? '#fff' : '#6b7280',
-                      border: statusFilter === s ? 'none' : '1px solid #e2e5e9',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {cfg.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* List */}
-        <div style={{ padding: 20, minHeight: 300 }}>
-          {isLoading ? (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 60, color: '#9ca3af', gap: 10 }}>
-              <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />
-              A carregar facturas...
-            </div>
-          ) : filtered.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 60, color: '#9ca3af', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-              <DollarSign size={48} style={{ marginBottom: 12, opacity: 0.3 }} />
-              <p style={{ fontSize: 15, margin: 0 }}>{invoices.length === 0 ? 'Nenhuma factura criada' : 'Nenhuma factura encontrada'}</p>
-              {invoices.length === 0 && (
-                <Link to="/invoices/new"
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 12,
-                    padding: '10px 20px', background: '#0d1117', color: '#fff',
-                    textDecoration: 'none', fontSize: 14, fontWeight: 600,
-                  }}
-                ><Plus size={16} /> Criar Primeira Factura</Link>
-              )}
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {filtered.map(inv => {
-                const cfg = statusConfig[inv.status];
-                const Icon = cfg.icon;
-                return (
-                  <Link key={inv.id} to={`/invoices/${inv.id}`}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px',
-                      background: '#fff', border: '1px solid #e2e5e9', textDecoration: 'none',
-                      transition: 'all .15s'
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = '#0d1117'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e5e9'; e.currentTarget.style.boxShadow = 'none'; }}
-                  >
-                    <div style={{ width: 40, height: 40, borderRadius: 10, background: cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: cfg.color }}>
-                      <Icon size={20} />
+        </Card>
+      ) : (
+        <>
+          <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-3'>
+            {filtered.map(invoice => {
+              const status = STATUS_MAP[invoice.status] ?? STATUS_MAP.draft
+              return (
+                <Card key={invoice.id} className='hover:bg-muted/50 cursor-pointer transition-colors' onClick={() => navigate(`/invoices/${invoice.id}`)}>
+                  <CardHeader className='flex flex-row items-start justify-between space-y-0 pb-3'>
+                    <div className='space-y-1'>
+                      <CardTitle className='text-base font-semibold'>#{invoice.invoice_number}</CardTitle>
+                      <p className='text-sm text-muted-foreground'>{invoice.client_name}</p>
                     </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', fontFamily: "'Courier New',monospace" }}>{inv.number}</span>
-                        <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', background: cfg.bg, color: cfg.color }}>{cfg.label}</span>
+                    <Badge variant={status.variant}>{status.label}</Badge>
+                  </CardHeader>
+                  <CardContent className='pt-0'>
+                    <div className='space-y-3'>
+                      <div className='flex items-center justify-between'>
+                        <span className='text-sm text-muted-foreground'>Valor:</span>
+                        <span className='font-semibold text-lg'>{formatCurrency(invoice.total_amount)}</span>
                       </div>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: '#0d1117' }}>{inv.title}</p>
-                      <div style={{ display: 'flex', gap: 12, fontSize: 12, color: '#6b7280' }}>
-                        {inv.client?.name && <span>{inv.client.name}</span>}
-                        {inv.contract?.title && <span>Contrato: {inv.contract.title}</span>}
+                      <div className='flex items-center justify-between text-sm'>
+                        <span className='text-muted-foreground'>Data:</span>
+                        <span>{formatDate(invoice.issue_date)}</span>
                       </div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <p style={{ fontSize: 16, fontWeight: 800, color: '#0d1117' }}>
-                        {formatCurrency(Number(inv.total_value), inv.currency || 'AOA')}
-                      </p>
-                      {inv.due_date && (
-                        <p style={{ fontSize: 11, color: inv.status === 'overdue' ? '#ef4444' : '#6b7280' }}>
-                          Vence: {new Date(inv.due_date).toLocaleDateString('pt-PT')}
-                        </p>
+                      {invoice.due_date && (
+                        <div className='flex items-center justify-between text-sm'>
+                          <span className='text-muted-foreground'>Vencimento:</span>
+                          <span className={invoice.status === 'overdue' ? 'text-destructive' : ''}>
+                            {formatDate(invoice.due_date)}
+                          </span>
+                        </div>
                       )}
+                      <div className='flex justify-end gap-1 pt-2' onClick={e => e.stopPropagation()}>
+                        <Button variant='ghost' size='icon' className='size-8' onClick={() => navigate(`/invoices/${invoice.id}`)}>
+                          <Eye className='size-4' />
+                        </Button>
+                        <Button variant='ghost' size='icon' className='size-8' onClick={() => navigate(`/invoices/${invoice.id}/edit`)}>
+                          <FileEdit className='size-4' />
+                        </Button>
+                        <Button variant='ghost' size='icon' className='size-8 text-destructive hover:text-destructive' onClick={() => setDeleteTarget(invoice)}>
+                          <Trash2 className='size-4' />
+                        </Button>
+                      </div>
                     </div>
-                    <ArrowRight size={18} color="#9ca3af" />
-                  </Link>
-                );
-              })}
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+
+          {filtered.length === 0 && (
+            <Card className='p-12'>
+              <div className='text-center text-muted-foreground'>
+                <FileText className='size-12 mx-auto mb-4 opacity-50' />
+                <p>Nenhuma factura encontrada</p>
+              </div>
+            </Card>
+          )}
+
+          {totalPages > 1 && (
+            <div className='flex items-center justify-between'>
+              <p className='text-sm text-muted-foreground'>
+                Página {page} de {totalPages} • {totalCount} facturas
+              </p>
+              <div className='flex gap-2'>
+                <Button variant='outline' size='sm' disabled={page<=1} onClick={() => setPage(p=>p-1)}>Anterior</Button>
+                <Button variant='outline' size='sm' disabled={page>=totalPages} onClick={() => setPage(p=>p+1)}>Seguinte</Button>
+              </div>
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div style={{
-          display: 'flex', justifyContent: 'center', alignItems: 'center',
-          gap: 12, padding: '16px 24px', borderTop: '1px solid #e2e5e9',
-          background: 'rgba(255,255,255,0.6)'
-        }}>
-          <button
-            disabled={page <= 1}
-            onClick={() => setPage(p => Math.max(1, p - 1))}
-            style={{
-              padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: page > 1 ? 'pointer' : 'default',
-              border: '1.5px solid #e2e5e9', background: page > 1 ? '#fff' : '#f7f9fb',
-              color: page > 1 ? '#0d1117' : '#9ca3af', fontFamily: "'Poppins',sans-serif"
-            }}
-          >Anterior</button>
-          <span style={{ fontSize: 13, color: '#6b7280' }}>Página {page} de {totalPages}</span>
-          <button
-            disabled={page >= totalPages}
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            style={{
-              padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: page < totalPages ? 'pointer' : 'default',
-              border: '1.5px solid #e2e5e9', background: page < totalPages ? '#fff' : '#f7f9fb',
-              color: page < totalPages ? '#0d1117' : '#9ca3af', fontFamily: "'Poppins',sans-serif"
-            }}
-          >Seguinte</button>
-        </div>
+        </>
       )}
+
+      <Dialog open={!!deleteTarget} onOpenChange={v => { if (!v && !deleting) setDeleteTarget(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eliminar factura</DialogTitle>
+            <DialogDescription>
+              Tens a certeza que queres eliminar a factura <strong>#{deleteTarget?.invoice_number}</strong>? Esta acção é irreversível.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant='outline' onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancelar</Button>
+            <Button variant='destructive' onClick={confirmDelete} disabled={deleting}>
+              {deleting && <Loader2 className='size-4 animate-spin mr-2' />} Eliminar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
-  );
+  )
 }

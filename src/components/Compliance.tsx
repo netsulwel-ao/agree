@@ -1,729 +1,367 @@
-﻿import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
-import { 
-  ShieldCheck, 
-  Lock, 
-  History, 
-  Users, 
-  FileCheck, 
-  AlertTriangle,
-  UserCheck,
-  Key,
-  Download,
-  Activity,
-  CheckCircle2
-} from 'lucide-react';
-import { format, parseISO } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { toast } from 'sonner';
-import { useAuth } from '../contexts/AuthContext';
+﻿import React, { useState } from 'react'
+import { useAuth } from '../contexts/AuthContext'
+import { Shield, CheckCircle, AlertTriangle, XCircle, Eye, FileText, Calendar, Clock, Users, Settings } from 'lucide-react'
+
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Progress } from '@/components/ui/progress'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+
+interface ComplianceMetric {
+  id: string
+  name: string
+  status: 'compliant' | 'warning' | 'non-compliant'
+  score: number
+  description: string
+  lastCheck: string
+  requirements: string[]
+  actions: string[]
+}
+
+interface ComplianceReport {
+  id: string
+  title: string
+  date: string
+  status: 'generated' | 'pending' | 'failed'
+  type: string
+  downloadUrl?: string
+}
+
+const mockMetrics: ComplianceMetric[] = [
+  {
+    id: '1',
+    name: 'RGPD/GDPR',
+    status: 'compliant',
+    score: 95,
+    description: 'Conformidade com o Regulamento Geral sobre a Proteção de Dados',
+    lastCheck: '2024-01-15T10:30:00Z',
+    requirements: ['Política de privacidade atualizada', 'Consentimento explícito', 'Direito ao esquecimento'],
+    actions: []
+  },
+  {
+    id: '2', 
+    name: 'Contratos Digitais',
+    status: 'warning',
+    score: 78,
+    description: 'Conformidade com legislação de contratos eletrónicos',
+    lastCheck: '2024-01-14T14:20:00Z',
+    requirements: ['Assinatura digital certificada', 'Timestamping', 'Arquivo digital seguro'],
+    actions: ['Implementar timestamping nos contratos', 'Renovar certificados digitais']
+  },
+  {
+    id: '3',
+    name: 'Retenção de Dados',
+    status: 'compliant',
+    score: 88,
+    description: 'Políticas de retenção e eliminação de dados',
+    lastCheck: '2024-01-13T09:15:00Z',
+    requirements: ['Política de retenção definida', 'Eliminação automática', 'Logs de auditoria'],
+    actions: []
+  },
+  {
+    id: '4',
+    name: 'Segurança da Informação',
+    status: 'non-compliant',
+    score: 65,
+    description: 'Conformidade com normas de segurança da informação',
+    lastCheck: '2024-01-12T16:45:00Z',
+    requirements: ['Encriptação end-to-end', 'Autenticação multifator', 'Backup seguro'],
+    actions: ['Implementar 2FA obrigatório', 'Atualizar política de senhas', 'Configurar backup automático']
+  }
+]
+
+const mockReports: ComplianceReport[] = [
+  {
+    id: '1',
+    title: 'Relatório RGPD - Janeiro 2024',
+    date: '2024-01-15',
+    status: 'generated',
+    type: 'RGPD',
+    downloadUrl: '/reports/rgpd-jan-2024.pdf'
+  },
+  {
+    id: '2',
+    title: 'Auditoria de Segurança - Janeiro 2024', 
+    date: '2024-01-10',
+    status: 'generated',
+    type: 'Segurança',
+    downloadUrl: '/reports/security-jan-2024.pdf'
+  },
+  {
+    id: '3',
+    title: 'Relatório Mensal - Dezembro 2023',
+    date: '2024-01-01',
+    status: 'pending',
+    type: 'Geral'
+  }
+]
+
+const STATUS_CONFIG = {
+  compliant: { 
+    icon: CheckCircle, 
+    label: 'Conforme', 
+    variant: 'default' as const,
+    color: 'text-green-600'
+  },
+  warning: { 
+    icon: AlertTriangle, 
+    label: 'Atenção', 
+    variant: 'secondary' as const,
+    color: 'text-yellow-600'
+  },
+  'non-compliant': { 
+    icon: XCircle, 
+    label: 'Não Conforme', 
+    variant: 'destructive' as const,
+    color: 'text-red-600'
+  }
+}
 
 export default function Compliance() {
-  const { user } = useAuth();
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
-  const [currentUserRole, setCurrentUserRole] = useState<string>('user');
-  const [activeTab, setActiveTab] = useState<'audit' | 'permissions' | 'compliance'>('audit');
+  const { user } = useAuth()
+  const [isLoading] = useState(false)
+  const [activeTab, setActiveTab] = useState('overview')
 
-  useEffect(() => {
-    if (user) {
-      const init = async () => {
-        try {
-          // Add timeout for profile query
-          const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Profile query timeout after 15s')), 15000);
-          });
+  const overallScore = Math.round(mockMetrics.reduce((sum, m) => sum + m.score, 0) / mockMetrics.length)
+  const compliantCount = mockMetrics.filter(m => m.status === 'compliant').length
+  const warningCount = mockMetrics.filter(m => m.status === 'warning').length
+  const nonCompliantCount = mockMetrics.filter(m => m.status === 'non-compliant').length
 
-          const queryPromise = supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', user.id)
-            .single();
+  const formatDate = (date: string) =>
+    new Intl.DateTimeFormat('pt-PT', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(new Date(date))
 
-          const { data: profile, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
-
-          const role = profile?.role || 'user';
-          setCurrentUserRole(role);
-
-          // Logs: admin vê todos, user vê só os seus
-          await fetchLogs(role);
-
-          // Perfis: só admin vê todos os utilizadores
-          if (role === 'admin') {
-            await fetchProfiles();
-          } else {
-            // User normal só vê o seu próprio perfil
-            const { data } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', user.id);
-            setUsers(data || []);
-          }
-        } catch (err) {
-          console.error("Error initializing compliance:", err);
-          // Use default role on error
-          setCurrentUserRole('user');
-        }
-      };
-      init();
-
-      const logsChannel = supabase
-        .channel('audit_logs_changes')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'audit_logs' }, () => {
-          fetchLogs(currentUserRole);
-        })
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(logsChannel);
-      };
-    }
-  }, [user]);
-
-  const fetchLogs = async (role: string) => {
-    if (!user) return;
-    let query = supabase
-      .from('audit_logs')
-      .select('*')
-      .order('timestamp', { ascending: false })
-      .limit(50);
-
-    // User normal só vê os seus próprios logs
-    if (role !== 'admin') {
-      query = query.eq('user_id', user.id);
-    }
-
-    const { data } = await query;
-    setAuditLogs(data || []);
-  };
-
-  const fetchProfiles = async () => {
-    const { data } = await supabase.from('profiles').select('*');
-    setUsers(data || []);
-  };
-
-  const updateUserRole = async (userId: string, newRole: string) => {
-    if (currentUserRole !== 'admin') {
-      toast.error("Apenas administradores podem alterar permissões");
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          role: newRole,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', userId);
-
-      if (error) throw error;
-      toast.success("Permissão atualizada com sucesso");
-    } catch (error) {
-      toast.error("Erro ao atualizar permissão");
-    }
-  };
-
-
+  if (isLoading) {
+    return (
+      <div className='space-y-6'>
+        <div className='grid gap-4 md:grid-cols-4'>
+          {Array.from({length: 4}).map((_, i) => <Skeleton key={i} className='h-32 w-full' />)}
+        </div>
+        <Skeleton className='h-96 w-full' />
+      </div>
+    )
+  }
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 24,
-      fontFamily: "'Poppins', sans-serif"
-    }}>
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        gap: 16
-      }}>
-        <div>
-          <h1 style={{
-            fontSize: 24,
-            fontWeight: 800,
-            color: '#0d1117',
-            marginBottom: 4,
-            fontFamily: "'Poppins',sans-serif"
-          }}>
-            Compliance & Segurança
-          </h1>
-          <p style={{ fontSize: 14, color: '#6b7280', fontFamily: "'Poppins',sans-serif" }}>
-            Gerencie permissões e visualize logs de auditoria
-          </p>
-        </div>
+    <div className='space-y-6'>
+      {/* Overview Cards */}
+      <div className='grid gap-4 md:grid-cols-4'>
+        <Card>
+          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+            <CardTitle className='text-sm font-medium text-muted-foreground'>Pontuação Geral</CardTitle>
+            <Shield className='size-4 text-muted-foreground' />
+          </CardHeader>
+          <CardContent>
+            <div className='text-2xl font-bold'>{overallScore}%</div>
+            <Progress value={overallScore} className='mt-2' />
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+            <CardTitle className='text-sm font-medium text-muted-foreground'>Conformes</CardTitle>
+            <CheckCircle className='size-4 text-green-600' />
+          </CardHeader>
+          <CardContent>
+            <div className='text-2xl font-bold text-green-600'>{compliantCount}</div>
+            <p className='text-xs text-muted-foreground'>de {mockMetrics.length} áreas</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+            <CardTitle className='text-sm font-medium text-muted-foreground'>Com Atenção</CardTitle>
+            <AlertTriangle className='size-4 text-yellow-600' />
+          </CardHeader>
+          <CardContent>
+            <div className='text-2xl font-bold text-yellow-600'>{warningCount}</div>
+            <p className='text-xs text-muted-foreground'>requerem atenção</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+            <CardTitle className='text-sm font-medium text-muted-foreground'>Não Conformes</CardTitle>
+            <XCircle className='size-4 text-red-600' />
+          </CardHeader>
+          <CardContent>
+            <div className='text-2xl font-bold text-red-600'>{nonCompliantCount}</div>
+            <p className='text-xs text-muted-foreground'>precisam correção</p>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Tabs */}
-      <div style={{
-        display: 'flex',
-        gap: 8,
-        borderBottom: '1px solid #e2e5e9'
-      }}>
-        {[
-          { id: 'audit', label: 'Logs de Auditoria', icon: History },
-          { id: 'permissions', label: 'Permissões', icon: Lock },
-          { id: 'compliance', label: 'Compliance', icon: ShieldCheck }
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
-            style={{
-              padding: '12px 20px',
-              background: 'transparent',
-              border: 'none',
-              fontSize: 13,
-              fontWeight: 600,
-              color: activeTab === tab.id ? '#0d1117' : '#6b7280',
-              cursor: 'pointer',
-              borderBottom: activeTab === tab.id ? '2px solid #0d1117' : '2px solid transparent',
-              transition: 'all .2s',
-              fontFamily: "'Poppins',sans-serif",
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8
-            }}
-          >
-            <tab.icon size={16} />
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {/* Tabs Content */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className='grid w-full grid-cols-3'>
+          <TabsTrigger value='overview'>Visão Geral</TabsTrigger>
+          <TabsTrigger value='reports'>Relatórios</TabsTrigger>
+          <TabsTrigger value='settings'>Configurações</TabsTrigger>
+        </TabsList>
 
-      {/* Tab Content */}
-      <div style={{ minHeight: 400 }}>
-        {activeTab === 'audit' && (
-          <div style={{
-            background: 'rgba(255, 255, 255, 0.45)',
-          backdropFilter: 'blur(30px)',
-          border: '1px solid rgba(255, 255, 255, 0.35)',
-          borderRadius: 24,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-            overflow: 'hidden'
-          }}>
-            <div style={{
-              padding: '20px 24px',
-              borderBottom: '1px solid #e2e5e9',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}>
-              <h2 style={{
-                fontSize: 16,
-                fontWeight: 700,
-                color: '#0d1117',
-                fontFamily: "'Poppins',sans-serif"
-              }}>
-                Logs de Auditoria
-              </h2>
-              {/*<button style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '8px 16px',
-                fontSize: 13,
-                fontWeight: 600,
-                background: '#fff',
-                border: '1.5px solid #e2e5e9',
-                color: '#6b7280',
-                cursor: 'pointer',
-                transition: 'all .2s',
-                fontFamily: "'Poppins',sans-serif"
-              }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.background = '#f7f9fb';
-                  e.currentTarget.style.color = '#0d1117';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.background = '#fff';
-                  e.currentTarget.style.color = '#6b7280';
-                }}
-              >
-                <Download size={16} />
-                Exportar
-              </button>*/}
-            </div>
-            <div style={{ maxHeight: 500, overflowY: 'auto' }}>
-              {auditLogs.map((log, idx) => (
-                <div key={idx} style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: 16,
-                  padding: '16px 24px',
-                  borderBottom: '1px solid #e2e5e9'
-                }}>
-                  <div style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 0,
-                    background: log.status === 'success' ? 'rgba(13,17,23,0.1)' : 'rgba(239,68,68,0.1)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0
-                  }}>
-                    {log.status === 'success' ? 
-                      <CheckCircle2 size={18} color="#0d1117" /> : 
-                      <AlertTriangle size={18} color="#ef4444" />
-                    }
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-                      <div>
-                        <p style={{
-                          fontSize: 14,
-                          fontWeight: 500,
-                          color: '#0d1117',
-                          marginBottom: 2,
-                          fontFamily: "'Poppins',sans-serif"
-                        }}>
-                          {log.action}
-                        </p>
-                        <p style={{
-                          fontSize: 12,
-                          color: '#6b7280',
-                          fontFamily: "'Poppins',sans-serif"
-                        }}>
-                          {log.resource} • {log.user_name}
-                        </p>
+        <TabsContent value='overview' className='space-y-4'>
+          <div className='grid gap-4'>
+            {mockMetrics.map(metric => {
+              const status = STATUS_CONFIG[metric.status]
+              const StatusIcon = status.icon
+
+              return (
+                <Card key={metric.id}>
+                  <CardHeader>
+                    <div className='flex items-center justify-between'>
+                      <div className='flex items-center gap-3'>
+                        <StatusIcon className={`size-5 ${status.color}`} />
+                        <div>
+                          <CardTitle className='text-base'>{metric.name}</CardTitle>
+                          <CardDescription>{metric.description}</CardDescription>
+                        </div>
                       </div>
-                      <span style={{
-                        fontSize: 11,
-                        color: '#9ca3af',
-                        flexShrink: 0,
-                        fontFamily: "'Poppins',sans-serif"
-                      }}>
-                        {format(parseISO(log.timestamp), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                      <div className='flex items-center gap-3'>
+                        <div className='text-right'>
+                          <div className='text-lg font-semibold'>{metric.score}%</div>
+                          <Badge variant={status.variant} className='text-xs'>
+                            {status.label}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className='space-y-4'>
+                    <Progress value={metric.score} />
+                    
+                    <div className='grid gap-4 md:grid-cols-2'>
+                      <div>
+                        <h4 className='text-sm font-medium mb-2'>Requisitos:</h4>
+                        <ul className='space-y-1'>
+                          {metric.requirements.map((req, i) => (
+                            <li key={i} className='text-sm text-muted-foreground flex items-center gap-2'>
+                              <CheckCircle className='size-3 text-green-600' />
+                              {req}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      
+                      {metric.actions.length > 0 && (
+                        <div>
+                          <h4 className='text-sm font-medium mb-2'>Ações Necessárias:</h4>
+                          <ul className='space-y-1'>
+                            {metric.actions.map((action, i) => (
+                              <li key={i} className='text-sm text-muted-foreground flex items-center gap-2'>
+                                <AlertTriangle className='size-3 text-yellow-600' />
+                                {action}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className='flex items-center justify-between pt-2 border-t'>
+                      <span className='text-xs text-muted-foreground flex items-center gap-1'>
+                        <Clock className='size-3' />
+                        Última verificação: {formatDate(metric.lastCheck)}
                       </span>
+                      <Button variant='outline' size='sm'>
+                        <Eye className='size-4 mr-1' /> Ver Detalhes
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        </TabsContent>
+
+        <TabsContent value='reports' className='space-y-4'>
+          <div className='flex items-center justify-between'>
+            <div>
+              <h3 className='text-lg font-semibold'>Relatórios de Conformidade</h3>
+              <p className='text-sm text-muted-foreground'>Histórico de relatórios e auditorias geradas</p>
+            </div>
+            <Button>
+              <FileText className='size-4 mr-2' /> Gerar Relatório
+            </Button>
+          </div>
+
+          <div className='grid gap-4'>
+            {mockReports.map(report => (
+              <Card key={report.id}>
+                <CardContent className='flex items-center justify-between p-4'>
+                  <div className='flex items-center gap-3'>
+                    <div className='bg-primary/10 flex size-10 items-center justify-center rounded-lg'>
+                      <FileText className='size-5 text-primary' />
+                    </div>
+                    <div>
+                      <h4 className='font-medium'>{report.title}</h4>
+                      <p className='text-sm text-muted-foreground flex items-center gap-1'>
+                        <Calendar className='size-3' />
+                        {formatDate(report.date)}
+                      </p>
                     </div>
                   </div>
+                  <div className='flex items-center gap-3'>
+                    <Badge variant={report.status === 'generated' ? 'default' : report.status === 'pending' ? 'secondary' : 'destructive'}>
+                      {report.status === 'generated' ? 'Gerado' : report.status === 'pending' ? 'Pendente' : 'Falhado'}
+                    </Badge>
+                    {report.downloadUrl && (
+                      <Button variant='outline' size='sm'>
+                        Download
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+
+        <TabsContent value='settings' className='space-y-4'>
+          <div className='grid gap-4'>
+            <Card>
+              <CardHeader>
+                <CardTitle className='flex items-center gap-2'>
+                  <Settings className='size-5' />
+                  Configurações de Conformidade
+                </CardTitle>
+                <CardDescription>
+                  Configure as verificações automáticas e notificações de conformidade
+                </CardDescription>
+              </CardHeader>
+              <CardContent className='space-y-4'>
+                <div className='flex items-center justify-between py-3 border-b'>
+                  <div>
+                    <h4 className='font-medium'>Verificações Automáticas</h4>
+                    <p className='text-sm text-muted-foreground'>Executar verificações de conformidade diariamente</p>
+                  </div>
+                  <Button variant='outline' size='sm'>Ativado</Button>
                 </div>
-              ))}
-            </div>
+                <div className='flex items-center justify-between py-3 border-b'>
+                  <div>
+                    <h4 className='font-medium'>Notificações por Email</h4>
+                    <p className='text-sm text-muted-foreground'>Receber alertas sobre questões de conformidade</p>
+                  </div>
+                  <Button variant='outline' size='sm'>Configurar</Button>
+                </div>
+                <div className='flex items-center justify-between py-3'>
+                  <div>
+                    <h4 className='font-medium'>Relatórios Automáticos</h4>
+                    <p className='text-sm text-muted-foreground'>Gerar relatórios mensais automaticamente</p>
+                  </div>
+                  <Button variant='outline' size='sm'>Configurar</Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        )}
-
-        {activeTab === 'permissions' && (
-          <div style={{
-            background: 'rgba(255, 255, 255, 0.45)',
-          backdropFilter: 'blur(30px)',
-          border: '1px solid rgba(255, 255, 255, 0.35)',
-          borderRadius: 24,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-            overflow: 'hidden'
-          }}>
-            <div style={{
-              padding: '20px 24px',
-              borderBottom: '1px solid #e2e5e9'
-            }}>
-              <h2 style={{
-                fontSize: 16,
-                fontWeight: 700,
-                color: '#0d1117',
-                fontFamily: "'Poppins',sans-serif"
-              }}>
-                Utilizadores e Permissões
-              </h2>
-            </div>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{
-                width: '100%',
-                borderCollapse: 'collapse',
-                fontFamily: "'Poppins',sans-serif",
-                fontSize: 13
-              }}>
-                <thead>
-                  <tr style={{ background: '#f7f9fb', borderBottom: '1px solid #e2e5e9' }}>
-                    <th style={{ textAlign: 'left', padding: '12px 24px', fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 }}>Utilizador</th>
-                    <th style={{ textAlign: 'left', padding: '12px 24px', fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 }}>Email</th>
-                    <th style={{ textAlign: 'left', padding: '12px 24px', fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 }}>Role</th>
-                    <th style={{ textAlign: 'right', padding: '12px 24px', fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 }}>Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((u) => (
-                    <tr key={u.id} style={{ borderBottom: '1px solid #e2e5e9' }}>
-                      <td style={{ padding: '14px 24px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          <div style={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: 0,
-                            background: '#0d1117',
-                            color: '#fff',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: 13,
-                            fontWeight: 700,
-                            fontFamily: "'Poppins',sans-serif"
-                          }}>
-                            {u.name?.charAt(0).toUpperCase() || u.email?.charAt(0).toUpperCase() || 'U'}
-                          </div>
-                          <span style={{ fontWeight: 500, color: '#0d1117', fontFamily: "'Poppins',sans-serif" }}>
-                            {u.name || u.email?.split('@')[0]}
-                          </span>
-                        </div>
-                      </td>
-                      <td style={{ padding: '14px 24px', color: '#6b7280', fontFamily: "'Poppins',sans-serif" }}>
-                        {u.email}
-                      </td>
-                      <td style={{ padding: '14px 24px' }}>
-                        <span style={{
-                          padding: '4px 12px',
-                          fontSize: 11,
-                          fontWeight: 600,
-                          background: u.role === 'admin' ? 'rgba(13,17,23,0.1)' : '#f7f9fb',
-                          color: u.role === 'admin' ? '#0d1117' : '#6b7280',
-                          fontFamily: "'Poppins',sans-serif"
-                        }}>
-                          {u.role === 'admin' ? 'Admin' : 'User'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '14px 24px', textAlign: 'right' }}>
-                        {currentUserRole === 'admin' && u.id !== user?.id && (
-                          <select
-                            value={u.role}
-                            onChange={(e) => updateUserRole(u.id, e.target.value)}
-                            style={{
-                              padding: '6px 12px',
-                              fontSize: 12,
-                              background: '#fff',
-                              border: '1px solid #e2e5e9',
-                              borderRadius: 0,
-                              outline: 'none',
-                              fontFamily: "'Poppins',sans-serif"
-                            }}
-                          >
-                            <option value="user">User</option>
-                            <option value="admin">Admin</option>
-                          </select>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'compliance' && (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-            gap: 20
-          }}>
-            <div style={{
-              background: 'rgba(255, 255, 255, 0.45)',
-              backdropFilter: 'blur(30px)',
-              border: '1px solid rgba(255, 255, 255, 0.35)',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-              borderRadius: 20,
-              padding: 24
-            }}>
-              <div style={{
-                width: 40,
-                height: 40,
-                borderRadius: 12,
-                background: 'rgba(13,17,23,0.1)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: 16
-              }}>
-                <ShieldCheck size={20} color="#0d1117" />
-              </div>
-              <h3 style={{
-                fontSize: 16,
-                fontWeight: 700,
-                color: '#0d1117',
-                marginBottom: 8,
-                fontFamily: "'Poppins',sans-serif"
-              }}>
-                LGPD
-              </h3>
-              <p style={{
-                fontSize: 14,
-                color: '#6b7280',
-                marginBottom: 16,
-                fontFamily: "'Poppins',sans-serif"
-              }}>
-                Conforme com a Lei Geral de Proteção de Dados
-              </p>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                color: '#0d1117',
-                fontSize: 13,
-                fontWeight: 600,
-                fontFamily: "'Poppins',sans-serif"
-              }}>
-                <CheckCircle2 size={16} />
-                Conforme
-              </div>
-            </div>
-
-            <div style={{
-              background: 'rgba(255, 255, 255, 0.45)',
-              backdropFilter: 'blur(30px)',
-              border: '1px solid rgba(255, 255, 255, 0.35)',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-              borderRadius: 20,
-              padding: 24
-            }}>
-              <div style={{
-                width: 40,
-                height: 40,
-                borderRadius: 12,
-                background: 'rgba(13,17,23,0.1)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: 16
-              }}>
-                <Key size={20} color="#0d1117" />
-              </div>
-              <h3 style={{
-                fontSize: 16,
-                fontWeight: 700,
-                color: '#0d1117',
-                marginBottom: 8,
-                fontFamily: "'Poppins',sans-serif"
-              }}>
-                Assinaturas Digitais
-              </h3>
-              <p style={{
-                fontSize: 14,
-                color: '#6b7280',
-                marginBottom: 16,
-                fontFamily: "'Poppins',sans-serif"
-              }}>
-                Assinaturas com validade jurídica
-              </p>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                color: '#0d1117',
-                fontSize: 13,
-                fontWeight: 600,
-                fontFamily: "'Poppins',sans-serif"
-              }}>
-                <CheckCircle2 size={16} />
-                Conforme
-              </div>
-            </div>
-
-            <div style={{
-              background: 'rgba(255, 255, 255, 0.45)',
-              backdropFilter: 'blur(30px)',
-              border: '1px solid rgba(255, 255, 255, 0.35)',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-              borderRadius: 20,
-              padding: 24
-            }}>
-              <div style={{
-                width: 40,
-                height: 40,
-                borderRadius: 12,
-                background: 'rgba(13,17,23,0.1)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: 16
-              }}>
-                <Lock size={20} color="#0d1117" />
-              </div>
-              <h3 style={{
-                fontSize: 16,
-                fontWeight: 700,
-                color: '#0d1117',
-                marginBottom: 8,
-                fontFamily: "'Poppins',sans-serif"
-              }}>
-                Encriptação de Dados
-              </h3>
-              <p style={{
-                fontSize: 14,
-                color: '#6b7280',
-                marginBottom: 16,
-                fontFamily: "'Poppins',sans-serif"
-              }}>
-                Dados criptografados em trânsito e em repouso
-              </p>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                color: '#0d1117',
-                fontSize: 13,
-                fontWeight: 600,
-                fontFamily: "'Poppins',sans-serif"
-              }}>
-                <CheckCircle2 size={16} />
-                Conforme
-              </div>
-            </div>
-
-            <div style={{
-              background: 'rgba(255, 255, 255, 0.45)',
-              backdropFilter: 'blur(30px)',
-              border: '1px solid rgba(255, 255, 255, 0.35)',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-              borderRadius: 20,
-              padding: 24
-            }}>
-              <div style={{
-                width: 40,
-                height: 40,
-                borderRadius: 12,
-                background: 'rgba(13,17,23,0.1)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: 16
-              }}>
-                <History size={20} color="#0d1117" />
-              </div>
-              <h3 style={{
-                fontSize: 16,
-                fontWeight: 700,
-                color: '#0d1117',
-                marginBottom: 8,
-                fontFamily: "'Poppins',sans-serif"
-              }}>
-                Retenção Segura
-              </h3>
-              <p style={{
-                fontSize: 14,
-                color: '#6b7280',
-                marginBottom: 16,
-                fontFamily: "'Poppins',sans-serif"
-              }}>
-                Retenção segura de todos os registos
-              </p>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                color: '#0d1117',
-                fontSize: 13,
-                fontWeight: 600,
-                fontFamily: "'Poppins',sans-serif"
-              }}>
-                <CheckCircle2 size={16} />
-                Conforme
-              </div>
-            </div>
-
-            <div style={{
-              background: 'rgba(255, 255, 255, 0.45)',
-              backdropFilter: 'blur(30px)',
-              border: '1px solid rgba(255, 255, 255, 0.35)',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-              borderRadius: 20,
-              padding: 24
-            }}>
-              <div style={{
-                width: 40,
-                height: 40,
-                borderRadius: 12,
-                background: 'rgba(13,17,23,0.1)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: 16
-              }}>
-                <FileCheck size={20} color="#0d1117" />
-              </div>
-              <h3 style={{
-                fontSize: 16,
-                fontWeight: 700,
-                color: '#0d1117',
-                marginBottom: 8,
-                fontFamily: "'Poppins',sans-serif"
-              }}>
-                Auditoria Contínua
-              </h3>
-              <p style={{
-                fontSize: 14,
-                color: '#6b7280',
-                marginBottom: 16,
-                fontFamily: "'Poppins',sans-serif"
-              }}>
-                Todas as ações são registadas em log de auditoria
-              </p>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                color: '#0d1117',
-                fontSize: 13,
-                fontWeight: 600,
-                fontFamily: "'Poppins',sans-serif"
-              }}>
-                <CheckCircle2 size={16} />
-                Conforme
-              </div>
-            </div>
-
-            <div style={{
-              background: 'rgba(255, 255, 255, 0.45)',
-              backdropFilter: 'blur(30px)',
-              border: '1px solid rgba(255, 255, 255, 0.35)',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-              borderRadius: 20,
-              padding: 24
-            }}>
-              <div style={{
-                width: 40,
-                height: 40,
-                borderRadius: 12,
-                background: 'rgba(13,17,23,0.1)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: 16
-              }}>
-                <UserCheck size={20} color="#0d1117" />
-              </div>
-              <h3 style={{
-                fontSize: 16,
-                fontWeight: 700,
-                color: '#0d1117',
-                marginBottom: 8,
-                fontFamily: "'Poppins',sans-serif"
-              }}>
-                Controlo de Acessos
-              </h3>
-              <p style={{
-                fontSize: 14,
-                color: '#6b7280',
-                marginBottom: 16,
-                fontFamily: "'Poppins',sans-serif"
-              }}>
-                Sistema de roles e permissões granulares
-              </p>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                color: '#0d1117',
-                fontSize: 13,
-                fontWeight: 600,
-                fontFamily: "'Poppins',sans-serif"
-              }}>
-                <CheckCircle2 size={16} />
-                Conforme
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+        </TabsContent>
+      </Tabs>
     </div>
-  );
+  )
 }

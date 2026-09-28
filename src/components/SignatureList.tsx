@@ -1,165 +1,233 @@
-import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { PenLine, Trash2, CheckCircle2, Plus, Loader2, Shield, Image as ImageIcon } from 'lucide-react';
-import { toast } from 'sonner';
+import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useSignatures, useDeleteSignature, type Signature } from '../hooks/useSignatures'
+import { useAuth } from '../contexts/AuthContext'
+import { toast } from 'sonner'
+import { Search, Plus, Eye, FileEdit, Trash2, Download, X, Loader2, FileSignature, Clock } from 'lucide-react'
 
-interface UserSignature {
-  id: string;
-  created_at: string;
-  name: string;
-  image_url: string;
-  is_active: boolean;
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+
+const STATUS_MAP: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+  pending:   { label: 'Pendente',   variant: 'outline'     },
+  signed:    { label: 'Assinada',   variant: 'default'     },
+  declined:  { label: 'Recusada',   variant: 'destructive' },
+  expired:   { label: 'Expirada',   variant: 'secondary'   },
 }
 
 export default function SignatureList() {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const [signatures, setSignatures] = useState<UserSignature[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const navigate = useNavigate()
+  const { user } = useAuth()
 
-  useEffect(() => {
-    if (!user) return;
-    const fetch = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('user_signatures')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
-        
-        if (error) {
-          console.error('Error fetching signatures:', error);
-          toast.error('Erro ao carregar assinaturas');
-        } else if (data) {
-          setSignatures(data);
-        }
-      } catch (err) {
-        console.error('Unexpected error fetching signatures:', err);
-        toast.error('Erro ao carregar assinaturas');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetch();
-  }, [user]);
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [statusFilter, setStatusFilter] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<Signature | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Tens a certeza que queres eliminar esta assinatura?')) return;
-    setDeleting(id);
+  const { data: signaturesData, isLoading, isFetching } = useSignatures(page, search)
+  const signatures = signaturesData?.data ?? []
+  const totalCount = signaturesData?.count ?? 0
+  const totalPages = Math.max(1, Math.ceil(totalCount / 20))
+  const deleteMutation = useDeleteSignature()
+
+  const filtered = signatures.filter(sig => {
+    if (statusFilter && sig.status !== statusFilter) return false
+    return true
+  })
+
+  const handleCreate = () => navigate('/signatures/new')
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
     try {
-      const sig = signatures.find(s => s.id === id);
-      if (sig?.image_url) {
-        const path = sig.image_url.split('/signatures/')[1];
-        if (path) await supabase.storage.from('signatures').remove([path]);
-      }
-      const { error } = await supabase.from('user_signatures').delete().eq('id', id);
-      if (error) throw error;
-      setSignatures(prev => prev.filter(s => s.id !== id));
-      toast.success('Assinatura eliminada');
-    } catch {
-      toast.error('Erro ao eliminar assinatura');
-    } finally {
-      setDeleting(null);
-    }
-  };
-
-  const setActive = async (id: string) => {
-    if (!user) return;
-    await supabase.from('user_signatures').update({ is_active: false }).eq('user_id', user.id);
-    await supabase.from('user_signatures').update({ is_active: true }).eq('id', id);
-    setSignatures(prev => prev.map(s => ({ ...s, is_active: s.id === id })));
-    toast.success('Assinatura ativa alterada');
-  };
-
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
-        <Loader2 size={32} className="animate-spin" color="#0d1117" />
-      </div>
-    );
+      await deleteMutation.mutateAsync(deleteTarget.id)
+      toast.success('Assinatura eliminada'); setDeleteTarget(null)
+    } catch (e: any) { toast.error(e?.message || 'Erro ao eliminar') }
+    finally { setDeleting(false) }
   }
 
+  const formatDate = (date: string) =>
+    new Intl.DateTimeFormat('pt-PT', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(new Date(date))
+
+  if (isLoading) return (
+    <div className='flex flex-col gap-4'>
+      <Skeleton className='h-12 w-full' />
+      <Skeleton className='h-96 w-full' />
+    </div>
+  )
+
   return (
-    <div style={{ fontFamily: "'Poppins',sans-serif" }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div>
-          <h2 style={{ fontSize: 22, fontWeight: 800, color: '#0d1117', margin: 0 }}>Minhas Assinaturas</h2>
-          <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>{signatures.length} assinatura{signatures.length !== 1 ? 's' : ''} registada{signatures.length !== 1 ? 's' : ''}</p>
+    <div className='flex flex-col gap-6'>
+      {/* Toolbar */}
+      <div className='flex flex-wrap items-center justify-between gap-3'>
+        <div className='relative flex-1 max-w-sm'>
+          <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground' />
+          <Input placeholder='Pesquisar assinaturas...' value={search} onChange={e => setSearch(e.target.value)} className='pl-9' />
+          {isFetching && <Loader2 className='absolute right-2.5 top-1/2 -translate-y-1/2 size-4 animate-spin text-muted-foreground' />}
         </div>
-        <button onClick={() => navigate('/signatures/register')} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 24px', fontSize: 14, fontWeight: 700, background: '#0d1117', border: 'none', color: '#fff', cursor: 'pointer', borderRadius: 12, fontFamily: "'Poppins',sans-serif" }}>
-          <Plus size={18} />
-          Nova Assinatura
-        </button>
+        <div className='flex items-center gap-2'>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className='w-36 h-8 text-sm'><SelectValue placeholder='Status' /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value=''>Todos</SelectItem>
+              <SelectItem value='pending'>Pendente</SelectItem>
+              <SelectItem value='signed'>Assinada</SelectItem>
+              <SelectItem value='declined'>Recusada</SelectItem>
+              <SelectItem value='expired'>Expirada</SelectItem>
+            </SelectContent>
+          </Select>
+          {statusFilter && <Button variant='ghost' size='sm' onClick={() => setStatusFilter('')}><X className='size-4' /></Button>}
+          <Button size='sm' onClick={handleCreate}><Plus className='size-4' /> Nova Assinatura</Button>
+        </div>
       </div>
 
-      {signatures.length === 0 ? (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: 60, background: '#fff', border: '1px solid #e2e5e9', borderRadius: 20 }}>
-          <div style={{ width: 60, height: 60, borderRadius: '50%', background: '#f7f9fb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <PenLine size={28} color="#9ca3af" />
-          </div>
-          <p style={{ fontSize: 16, fontWeight: 600, color: '#6b7280' }}>Nenhuma assinatura registada</p>
-          <p style={{ fontSize: 13, color: '#9ca3af', margin: 0, textAlign: 'center', maxWidth: 360 }}>
-            Regista a tua assinatura digital para poderes assinar contratos de forma segura e estilizada.
-          </p>
-          <button onClick={() => navigate('/signatures/register')} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 24px', fontSize: 14, fontWeight: 700, background: '#0d1117', border: 'none', color: '#fff', cursor: 'pointer', borderRadius: 12, fontFamily: "'Poppins',sans-serif", marginTop: 8 }}>
-            <Plus size={18} />
-            Registar Assinatura
-          </button>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {signatures.map(sig => (
-            <div key={sig.id} style={{
-              display: 'flex', alignItems: 'center', gap: 20,
-              padding: '20px 24px', background: '#fff', border: sig.is_active ? '1.5px solid #0d1117' : '1px solid #e2e5e9',
-              borderRadius: 16, transition: 'all .2s'
-            }}>
-              <div style={{ width: 80, height: 56, borderRadius: 10, border: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.8)', flexShrink: 0 }}>
-                <img src={sig.image_url} alt={sig.name} style={{ maxWidth: '90%', maxHeight: '90%', objectFit: 'contain' }} />
+      {/* Table */}
+      <Card className='py-0'>
+        <CardHeader className='flex flex-row items-center justify-between border-b px-6 py-4'>
+          <CardTitle className='text-base font-semibold'>Assinaturas Digitais ({totalCount})</CardTitle>
+        </CardHeader>
+        <CardContent className='p-0'>
+          {totalCount === 0 && !search ? (
+            <div className='flex flex-col items-center gap-4 py-16 text-center'>
+              <div className='bg-primary/10 flex size-16 items-center justify-center rounded-xl'>
+                <FileSignature className='size-8 text-primary' />
               </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <p style={{ fontSize: 15, fontWeight: 700, color: '#0d1117', margin: 0, fontFamily: "'Poppins',sans-serif" }}>
-                    {sig.name}
-                  </p>
-                  {sig.is_active && (
-                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 10px', background: 'rgba(13,17,23,0.1)', color: '#0d1117', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <CheckCircle2 size={10} />
-                      Ativa
-                    </span>
+              <div>
+                <p className='font-semibold'>Ainda não tens assinaturas</p>
+                <p className='text-sm text-muted-foreground mt-1 max-w-xs'>Cria o teu primeiro pedido de assinatura digital.</p>
+              </div>
+              <Button onClick={handleCreate}><Plus className='size-4' /> Nova Assinatura</Button>
+            </div>
+          ) : (
+            <div className='overflow-x-auto'>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className='pl-6'>Documento</TableHead>
+                    <TableHead>Signatário</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Criado</TableHead>
+                    <TableHead>Prazo</TableHead>
+                    <TableHead className='text-right pr-6'>Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.length > 0 ? filtered.map(signature => {
+                    const status = STATUS_MAP[signature.status] ?? STATUS_MAP.pending
+                    const isExpired = signature.expires_at && new Date(signature.expires_at) < new Date()
+                    
+                    return (
+                      <TableRow key={signature.id} className='cursor-pointer' onClick={() => navigate(`/signatures/${signature.id}`)}>
+                        <TableCell className='pl-6'>
+                          <div className='flex items-center gap-3'>
+                            <div className='bg-primary/10 flex size-8 items-center justify-center rounded-lg'>
+                              <FileSignature className='size-4 text-primary' />
+                            </div>
+                            <div className='flex flex-col'>
+                              <span className='font-medium text-sm'>{signature.document_title}</span>
+                              <span className='text-xs text-muted-foreground'>{signature.contract_title || 'Documento avulso'}</span>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className='flex items-center gap-2'>
+                            <Avatar className='size-6'>
+                              <AvatarFallback className='bg-muted text-xs'>
+                                {signature.signer_name?.charAt(0).toUpperCase() || signature.signer_email?.charAt(0).toUpperCase() || '?'}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className='flex flex-col'>
+                              <span className='text-sm font-medium'>{signature.signer_name || signature.signer_email}</span>
+                              {signature.signer_name && <span className='text-xs text-muted-foreground'>{signature.signer_email}</span>}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={isExpired && signature.status === 'pending' ? 'destructive' : status.variant}>
+                            {isExpired && signature.status === 'pending' ? 'Expirada' : status.label}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className='text-sm text-muted-foreground'>{formatDate(signature.created_at)}</TableCell>
+                        <TableCell className='text-sm'>
+                          {signature.expires_at ? (
+                            <span className={isExpired ? 'text-destructive' : 'text-muted-foreground'}>
+                              {formatDate(signature.expires_at)}
+                            </span>
+                          ) : (
+                            <span className='text-muted-foreground'>Sem prazo</span>
+                          )}
+                        </TableCell>
+                        <TableCell className='text-right pr-6' onClick={e => e.stopPropagation()}>
+                          <div className='flex justify-end gap-1'>
+                            <Button variant='ghost' size='icon' className='size-8' onClick={() => navigate(`/signatures/${signature.id}`)}>
+                              <Eye className='size-4' />
+                            </Button>
+                            {signature.status === 'pending' && (
+                              <Button variant='ghost' size='icon' className='size-8' onClick={() => navigate(`/signatures/${signature.id}/edit`)}>
+                                <FileEdit className='size-4' />
+                              </Button>
+                            )}
+                            <Button variant='ghost' size='icon' className='size-8 text-destructive hover:text-destructive' onClick={() => setDeleteTarget(signature)}>
+                              <Trash2 className='size-4' />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  }) : (
+                    <TableRow>
+                      <TableCell colSpan={6} className='h-40 text-center text-muted-foreground'>
+                        Nenhuma assinatura encontrada
+                      </TableCell>
+                    </TableRow>
                   )}
-                </div>
-                <p style={{ fontSize: 12, color: '#6b7280', margin: 0 }}>
-                  Registada em {new Date(sig.created_at).toLocaleDateString()}
-                </p>
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {!sig.is_active && (
-                  <button onClick={() => setActive(sig.id)} style={{ padding: '8px 14px', fontSize: 12, fontWeight: 600, background: '#fff', border: '1px solid #e2e5e9', color: '#0d1117', cursor: 'pointer', borderRadius: 8, fontFamily: "'Poppins',sans-serif" }}>
-                    Usar
-                  </button>
-                )}
-                <button onClick={() => handleDelete(sig.id)} disabled={deleting === sig.id} style={{ padding: '8px 12px', fontSize: 12, fontWeight: 600, background: '#fff', border: '1px solid #fee2e2', color: '#ef4444', cursor: deleting === sig.id ? 'not-allowed' : 'pointer', borderRadius: 8, fontFamily: "'Poppins',sans-serif", display: 'flex', alignItems: 'center', gap: 4 }}>
-                  {deleting === sig.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                  Eliminar
-                </button>
+                </TableBody>
+              </Table>
+            </div>
+          )}
+          {totalPages > 1 && (
+            <div className='flex items-center justify-between border-t px-6 py-3'>
+              <p className='text-sm text-muted-foreground'>Página {page} de {totalPages}</p>
+              <div className='flex gap-2'>
+                <Button variant='outline' size='sm' disabled={page<=1} onClick={() => setPage(p=>p-1)}>Anterior</Button>
+                <Button variant='outline' size='sm' disabled={page>=totalPages} onClick={() => setPage(p=>p+1)}>Seguinte</Button>
               </div>
             </div>
-          ))}
-        </div>
-      )}
+          )}
+        </CardContent>
+      </Card>
 
-      {/* Security info */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '14px 18px', background: 'rgba(13,17,23,0.04)', border: '1px solid #e2e5e9', borderRadius: 12, marginTop: 24 }}>
-        <Shield size={16} color="#6b7280" style={{ flexShrink: 0, marginTop: 1 }} />
-        <p style={{ fontSize: 11, color: '#9ca3af', lineHeight: 1.6, margin: 0, fontFamily: "'Poppins',sans-serif" }}>
-          As tuas assinaturas digitais são processadas e criptografadas com AES-GCM 256 bits. A imagem original é convertida para um formato estilizado com fundo transparente, garantindo qualidade e segurança nas tuas assinaturas.
-        </p>
-      </div>
+      <Dialog open={!!deleteTarget} onOpenChange={v => { if (!v && !deleting) setDeleteTarget(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eliminar assinatura</DialogTitle>
+            <DialogDescription>
+              Tens a certeza que queres eliminar o pedido de assinatura para <strong>{deleteTarget?.document_title}</strong>? Esta acção é irreversível.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant='outline' onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancelar</Button>
+            <Button variant='destructive' onClick={confirmDelete} disabled={deleting}>
+              {deleting && <Loader2 className='size-4 animate-spin mr-2' />} Eliminar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
-  );
+  )
 }

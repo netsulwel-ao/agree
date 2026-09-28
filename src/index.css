@@ -121,6 +121,12 @@
   [role='option']:not(:disabled) { cursor: pointer !important; }
 }
 
+/* Sidebar width — igual ao AdminCN */
+:root {
+  --sidebar-width: 16rem;
+  --sidebar-width-icon: 3rem;
+}
+
 /* TipTap / Rich Text Editor styles */
 .rte-content h1 { font-size: 24px; font-weight: 800; margin: 20px 0 12px; color: #0d1117; line-height: 1.3; }
 .rte-content h2 { font-size: 20px; font-weight: 700; margin: 18px 0 10px; color: #0d1117; line-height: 1.3; }

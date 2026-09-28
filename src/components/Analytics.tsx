@@ -1,628 +1,271 @@
-﻿import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
-import { 
-  TrendingUp, 
-  DollarSign, 
-  AlertTriangle, 
-  CheckCircle2, 
-  Clock,
-  Activity,
-  ShieldAlert,
-  ArrowUpRight
-} from 'lucide-react';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  Cell,
-  AreaChart,
-  Area,
-  PieChart,
-  Pie,
-  Legend
-} from 'recharts';
-import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { useAuth } from '../contexts/AuthContext';
-import { useCheckoutModal } from '../contexts/CheckoutModalContext';
-import { checkPlan, getLimits, canUpgrade } from '../lib/plans';
+﻿import React from 'react'
+import { useAuth } from '../contexts/AuthContext'
+import { useAnalytics } from '../hooks/useAnalytics'
+import { TrendingUp, TrendingDown, Users, FileText, Euro, Calendar, BarChart3, PieChart } from 'lucide-react'
 
-const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#6366f1'];
-const VIBRANT = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Badge } from '@/components/ui/badge'
+
+interface MetricCardProps {
+  title: string
+  value: string | number
+  change?: number
+  changeLabel?: string
+  icon: React.ReactNode
+  loading?: boolean
+}
+
+function MetricCard({ title, value, change, changeLabel, icon, loading }: MetricCardProps) {
+  if (loading) return <Card><CardContent className='p-6'><Skeleton className='h-20 w-full' /></CardContent></Card>
+
+  const isPositive = change && change > 0
+  const isNegative = change && change < 0
+
+  return (
+    <Card>
+      <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+        <CardTitle className='text-sm font-medium text-muted-foreground'>{title}</CardTitle>
+        <div className='text-muted-foreground'>{icon}</div>
+      </CardHeader>
+      <CardContent>
+        <div className='text-2xl font-bold'>{value}</div>
+        {change !== undefined && (
+          <div className='flex items-center pt-1'>
+            {isPositive && <TrendingUp className='size-4 text-green-600 mr-1' />}
+            {isNegative && <TrendingDown className='size-4 text-red-600 mr-1' />}
+            <span className={`text-xs font-medium ${isPositive ? 'text-green-600' : isNegative ? 'text-red-600' : 'text-muted-foreground'}`}>
+              {change > 0 ? '+' : ''}{change}% {changeLabel}
+            </span>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+interface ChartCardProps {
+  title: string
+  description?: string
+  children: React.ReactNode
+  loading?: boolean
+}
+
+function ChartCard({ title, description, children, loading }: ChartCardProps) {
+  if (loading) return (
+    <Card className='col-span-2'>
+      <CardHeader><Skeleton className='h-6 w-48' /><Skeleton className='h-4 w-32' /></CardHeader>
+      <CardContent><Skeleton className='h-80 w-full' /></CardContent>
+    </Card>
+  )
+
+  return (
+    <Card className='col-span-2'>
+      <CardHeader>
+        <CardTitle className='text-base'>{title}</CardTitle>
+        {description && <CardDescription>{description}</CardDescription>}
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
+  )
+}
 
 export default function Analytics() {
-  const { user, plan, isAdmin, trialEndsAt } = useAuth();
-  const { openCheckout } = useCheckoutModal();
-  const [contracts, setContracts] = useState<any[]>([]);
+  const { user } = useAuth()
+  const { data: analytics, isLoading } = useAnalytics()
 
-  useEffect(() => {
-    if (user) {
-      const init = async () => {
-        try {
-          const { data, error } = await supabase
-            .from('contracts')
-            .select('*')
-            .eq('owner_id', user.id);
+  const formatCurrency = (amount: number) => 
+    new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(amount)
 
-          if (error) {
-            console.error("Error fetching analytics data:", error);
-            setContracts([]);
-          } else {
-            setContracts(data || []);
-          }
-        } catch (err) {
-          console.error("Error initializing analytics:", err);
-        }
-      };
-      init();
-
-      const channel = supabase
-        .channel('analytics_changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'contracts' }, () => {
-          fetchContracts();
-        })
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }
-  }, [user]);
-
-  const fetchContracts = async () => {
-    if (!user) return;
-    try {
-      const { data, error } = await supabase
-        .from('contracts')
-        .select('*')
-        .eq('owner_id', user.id);
-
-      if (error) {
-        console.error("Error fetching analytics data:", error);
-        setContracts([]);
-      } else {
-        setContracts(data || []);
-      }
-    } catch (err) {
-      console.error("Error fetching analytics data:", err);
-    }
-  };
-
-  const financialData = Array.from({ length: 6 }).map((_, i) => {
-    const date = subMonths(new Date(), 5 - i);
-    const monthName = format(date, 'MMM', { locale: ptBR });
-    const monthStart = startOfMonth(date);
-    const monthEnd = endOfMonth(date);
-    
-    const monthContracts = contracts.filter(c => {
-      const createdAt = parseISO(c.created_at);
-      return createdAt && isWithinInterval(createdAt, { start: monthStart, end: monthEnd });
-    });
-
-    const value = monthContracts.reduce((acc, c) => acc + (Number(c.value) || 0), 0);
-    
-    return { name: monthName, value };
-  });
-
-  // Correlação: novos contratos vs risco assumido por mês
-  const correlationData = Array.from({ length: 6 }).map((_, i) => {
-    const date = subMonths(new Date(), 5 - i);
-    const monthName = format(date, 'MMM', { locale: ptBR });
-    const monthStart = startOfMonth(date);
-    const monthEnd = endOfMonth(date);
-
-    const monthContracts = contracts.filter(c => {
-      const createdAt = parseISO(c.created_at);
-      return createdAt && isWithinInterval(createdAt, { start: monthStart, end: monthEnd });
-    });
-
-    return {
-      name: monthName,
-      total: monthContracts.length,
-      alto: monthContracts.filter(c => c.risk_level === 'high').length,
-      medio: monthContracts.filter(c => c.risk_level === 'medium').length,
-      baixo: monthContracts.filter(c => c.risk_level === 'low').length,
-    };
-  });
-
-  const statusData = [
-    { name: 'Aprovados', value: contracts.filter(c => c.status === 'approved').length },
-    { name: 'Pendentes', value: contracts.filter(c => c.status === 'pending').length },
-    { name: 'Rejeitados', value: contracts.filter(c => c.status === 'rejected').length },
-    { name: 'Rascunhos', value: contracts.filter(c => c.status === 'draft').length }
-  ].filter(item => item.value > 0);
-
-  const riskData = [
-    { name: 'Baixo', value: contracts.filter(c => c.risk_level === 'low').length },
-    { name: 'Médio', value: contracts.filter(c => c.risk_level === 'medium').length },
-    { name: 'Alto', value: contracts.filter(c => c.risk_level === 'high').length }
-  ].filter(item => item.value > 0);
-
-  const stats = {
-    total: contracts.length,
-    totalValue: contracts.reduce((acc, c) => acc + (Number(c.value) || 0), 0),
-    approved: contracts.filter(c => c.status === 'approved').length,
-    pending: contracts.filter(c => c.status === 'pending').length,
-    highRisk: contracts.filter(c => c.risk_level === 'high').length
-  };
-
-  if (!checkPlan(plan, 'pro', isAdmin, trialEndsAt)) {
+  if (isLoading) {
     return (
-      <div style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        padding: 60, gap: 20, fontFamily: "'Poppins',sans-serif", textAlign: 'center'
-      }}>
-        <div style={{
-          width: 80, height: 80, borderRadius: '50%',
-          background: 'rgba(13,17,23,0.06)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center'
-        }}>
-          <TrendingUp size={40} color="#9ca3af" />
+      <div className='space-y-6'>
+        <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
+          {Array.from({length: 4}).map((_, i) => <Skeleton key={i} className='h-32 w-full' />)}
         </div>
-        <h2 style={{ fontSize: 22, fontWeight: 800, color: '#0d1117' }}>
-          Analytics
-        </h2>
-        <p style={{ fontSize: 14, color: '#6b7280', maxWidth: 400 }}>
-          Analytics está disponível apenas nos planos Pro e Enterprise.
-        </p>
-        <button onClick={() => openCheckout('pro')} style={{
-          display: 'inline-flex', alignItems: 'center', gap: 8,
-          padding: '12px 24px', fontSize: 14, fontWeight: 700,
-          background: '#0d1117', border: 'none', color: '#fff',
-          cursor: 'pointer', borderRadius: 12, fontFamily: "'Poppins',sans-serif"
-        }}>
-          <ArrowUpRight size={16} />
-          Fazer Upgrade
-        </button>
+        <div className='grid gap-4 md:grid-cols-2'>
+          <Skeleton className='h-96 w-full' />
+          <Skeleton className='h-96 w-full' />
+        </div>
       </div>
-    );
+    )
+  }
+
+  const stats = analytics || {
+    totalContracts: 0,
+    totalClients: 0,
+    totalInvoices: 0,
+    totalRevenue: 0,
+    contractsThisMonth: 0,
+    clientsThisMonth: 0,
+    invoicesThisMonth: 0,
+    revenueThisMonth: 0,
+    contractsByStatus: {},
+    invoicesByStatus: {},
+    monthlyRevenue: [],
+    recentActivity: []
   }
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 24,
-      fontFamily: "'Poppins', sans-serif"
-    }}>
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        gap: 16
-      }}>
-        <div>
-          <h1 style={{
-            fontSize: 24,
-            fontWeight: 800,
-            color: '#0d1117',
-            marginBottom: 4,
-            fontFamily: "'Poppins',sans-serif"
-          }}>
-            Análise de Dados
-          </h1>
-          <p style={{ fontSize: 14, color: '#6b7280', fontFamily: "'Poppins',sans-serif" }}>
-            Visão detalhada dos seus contratos
-          </p>
-        </div>
+    <div className='space-y-6'>
+      {/* Overview Cards */}
+      <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
+        <MetricCard
+          title='Contratos Totais'
+          value={stats.totalContracts}
+          change={stats.contractsThisMonth > 0 ? ((stats.contractsThisMonth / Math.max(stats.totalContracts - stats.contractsThisMonth, 1)) * 100) : 0}
+          changeLabel='este mês'
+          icon={<FileText className='size-4' />}
+          loading={isLoading}
+        />
+        <MetricCard
+          title='Clientes Activos'
+          value={stats.totalClients}
+          change={stats.clientsThisMonth > 0 ? ((stats.clientsThisMonth / Math.max(stats.totalClients - stats.clientsThisMonth, 1)) * 100) : 0}
+          changeLabel='este mês'
+          icon={<Users className='size-4' />}
+          loading={isLoading}
+        />
+        <MetricCard
+          title='Facturas Emitidas'
+          value={stats.totalInvoices}
+          change={stats.invoicesThisMonth > 0 ? ((stats.invoicesThisMonth / Math.max(stats.totalInvoices - stats.invoicesThisMonth, 1)) * 100) : 0}
+          changeLabel='este mês'
+          icon={<Calendar className='size-4' />}
+          loading={isLoading}
+        />
+        <MetricCard
+          title='Receita Total'
+          value={formatCurrency(stats.totalRevenue)}
+          change={stats.revenueThisMonth > 0 ? ((stats.revenueThisMonth / Math.max(stats.totalRevenue - stats.revenueThisMonth, 1)) * 100) : 0}
+          changeLabel='este mês'
+          icon={<Euro className='size-4' />}
+          loading={isLoading}
+        />
       </div>
 
-      {/* Stats Grid */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-        gap: 20
-      }}>
-        <div style={{
-          background: 'rgba(255, 255, 255, 0.45)',
-          backdropFilter: 'blur(30px)',
-          border: '1px solid rgba(255, 255, 255, 0.35)',
-          borderRadius: 20,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-          padding: 24,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 12
-        }}>
-          <div style={{
-            fontSize: 12,
-            fontWeight: 700,
-            color: '#6b7280',
-            letterSpacing: 1,
-            textTransform: 'uppercase',
-            fontFamily: "'Poppins',sans-serif"
-          }}>
-            Total de Contratos
+      {/* Charts Row */}
+      <div className='grid gap-4 md:grid-cols-2'>
+        <ChartCard
+          title='Contratos por Status'
+          description='Distribuição dos contratos por estado actual'
+          loading={isLoading}
+        >
+          <div className='space-y-3'>
+            {Object.entries(stats.contractsByStatus || {}).map(([status, count]) => {
+              const statusLabels: Record<string, string> = {
+                draft: 'Rascunho',
+                active: 'Activo',
+                expired: 'Expirado',
+                terminated: 'Terminado'
+              }
+              const colors: Record<string, string> = {
+                draft: 'bg-gray-500',
+                active: 'bg-green-500',
+                expired: 'bg-yellow-500',
+                terminated: 'bg-red-500'
+              }
+              const percentage = stats.totalContracts > 0 ? Math.round((count as number / stats.totalContracts) * 100) : 0
+              
+              return (
+                <div key={status} className='flex items-center justify-between'>
+                  <div className='flex items-center gap-2'>
+                    <div className={`size-3 rounded-full ${colors[status] || 'bg-gray-400'}`} />
+                    <span className='text-sm font-medium'>{statusLabels[status] || status}</span>
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    <span className='text-sm text-muted-foreground'>{count}</span>
+                    <Badge variant='secondary' className='text-xs'>{percentage}%</Badge>
+                  </div>
+                </div>
+              )
+            })}
+            {Object.keys(stats.contractsByStatus || {}).length === 0 && (
+              <div className='flex items-center justify-center h-40 text-muted-foreground'>
+                <PieChart className='size-12 mb-2' />
+                <p>Sem dados disponíveis</p>
+              </div>
+            )}
           </div>
-          <div style={{
-            fontSize: 28,
-            fontWeight: 800,
-            color: '#0d1117',
-            fontFamily: "'Poppins',sans-serif"
-          }}>
-            {stats.total}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <CheckCircle2 size={16} color="#0d1117" />
-            <span style={{ fontSize: 12, color: '#0d1117', fontWeight: 600, fontFamily: "'Poppins',sans-serif" }}>
-              {stats.approved} aprovados
-            </span>
-          </div>
-        </div>
+        </ChartCard>
 
-        <div style={{
-          background: 'rgba(255, 255, 255, 0.45)',
-          backdropFilter: 'blur(30px)',
-          border: '1px solid rgba(255, 255, 255, 0.35)',
-          borderRadius: 20,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-          padding: 24,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 12
-        }}>
-          <div style={{
-            fontSize: 12,
-            fontWeight: 700,
-            color: '#6b7280',
-            letterSpacing: 1,
-            textTransform: 'uppercase',
-            fontFamily: "'Poppins',sans-serif"
-          }}>
-            Valor Total
+        <ChartCard
+          title='Facturas por Status'
+          description='Estado actual das facturas emitidas'
+          loading={isLoading}
+        >
+          <div className='space-y-3'>
+            {Object.entries(stats.invoicesByStatus || {}).map(([status, count]) => {
+              const statusLabels: Record<string, string> = {
+                draft: 'Rascunho',
+                sent: 'Enviada',
+                paid: 'Paga',
+                overdue: 'Em Atraso',
+                cancelled: 'Cancelada'
+              }
+              const colors: Record<string, string> = {
+                draft: 'bg-gray-500',
+                sent: 'bg-blue-500',
+                paid: 'bg-green-500',
+                overdue: 'bg-red-500',
+                cancelled: 'bg-gray-400'
+              }
+              const percentage = stats.totalInvoices > 0 ? Math.round((count as number / stats.totalInvoices) * 100) : 0
+              
+              return (
+                <div key={status} className='flex items-center justify-between'>
+                  <div className='flex items-center gap-2'>
+                    <div className={`size-3 rounded-full ${colors[status] || 'bg-gray-400'}`} />
+                    <span className='text-sm font-medium'>{statusLabels[status] || status}</span>
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    <span className='text-sm text-muted-foreground'>{count}</span>
+                    <Badge variant='secondary' className='text-xs'>{percentage}%</Badge>
+                  </div>
+                </div>
+              )
+            })}
+            {Object.keys(stats.invoicesByStatus || {}).length === 0 && (
+              <div className='flex items-center justify-center h-40 text-muted-foreground'>
+                <BarChart3 className='size-12 mb-2' />
+                <p>Sem dados disponíveis</p>
+              </div>
+            )}
           </div>
-          <div style={{
-            fontSize: 28,
-            fontWeight: 800,
-            color: '#0d1117',
-            fontFamily: "'Poppins',sans-serif"
-          }}>
-            {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(stats.totalValue)}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <TrendingUp size={16} color="#0d1117" />
-            <span style={{ fontSize: 12, color: '#0d1117', fontWeight: 600, fontFamily: "'Poppins',sans-serif" }}>
-              ↑ 8% vs período anterior
-            </span>
-          </div>
-        </div>
-
-        <div style={{
-          background: 'rgba(255, 255, 255, 0.45)',
-          backdropFilter: 'blur(30px)',
-          border: '1px solid rgba(255, 255, 255, 0.35)',
-          borderRadius: 20,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-          padding: 24,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 12
-        }}>
-          <div style={{
-            fontSize: 12,
-            fontWeight: 700,
-            color: '#6b7280',
-            letterSpacing: 1,
-            textTransform: 'uppercase',
-            fontFamily: "'Poppins',sans-serif"
-          }}>
-            Pendentes
-          </div>
-          <div style={{
-            fontSize: 28,
-            fontWeight: 800,
-            color: '#0d1117',
-            fontFamily: "'Poppins',sans-serif"
-          }}>
-            {stats.pending}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Clock size={16} color="#f59e0b" />
-            <span style={{ fontSize: 12, color: '#f59e0b', fontWeight: 600, fontFamily: "'Poppins',sans-serif" }}>
-              Requer atenção
-            </span>
-          </div>
-        </div>
-
-        <div style={{
-          background: 'rgba(255, 255, 255, 0.45)',
-          backdropFilter: 'blur(30px)',
-          border: '1px solid rgba(255, 255, 255, 0.35)',
-          borderRadius: 20,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-          padding: 24,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 12
-        }}>
-          <div style={{
-            fontSize: 12,
-            fontWeight: 700,
-            color: '#6b7280',
-            letterSpacing: 1,
-            textTransform: 'uppercase',
-            fontFamily: "'Poppins',sans-serif"
-          }}>
-            Risco Alto
-          </div>
-          <div style={{
-            fontSize: 28,
-            fontWeight: 800,
-            color: stats.highRisk > 0 ? '#ef4444' : '#0d1117',
-            fontFamily: "'Poppins',sans-serif"
-          }}>
-            {stats.highRisk}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <ShieldAlert size={16} color="#ef4444" />
-            <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 600, fontFamily: "'Poppins',sans-serif" }}>
-              {stats.highRisk > 0 ? 'Ação imediata' : 'Sem riscos'}
-            </span>
-          </div>
-        </div>
+        </ChartCard>
       </div>
 
-      {/* Charts Grid */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: 24
-      }} className="lg:grid-cols-3">
-        {/* Financial Chart */}
-        <div style={{
-          background: 'rgba(255, 255, 255, 0.45)',
-          backdropFilter: 'blur(30px)',
-          border: '1px solid rgba(255, 255, 255, 0.35)',
-          borderRadius: 24,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-          overflow: 'hidden',
-          gridColumn: '1 / span 2'
-        }} className="lg:col-span-2">
-          <div style={{
-            padding: '24px',
-            borderBottom: '1px solid #e2e5e9',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
-          }}>
-            <h2 style={{
-              fontSize: 16,
-              fontWeight: 700,
-              color: '#0d1117',
-              fontFamily: "'Poppins',sans-serif"
-            }}>
-              Evolução Financeira
-            </h2>
-          </div>
-          <div style={{ padding: '24px', height: 350, minWidth: 0 }}>
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-              <AreaChart data={financialData}>
-                <defs>
-                  <linearGradient id="colorFinancial" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#10b981" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e5e9" />
-                <XAxis
-                  dataKey="name"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: '#6b7280', fontSize: 11, fontFamily: "'Poppins',sans-serif" }}
-                  dy={10}
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: '#6b7280', fontSize: 11, fontFamily: "'Poppins',sans-serif" }}
-                  tickFormatter={(value) => `Kz ${value / 1000}k`}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#fff',
-                    borderRadius: '10px',
-                    border: '1px solid #e2e5e9',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-                    fontFamily: "'Poppins',sans-serif"
-                  }}
-                  itemStyle={{ color: '#0d1117', fontFamily: "'Poppins',sans-serif" }}
-                  labelStyle={{ color: '#6b7280', fontFamily: "'Poppins',sans-serif" }}
-                  formatter={(value: any) => [
-                    new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(Number(value)),
-                    'Valor'
-                  ]}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="value"
-                  stroke="#10b981"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#colorFinancial)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Status Pie Chart */}
-        <div style={{
-          background: 'rgba(255, 255, 255, 0.45)',
-          backdropFilter: 'blur(30px)',
-          border: '1px solid rgba(255, 255, 255, 0.35)',
-          borderRadius: 24,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-          overflow: 'hidden'
-        }}>
-          <div style={{
-            padding: '24px',
-            borderBottom: '1px solid #e2e5e9'
-          }}>
-            <h2 style={{
-              fontSize: 16,
-              fontWeight: 700,
-              color: '#0d1117',
-              fontFamily: "'Poppins',sans-serif"
-            }}>
-              Status dos Contratos
-            </h2>
-          </div>
-          <div style={{ padding: '24px', height: 300, minWidth: 0 }}>
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-              <PieChart>
-                <Pie
-                  data={statusData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {statusData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#fff',
-                    borderRadius: '10px',
-                    border: '1px solid #e2e5e9',
-                    fontFamily: "'Poppins',sans-serif"
-                  }}
-                />
-                <Legend verticalAlign="bottom" height={36} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Risk Bar Chart */}
-        <div style={{
-          background: 'rgba(255, 255, 255, 0.45)',
-          backdropFilter: 'blur(30px)',
-          border: '1px solid rgba(255, 255, 255, 0.35)',
-          borderRadius: 24,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-          overflow: 'hidden',
-          gridColumn: '1 / span 1'
-        }} className="lg:col-span-1">
-          <div style={{
-            padding: '24px',
-            borderBottom: '1px solid #e2e5e9',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
-          }}>
-            <h2 style={{
-              fontSize: 16,
-              fontWeight: 700,
-              color: '#0d1117',
-              fontFamily: "'Poppins',sans-serif"
-            }}>
-              Distribuição de Riscos
-            </h2>
-          </div>
-          <div style={{ padding: '24px', height: 300, minWidth: 0 }}>
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-              <BarChart data={riskData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e5e9" />
-                <XAxis
-                  dataKey="name"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: '#6b7280', fontSize: 13, fontFamily: "'Poppins',sans-serif" }}
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: '#6b7280', fontSize: 11, fontFamily: "'Poppins',sans-serif" }}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#fff',
-                    borderRadius: '10px',
-                    border: '1px solid #e2e5e9',
-                    fontFamily: "'Poppins',sans-serif"
-                  }}
-                />
-                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                  {riskData.map((entry, index) => (
-                    <Cell 
-                      key={`cell-${index}`} 
-                      fill={entry.name === 'Alto' ? '#ef4444' : entry.name === 'Médio' ? '#f59e0b' : '#10b981'} 
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Correlation Chart: Novos Contratos vs Risco */}
-        <div style={{
-          background: 'rgba(255, 255, 255, 0.45)',
-          backdropFilter: 'blur(30px)',
-          border: '1px solid rgba(255, 255, 255, 0.35)',
-          borderRadius: 24,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-          overflow: 'hidden',
-          gridColumn: '1 / -1'
-        }} className="lg:col-span-1">
-          <div style={{
-            padding: '24px',
-            borderBottom: '1px solid #e2e5e9',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
-          }}>
-            <h2 style={{
-              fontSize: 16,
-              fontWeight: 700,
-              color: '#0d1117',
-              fontFamily: "'Poppins',sans-serif"
-            }}>
-              Novos Contratos vs Risco Assumido
-            </h2>
-          </div>
-          <div style={{ padding: '24px', height: 300, minWidth: 0 }}>
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-              <BarChart data={correlationData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e5e9" />
-                <XAxis
-                  dataKey="name"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: '#6b7280', fontSize: 13, fontFamily: "'Poppins',sans-serif" }}
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: '#6b7280', fontSize: 11, fontFamily: "'Poppins',sans-serif" }}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#fff',
-                    borderRadius: '10px',
-                    border: '1px solid #e2e5e9',
-                    fontFamily: "'Poppins',sans-serif"
-                  }}
-                />
-                <Bar dataKey="total" name="Total" stackId="a" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="alto" name="Risco Alto" stackId="a" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="medio" name="Risco Médio" stackId="a" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="baixo" name="Risco Baixo" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]} />
-                <Legend verticalAlign="bottom" height={36} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
+      {/* Recent Activity */}
+      <Card>
+        <CardHeader>
+          <CardTitle className='text-base'>Actividade Recente</CardTitle>
+          <CardDescription>Últimas acções no sistema</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {stats.recentActivity && stats.recentActivity.length > 0 ? (
+            <div className='space-y-4'>
+              {stats.recentActivity.slice(0, 5).map((activity: any, index: number) => (
+                <div key={index} className='flex items-center gap-3 pb-3 border-b last:border-0'>
+                  <div className='bg-primary/10 flex size-8 items-center justify-center rounded-lg'>
+                    <FileText className='size-4 text-primary' />
+                  </div>
+                  <div className='flex-1'>
+                    <p className='text-sm font-medium'>{activity.description}</p>
+                    <p className='text-xs text-muted-foreground'>{activity.timestamp}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className='flex items-center justify-center h-32 text-muted-foreground'>
+              <div className='text-center'>
+                <Calendar className='size-12 mx-auto mb-2 opacity-50' />
+                <p>Nenhuma actividade recente</p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
-  );
+  )
 }

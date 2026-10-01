@@ -29,6 +29,7 @@ import AIContractGenerator from './AIContractGenerator';
 import ContractClauseEditor from './ContractClauseEditor';
 import TagInput from './TagInput';
 import { useClients } from '../hooks/useClients';
+import { useTemplates } from '../hooks/useTemplates';
 import type { FieldDef } from './TemplateFieldForm';
 import { checkPlan, getLimits, canUpgrade } from '../lib/plans';
 import { logAudit, Actions } from '../services/auditLog';
@@ -42,6 +43,7 @@ export default function ContractForm() {
   const [searchParams] = useSearchParams();
   const isEditing = !!editId;
   const mode = isEditing ? null : (searchParams.get('mode') || null);
+  const templateParam = isEditing ? null : searchParams.get('template');
   const canUseAI = checkPlan(plan, 'pro', isAdmin, trialEndsAt);
   const { openCheckout } = useCheckoutModal();
   const [analyzing, setAnalyzing] = useState(false);
@@ -121,10 +123,10 @@ export default function ContractForm() {
 
   // Modo "criar do zero" → abre a biblioteca de modelos automaticamente
   useEffect(() => {
-    if (mode === 'template' && !isEditing) {
+    if (mode === 'template' && !isEditing && !templateParam) {
       setShowTemplateLibrary(true);
     }
-  }, [mode, isEditing]);
+  }, [mode, isEditing, templateParam]);
 
   const requirePro = (feature: string): boolean => {
     if (canUseAI) return true;
@@ -419,6 +421,16 @@ export default function ContractForm() {
     setFormData(prev => ({ ...prev, content: template.content }));
     toast.success(`Modelo "${template.name}" aplicado — preenche os campos e exporta`);
   };
+
+  // Modelo pré-escolhido vindo de /templates (?template=<id>)
+  const { data: allTemplates = [] } = useTemplates();
+  useEffect(() => {
+    if (!templateParam) return;
+    const template = allTemplates.find(t => t.id === templateParam);
+    if (!template) return;
+    setShowTemplateLibrary(false);
+    handleSelectTemplate(template);
+  }, [allTemplates, templateParam]);
 
   const handleAIGenerated = (html: string, title: string) => {
     setFormData(prev => ({ ...prev, content: html, title: prev.title || title }));

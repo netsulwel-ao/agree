@@ -5,5 +5,8 @@ dist/
 client_secret_*.json
 .vscode/
 
+# Cache local da CLI do Supabase (project-ref, versões, linked-project)
+supabase/.temp/
+
 # Scripts de desenvolvimento/debug — não devem ir para produção
 _dev-scripts/

@@ -1,8 +1,11 @@
 import { type ComponentType, useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import * as Icon from 'lucide-react'
-import { ChevronRightIcon } from 'lucide-react'
+import { ChevronRightIcon, User, Settings } from 'lucide-react'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub,
@@ -12,9 +15,10 @@ import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuBadge,
   SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubButton,
-  SidebarMenuSubItem, useSidebar,
+  SidebarMenuSubItem, SidebarFooter, useSidebar,
 } from '@/components/ui/sidebar'
 import { cn } from '@/lib/utils'
+import { useAuth } from '../contexts/AuthContext'
 import AgreeLogo from '../Agree-logo.svg'
 
 // ─── Tipos (igual ao AdminCN) ─────────────────────────
@@ -132,7 +136,7 @@ const FlyoutMenuItem = ({ item, childItems, isChildActive, pathname }: {
   return (
     <SidebarMenuItem>
       <DropdownMenu>
-        <DropdownMenuTrigger render={<SidebarMenuButton isActive={isChildActive} className='data-active:bg-primary/5! h-11 px-4 rounded-lg hover:bg-muted/50' />}>
+        <DropdownMenuTrigger render={<SidebarMenuButton isActive={isChildActive} className='data-active:bg-primary/5! h-10 px-4 rounded-lg hover:bg-muted/50' />}>
           {Tag && <Tag className='size-5' />}
           <span className='min-w-0 flex-1 truncate text-base font-medium'>{item.label}</span>
           <ChevronRightIcon className='ml-auto size-4' />
@@ -177,13 +181,13 @@ const SidebarGroupedMenuItems = ({ data, groupLabel, pathname, isIconMode, isBra
   isIconMode: boolean; isBranchOpen: (key: string) => boolean; setOpenItem: (key: string, open: boolean) => void
 }) => (
   <SidebarGroup>
-    {groupLabel && (
-      <SidebarGroupLabel className='text-sidebar-foreground/50 tracking-wider uppercase text-sm font-medium px-4 py-3'>
+    {groupLabel && !isIconMode && (
+      <SidebarGroupLabel className='text-sidebar-foreground/50 tracking-wider uppercase text-sm font-medium px-4 py-3 mb-1'>
         {groupLabel}
       </SidebarGroupLabel>
     )}
-    <SidebarGroupContent className='px-2'>
-      <SidebarMenu className='space-y-1'>
+    <SidebarGroupContent className={isIconMode ? 'px-2' : 'px-2'}>
+      <SidebarMenu className={isIconMode ? 'space-y-2' : 'space-y-1.5'}>
         {data.map(item => {
           const Tag = item.icon ? (Icon[item.icon] as ComponentType) : null
           const isChildActive = item.childItems?.some(sub =>
@@ -206,7 +210,7 @@ const SidebarGroupedMenuItems = ({ data, groupLabel, pathname, isIconMode, isBra
               <SidebarMenuItem>
                 <CollapsibleTrigger render={
                   <SidebarMenuButton tooltip={item.label} isActive={isChildActive} 
-                    className='data-active:bg-primary/5! h-11 px-4 text-base font-medium rounded-lg hover:bg-muted/50 transition-colors' />
+                    className='data-active:bg-primary/5! h-10 px-4 text-base font-medium rounded-lg hover:bg-muted/50 transition-colors' />
                 }>
                   {Tag && <Tag className='size-5' />}
                   <span className={cn('min-w-0 flex-1 truncate', item.badge && 'pr-14')}>{item.label}</span>
@@ -218,7 +222,7 @@ const SidebarGroupedMenuItems = ({ data, groupLabel, pathname, isIconMode, isBra
                   <ChevronRightIcon className='ml-auto transition-transform duration-200 group-data-open/collapsible:rotate-90 size-4' />
                 </CollapsibleTrigger>
                 <CollapsibleContent className='h-(--collapsible-panel-height) overflow-hidden transition-all duration-200 data-ending-style:h-0 data-starting-style:h-0'>
-                  <SidebarMenuSub className='ml-6 mt-1'>
+                  <SidebarMenuSub className='ml-6 mt-2 space-y-1'>
                     {item.childItems.map(subItem =>
                       isSubGroup(subItem) ? (
                         <Collapsible className='group/subcollapsible' key={subItem.label}
@@ -226,17 +230,17 @@ const SidebarGroupedMenuItems = ({ data, groupLabel, pathname, isIconMode, isBra
                           onOpenChange={open => setOpenItem(subGroupKey(item.label, subItem.label), open)}>
                           <SidebarMenuSubItem>
                             <CollapsibleTrigger nativeButton={false} render={
-                              <SidebarMenuSubButton className='data-active:bg-primary/10! justify-between h-10 px-3 text-sm rounded-md'
+                              <SidebarMenuSubButton className='data-active:bg-primary/10! justify-between h-9 px-3 text-sm rounded-md'
                                 isActive={subItem.childItems.some(leaf => isLinkActive(leaf.href, pathname))} />
                             }>
                               {subItem.label}
                               <ChevronRightIcon className='ml-auto shrink-0 transition-transform duration-200 group-data-open/subcollapsible:rotate-90 size-4' />
                             </CollapsibleTrigger>
                             <CollapsibleContent className='h-(--collapsible-panel-height) overflow-hidden transition-all duration-200 data-ending-style:h-0 data-starting-style:h-0'>
-                              <SidebarMenuSub className='mx-0 ml-4'>
+                              <SidebarMenuSub className='mx-0 ml-4 space-y-1'>
                                 {subItem.childItems.map(leaf => (
                                   <SidebarMenuSubItem key={leaf.label}>
-                                    <SidebarMenuSubButton className='data-active:bg-primary/10! justify-between h-9 px-3 text-sm rounded-md hover:bg-muted/50'
+                                    <SidebarMenuSubButton className='data-active:bg-primary/10! justify-between h-8 px-3 text-sm rounded-md hover:bg-muted/50'
                                       render={<Link to={leaf.href} />}
                                       isActive={isLinkActive(leaf.href, pathname)}>
                                       <span className='min-w-0 flex-1 truncate'>{leaf.label}</span>
@@ -249,7 +253,7 @@ const SidebarGroupedMenuItems = ({ data, groupLabel, pathname, isIconMode, isBra
                         </Collapsible>
                       ) : (
                         <SidebarMenuSubItem key={subItem.label}>
-                          <SidebarMenuSubButton className='data-active:bg-primary/10! justify-between h-10 px-3 text-sm rounded-md hover:bg-muted/50'
+                          <SidebarMenuSubButton className='data-active:bg-primary/10! justify-between h-9 px-3 text-sm rounded-md hover:bg-muted/50'
                             render={<Link to={subItem.href} />}
                             isActive={isLinkActive(subItem.href, pathname)}>
                             <span className='min-w-0 flex-1 truncate'>{subItem.label}</span>
@@ -271,10 +275,15 @@ const SidebarGroupedMenuItems = ({ data, groupLabel, pathname, isIconMode, isBra
               <SidebarMenuButton tooltip={item.label}
                 render={<Link to={item.href!} />}
                 isActive={isLinkActive(item.href!, pathname)}
-                className='data-active:bg-primary/10! h-11 px-4 text-base font-medium rounded-lg hover:bg-muted/50 transition-colors'>
+                className={cn(
+                  'data-active:bg-primary/10! h-10 text-base font-medium rounded-lg hover:bg-muted/50 transition-colors',
+                  isIconMode ? 'px-0 justify-center w-10 mx-auto' : 'px-4'
+                )}>
                 {Tag && <Tag className='size-5' />}
-                <span className={cn('min-w-0 flex-1 truncate', item.badge && 'pr-14')}>{item.label}</span>
-                {item.badge && (
+                {!isIconMode && (
+                  <span className={cn('min-w-0 flex-1 truncate', item.badge && 'pr-14')}>{item.label}</span>
+                )}
+                {item.badge && !isIconMode && (
                   <SidebarMenuBadge className={cn('bg-primary/10 max-w-24 truncate rounded-full px-2 py-1 font-normal text-xs', item.badgeClassName)}>
                     {item.badge}
                   </SidebarMenuBadge>
@@ -293,7 +302,9 @@ export default function AppSidebar({ isAdmin, isSuperAdmin, plan }: {
   isAdmin: boolean; isSuperAdmin: boolean; plan: string
 }) {
   const location = useLocation()
+  const navigate = useNavigate()
   const { state, isMobile } = useSidebar()
+  const { user, profile } = useAuth()
   const [openItems, setOpenItems] = useState<Record<string, boolean>>({})
 
   const navGroups = useMemo(() => buildNavItems(isAdmin, isSuperAdmin, plan), [isAdmin, isSuperAdmin, plan])
@@ -313,17 +324,44 @@ export default function AppSidebar({ isAdmin, isSuperAdmin, plan }: {
   }, [])
 
   const isIconMode = state === 'collapsed' && !isMobile
+  
+  const getUserDisplayName = () => {
+    return profile?.full_name || user?.email?.split('@')[0] || 'Usuário'
+  }
+  
+  const getUserInitials = () => {
+    const name = getUserDisplayName()
+    return name.split(' ').map(n => n.charAt(0)).join('').toUpperCase().slice(0, 2)
+  }
+  
+  const getPlanLabel = () => {
+    const plans: Record<string, string> = {
+      free: 'Gratuito',
+      pro: 'Pro',
+      enterprise: 'Enterprise'
+    }
+    return plans[plan] || 'Gratuito'
+  }
 
   return (
-    <Sidebar collapsible='icon' variant='sidebar' className='w-72'>
-      {/* ── Logo idêntico ao AdminCN ── */}
-      <SidebarHeader>
+    <Sidebar collapsible='icon' variant='sidebar' className='w-64 group-data-[collapsible=icon]:w-16'>
+      {/* ── Logo com comportamento AdminCN ── */}
+      <SidebarHeader className='group-data-[collapsible=icon]:p-2'>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size='lg' className='gap-3 bg-transparent! [&>svg]:size-9 h-16'
-              render={<Link to='/dashboard' />}>
-              <img src={AgreeLogo} alt='Agree' className='size-9 shrink-0' />
-              <div className='flex flex-col items-start'>
+            <SidebarMenuButton 
+              size='lg' 
+              className='gap-3 bg-transparent! h-16 group-data-[collapsible=icon]:h-12 group-data-[collapsible=icon]:w-12 group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:justify-center'
+              render={<Link to='/dashboard' />}
+            >
+              <div className='group-data-[collapsible=icon]:bg-primary group-data-[collapsible=icon]:text-primary-foreground group-data-[collapsible=icon]:rounded-lg group-data-[collapsible=icon]:size-10 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center'>
+                <img 
+                  src={AgreeLogo} 
+                  alt='Agree' 
+                  className='size-9 shrink-0 group-data-[collapsible=icon]:size-6 group-data-[collapsible=icon]:brightness-0 group-data-[collapsible=icon]:invert' 
+                />
+              </div>
+              <div className='flex flex-col items-start group-data-[collapsible=icon]:hidden'>
                 <span className='text-xl font-semibold text-nowrap'>Agree</span>
                 <span className='text-sm font-light text-nowrap text-muted-foreground'>Gestão de Contratos</span>
               </div>
@@ -346,6 +384,58 @@ export default function AppSidebar({ isAdmin, isSuperAdmin, plan }: {
           />
         ))}
       </SidebarContent>
+
+      {/* ── Dados do Usuário (Minimalista) ── */}
+      {!isIconMode && user && (
+        <SidebarFooter className='p-4 border-t'>
+          <div className='flex items-center gap-3'>
+            <Avatar className='size-10'>
+              <AvatarFallback className='bg-primary/10 text-primary text-sm font-semibold'>
+                {getUserInitials()}
+              </AvatarFallback>
+            </Avatar>
+            <div className='flex-1 min-w-0'>
+              <p className='text-sm font-medium text-foreground truncate'>
+                {getUserDisplayName()}
+              </p>
+              <p className='text-xs text-muted-foreground truncate'>
+                {user.email}
+              </p>
+              <p className='text-xs text-muted-foreground'>
+                Plano {getPlanLabel()}
+              </p>
+            </div>
+            <Button 
+              variant='ghost' 
+              size='icon' 
+              className='size-8 shrink-0'
+              onClick={() => navigate('/profile')}
+            >
+              <Settings className='size-4' />
+            </Button>
+          </div>
+        </SidebarFooter>
+      )}
+
+      {/* ── Avatar colapsado (estilo AdminCN) ── */}
+      {isIconMode && user && (
+        <SidebarFooter className='p-2'>
+          <div className='flex justify-center'>
+            <Button
+              variant='ghost'
+              size='icon'
+              className='size-10 rounded-lg p-0'
+              onClick={() => navigate('/profile')}
+            >
+              <Avatar className='size-8'>
+                <AvatarFallback className='bg-muted text-foreground text-xs font-semibold'>
+                  {getUserInitials()}
+                </AvatarFallback>
+              </Avatar>
+            </Button>
+          </div>
+        </SidebarFooter>
+      )}
     </Sidebar>
   )
 }

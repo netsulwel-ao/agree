@@ -39,6 +39,7 @@ const CompaniesPage = lazy(() => import('./pages/admin/CompaniesPage'));
 const PermissionsPage = lazy(() => import('./pages/admin/PermissionsPage'));
 const Termos = lazy(() => import('./components/Termos'));
 const Privacidade = lazy(() => import('./components/Privacidade'));
+const NotFound = lazy(() => import('./components/NotFound'));
 const OAuthAuthorize = lazy(() => import('./pages/OAuthAuthorize'));
 
 
@@ -208,7 +209,9 @@ function AppRoutes() {
           um utilizador novo tem de poder autorizar sem sessão previa. */}
       <Route path="/oauth/authorize" element={<Lazy><OAuthAuthorize /></Lazy>} />
 
-      <Route path="*" element={<Navigate to="/" replace />} />
+      {/* Rotas inexistentes: página 404 em vez de mandar o utilizador para a landing */}
+      <Route path="/404" element={<Lazy><NotFound /></Lazy>} />
+      <Route path="*" element={<Lazy><NotFound /></Lazy>} />
     </Routes>
   );
 }

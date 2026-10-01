@@ -84,8 +84,8 @@ function AppHeader({
   const avatarLetter = displayName.charAt(0).toUpperCase()
 
   return (
-    <header className='bg-card sticky top-0 z-50 border-b'>
-      <div className='mx-auto flex max-w-360 items-center justify-between gap-6 px-4 py-2 sm:px-6'>
+    <header className='bg-card sticky top-0 z-50 border-b w-full'>
+      <div className='flex items-center justify-between gap-6 px-4 py-2 sm:px-6'>
         {/* Left */}
         <div className='flex items-center gap-4'>
           <SidebarTrigger className='[&_svg]:size-5!' />
@@ -297,9 +297,9 @@ export default function Layout() {
 
   return (
     <SidebarProvider>
-      <div className='flex h-full w-full min-w-0'>
+      <div className='flex h-full w-full min-w-0 overflow-hidden'>
         <AppSidebar isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} plan={plan} />
-        <SidebarInset className='flex flex-1 flex-col'>
+        <SidebarInset className='flex flex-1 flex-col min-w-0 overflow-hidden'>
           <AppHeader
             notifications={notifications}
             unreadCount={unreadCount}

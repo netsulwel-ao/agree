@@ -43,10 +43,15 @@ const clientSecret = randomBytes(32).toString('base64url');
 const clientSecretHash = createHash('sha256').update(clientSecret).digest('hex');
 const clientSecretPrefix = clientSecret.slice(0, 8);
 
-const redirectUris = [
-  'http://localhost:3001/api/agree/callback',
-  'https://netsulcondo.netlify.app/api/agree/callback',
+// Comparação EXACTA no Agree (oauth/index.ts): o redirect_uri que o cliente
+// enviar tem de ser byte-a-byte igual a um destes. Por isso sem barra final.
+// O domínio de produção tem de bater com NEXT_PUBLIC_APP_URL no NetsulCondo.
+const APP_URLS = [
+  'http://localhost:3001',        // desenvolvimento local
+  'https://condo2.vercel.app',    // produção (deploy Vercel)
 ];
+
+const redirectUris = APP_URLS.map((base) => `${base.replace(/\/+$/, '')}/api/agree/callback`);
 
 const allowedScopes = [
   'company:read',

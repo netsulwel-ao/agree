@@ -51,10 +51,20 @@ const service = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 // ─── Helpers de resposta ─────────────────────────────────────────────────────
 
+// O browser so aceita a resposta se o preflight OPTIONS e a resposta real
+// trouxerem os mesmos headers CORS. Sem CORS no helper, o fetch do
+// frontend era bloqueado em silence e a pagina ficava em "Aplicacao
+// desconhecida".
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization,content-type',
+} as const;
+
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
   });
 }
 
@@ -70,7 +80,10 @@ function oauthError(
     target.searchParams.set('error', error);
     target.searchParams.set('error_description', description);
     if (state) target.searchParams.set('state', state);
-    return Response.redirect(target.toString(), 302);
+    return new Response(null, {
+      status: 302,
+      headers: { ...CORS_HEADERS, Location: target.toString() },
+    });
   }
   return json({ error, error_description: description }, status);
 }
@@ -947,11 +960,7 @@ serve(async (req) => {
 
   if (req.method === 'OPTIONS') {
     return new Response(null, {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-        'Access-Control-Allow-Headers': 'authorization,content-type',
-      },
+      headers: { ...CORS_HEADERS },
     });
   }
 

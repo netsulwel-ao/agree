@@ -219,8 +219,14 @@ interface AuthorizeBody {
   state?: string;
   code_challenge?: string;
   code_challenge_method?: string;
-  /** false = não guardar o consentimento (o ecrã volta a aparecer sempre). */
+  /** false = nao guardar o consentimento (o ecra volta a aparecer sempre). */
   remember?: boolean;
+  /**
+   * RFC 9207. Vem da NetsulCondo com o condomínio de onde o utilizador veio.
+   * É apenas uma sugestão de nome para preparar a empresa: nunca decide o que
+   * é autorizado, porque é input do cliente e o utilizador confirma no ecrã.
+   */
+  client_context?: { condominio?: string };
 }
 
 /**
@@ -290,6 +296,7 @@ async function handleAuthorize(req: Request): Promise<Response> {
   // acesso a ela. RLS está desligada em profiles, por isso validamos à mão.
   let companyId: string | null = null;
   if (body.company_id) {
+
     const { data: profile } = await service
       .from('profiles')
       .select('company_id, is_super_admin')
@@ -325,6 +332,15 @@ async function handleAuthorize(req: Request): Promise<Response> {
     }
 
     companyId = body.company_id;
+  } else {
+    // Não veio empresa escolhida, mas o NetsulCondo diz de que condomínio veio.
+    // Se esta conta ainda não tem empresa, criamos uma a partir desse nome e
+    // fica ligada ao perfil — é o condomínio do utilizador, não uma escolha do
+    // cliente.
+    //
+    // Só quando o perfil ainda não tem empresa. Quem já tem não é tocado: o
+    // condomínio em contexto muda-se no NetsulCondo, não aqui.
+    companyId = await provisionCompanyFromContext(user.id, body.client_context);
   }
 
   // Emite o código
@@ -775,6 +791,93 @@ async function handleUpsertCompany(req: Request): Promise<Response> {
   }
 
   return json({ company_id: companyId, slug, created });
+}
+
+// ─── Auto-provision da empresa a partir do condomínio ───────────────────────
+
+/**
+ * Cria a empresa a partir do condomínio que o NetsulCondo mandou, e liga-a ao
+ * perfil de quem está a autorizar.
+ *
+ * Devolve o company_id, ou null se não havia nada para fazer — sem nome, ou
+ * porque a conta já tem empresa. Nunca lança: falhar aqui não pode impedir a
+ * autorização, no máximo deixa o ecrã pedir a empresa à mão.
+ *
+ * Corre com `service`, por isso não depende de a política de INSERT permitir
+ * super admins: quem autoriza é o dono da conta, e é a sua empresa que se está
+ * a criar.
+ */
+async function provisionCompanyFromContext(
+  userId: string,
+  context: AuthorizeBody['client_context'],
+): Promise<string | null> {
+  try {
+    const raw = context?.condominio?.trim();
+    if (!raw) return null;
+
+    // Input do cliente: limita-se o tamanho e tira controlos, porque isto vai
+    // parar a uma coluna TEXT que aparece no interface.
+    const name = raw.slice(0, 120).replace(/[\u0000-\u001f\u007f]/g, '').trim();
+    if (name === '') return null;
+
+    const { data: profile } = await service
+      .from('profiles')
+      .select('company_id')
+      .eq('id', userId)
+      .maybeSingle();
+
+    // Já tem empresa: não se mexe. O condomínio em contexto muda-se no
+    // NetsulCondo, e mexer aqui trocaria a empresa debaixo dos pés do
+    // utilizador sem ele pedir.
+    if (profile?.company_id) return profile.company_id;
+
+    // Slug determinístico pelo nome, para um segundo clique não criar outra
+    // empresa igual.
+    const slug = name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 60);
+
+    if (slug === '') return null;
+
+    const { data: existing } = await service
+      .from('companies')
+      .select('id')
+      .eq('slug', slug)
+      .maybeSingle();
+
+    let companyId: string;
+
+    if (existing) {
+      companyId = existing.id;
+    } else {
+      const { data: created, error } = await service
+        .from('companies')
+        .insert({
+          name,
+          slug,
+          plan: 'free',
+          max_users: 10,
+          is_active: true,
+        })
+        .select('id')
+        .single();
+      if (error) return null;
+      companyId = created.id;
+    }
+
+    await service
+      .from('profiles')
+      .update({ company_id: companyId, updated_at: new Date().toISOString() })
+      .eq('id', userId);
+
+    return companyId;
+  } catch {
+    return null;
+  }
 }
 
 // ─── GET /contracts ──────────────────────────────────────────────────────────

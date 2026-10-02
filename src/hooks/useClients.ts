@@ -15,22 +15,35 @@ export interface Client {
   tags?: string[];
   notes?: string;
   custom_fields?: Record<string, any>;
+  /**
+   * Condomínio (empresa) a que o cliente pertence. Vem do `profiles.company_id`
+   * de quem autorizou — o condomínio é escolhido no NetsulCondo e chega no
+   * pedido, não se escolhe aqui. NULL significa "ainda sem condomínio", que é
+   * o estado dos clientes criados antes de a coluna existir.
+   */
+  company_id?: string | null;
 }
 
 const PAGE_SIZE = 20;
 
 export function useClients(page = 1, search = '') {
-  const { user } = useAuth();
+  const { user, companyId } = useAuth();
 
   return useQuery({
-    queryKey: ['clients', user?.id, page, search],
+    queryKey: ['clients', user?.id, companyId, page, search],
     queryFn: async () => {
       if (!user) return { data: [], count: 0 };
 
       let query = supabase
         .from('clients')
-        .select('id,created_at,updated_at,name,email,phone,status,category,tags,notes,owner_id', { count: 'exact' })
+        .select('id,created_at,updated_at,name,email,phone,status,category,tags,notes,owner_id,company_id', { count: 'exact' })
         .eq('owner_id', user.id);
+
+      // Com condomínio em contexto, a lista é só desse condomínio. Sem ele,
+      // continua a ver tudo o seu — é o que acontecia antes.
+      if (companyId) {
+        query = query.eq('company_id', companyId);
+      }
 
       if (search) {
         const like = `%${search}%`;
@@ -60,7 +73,7 @@ export function useClient(id?: string) {
       if (!user || !id) return null;
       const { data, error } = await supabase
         .from('clients')
-        .select('id,created_at,updated_at,name,email,phone,status,category,tags,notes,custom_fields,owner_id')
+        .select('id,created_at,updated_at,name,email,phone,status,category,tags,notes,custom_fields,owner_id,company_id')
         .eq('id', id)
         .eq('owner_id', user.id)
         .single();
@@ -73,14 +86,16 @@ export function useClient(id?: string) {
 
 export function useCreateClient() {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  // O condomínio em contexto é o do perfil de quem autorizou, por isso o
+  // cliente nasce já ligado a ele em vez de ficar órfão.
+  const { user, companyId } = useAuth();
 
   return useMutation({
     mutationFn: async (client: Omit<Client, 'id' | 'created_at' | 'updated_at' | 'owner_id'>) => {
       if (!user) throw new Error('Not authenticated');
       const { data, error } = await supabase
         .from('clients')
-        .insert({ ...client, owner_id: user.id })
+        .insert({ ...client, owner_id: user.id, company_id: companyId ?? null })
         .select()
         .single();
       if (error) throw new Error(error.message);

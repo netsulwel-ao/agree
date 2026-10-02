@@ -148,6 +148,8 @@ export default function OAuthAuthorize() {
 
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<string>('');
+  /** Condomínio que o NetsulCondo mandou em client_context, se mandou. */
+  const [condominioFromClient, setCondominioFromClient] = useState<string | null>(null);
 
   const [granted, setGranted] = useState<string[]>([]);
   const [remember, setRemember] = useState(true);
@@ -181,6 +183,21 @@ export default function OAuthAuthorize() {
       code_challenge: searchParams.get('code_challenge') ?? undefined,
       code_challenge_method: searchParams.get('code_challenge_method') ?? undefined,
     });
+
+    // O condomínio que o NetsulCondo mandou, se mandou. Usamos para mostrar
+    // "a ligar <condomínio>" e para o backend criar a empresa quando esta conta
+    // ainda não tem nenhuma.
+    const rawContext = searchParams.get('client_context');
+    if (rawContext) {
+      try {
+        const parsed = JSON.parse(rawContext) as { condominio?: unknown };
+        if (typeof parsed.condominio === 'string' && parsed.condominio.trim() !== '') {
+          setCondominioFromClient(parsed.condominio.trim().slice(0, 120));
+        }
+      } catch {
+        // Contexto malformado não deve impedir a autorização.
+      }
+    }
   }, [searchParams]);
 
   // ── 2. Sem sessão, entra primeiro na conta; só depois mostra o consentimento ──
@@ -345,6 +362,10 @@ export default function OAuthAuthorize() {
           state: params.state,
           code_challenge: params.code_challenge,
           code_challenge_method: params.code_challenge_method,
+          // O condomínio de onde o utilizador veio no NetsulCondo. É uma
+          // sugestão: o backend só a usa para criar a empresa se esta conta
+          // ainda não tiver nenhuma.
+          client_context: condominioFromClient ? { condominio: condominioFromClient } : undefined,
           remember,
         }),
       });
@@ -459,13 +480,29 @@ export default function OAuthAuthorize() {
           // Sem empresas visíveis não há nada para partilhar. Antes o
           // selector desaparecia em silêncio e o utilizador só descobria o
           // problema no NetsulCondo, com um erro que não explicava a causa.
-          <div className="mb-5 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-            <b className="font-semibold">Não há nenhuma empresa para partilhar.</b>{' '}
-            A sua conta no Agree ainda não tem nenhuma empresa associada, por isso
-            {client.name} não tem contratos para mostrar. Crie uma empresa no
-            Agree ou peça a um administrador que associe a sua conta a uma, e
-            depois tente outra vez.
-          </div>
+          condominioFromClient ? (
+            // É o caso normal quando se vem do NetsulCondo: o condomínio vem
+            // nomeado e o backend cria a empresa ao autorizar, ligada a esta
+            // conta.
+            <div className="mb-5 rounded-md border border-border bg-muted px-3.5 py-2.5 text-sm">
+              <span className="block text-xs text-muted-foreground">
+                Condomínio a ligar
+              </span>
+              <b className="font-semibold">{condominioFromClient}</b>
+              <span className="mt-1 block text-xs text-muted-foreground">
+                Vai ser criado no Agree e ligado a esta conta, com os contratos
+                que tem aqui.
+              </span>
+            </div>
+          ) : (
+            <div className="mb-5 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+              <b className="font-semibold">Não há nenhuma empresa para partilhar.</b>{' '}
+              A sua conta no Agree ainda não tem nenhuma empresa associada, por isso
+              {client.name} não tem contratos para mostrar. Crie uma empresa no
+              Agree ou peça a um administrador que associe a sua conta a uma, e
+              depois tente outra vez.
+            </div>
+          )
         ) : (
           <Field className="mb-5">
             <FieldLabel htmlFor="oauth-company">Condomínio</FieldLabel>
@@ -580,7 +617,14 @@ export default function OAuthAuthorize() {
         <Button
           className="h-10 w-full"
           onClick={authorize}
-          disabled={submitting || granted.length === 0 || !selectedCompany}
+          disabled={
+            submitting ||
+            granted.length === 0 ||
+            // Sem empresa escolhida não há o que autorizar — a não ser que o
+            // NetsulCondo tenha mandando o condomínio, caso em que a empresa é
+            // criada ao autorizar.
+            (!selectedCompany && !condominioFromClient)
+          }
         >
           {submitting ? 'A autorizar…' : `Autorizar ${client.name}`}
         </Button>

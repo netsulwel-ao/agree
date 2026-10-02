@@ -1,14 +1,16 @@
 /**
  * OAuthAuthorize.tsx
  *
- * Ecrã de consentimento do Agree. Equivalente ao que o GitHub mostra quando
- * o Vercel pede acesso aos repositórios: login → ecrã de consentimento →
- * "Autorizar" → redireccionamento com o authorization code.
+ * Ecrã de consentimento do Agree. Mostra o que a app cliente vai poder ver e
+ * alterar na conta, e só depois de o utilizador autorizar é que o Agree emite
+ * o authorization code.
  *
  * Rota: /oauth/authorize?response_type=code&client_id=...&redirect_uri=...&scope=...
  *
- * O ecrã mostra exactamente o que vai ser partilhado, item por item, com a
- * opção de desmarcar os que o utilizador não quer autorizar.
+ * O layout segue o padrão de GitHub e Vercel: quem pede, em nome de quem, e
+ * uma lista explícita de recursos. A lista é de leitura, não um editor de
+ * permissões — o que a app pede está definido no seu registo, e mexer nisso
+ * a meio do ecrã sóbaraçaria o utilizador sobre o que está a aceitar.
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
@@ -17,7 +19,28 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import LoadingScreen from '../components/LoadingScreen';
 import { toast } from 'sonner';
-import { AlertTriangle, Check, ShieldCheck, X, ExternalLink } from 'lucide-react';
+import {
+  AlertTriangle,
+  Building2,
+  Check,
+  ExternalLink,
+  FileText,
+  Link2,
+  ShieldCheck,
+  Users,
+} from 'lucide-react';
+
+import { Button } from '../components/ui/button';
+import { Checkbox } from '../components/ui/checkbox';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../components/ui/select';
+import { Separator } from '../components/ui/separator';
+import { Field, FieldDescription, FieldLabel } from '../components/ui/field';
 
 // ─── Catálogo de scopes ──────────────────────────────────────────────────────
 // A descrição é o que o utilizador lê. Escrever em português claro, porque é
@@ -29,43 +52,56 @@ interface ScopeDefinition {
   description: string;
   /** Agrupa as permissões no ecrã. */
   group: 'ler' | 'escrever';
-  required?: boolean;
+  /** Ícone do recurso. */
+  icon: React.ComponentType<{ className?: string }>;
 }
 
 export const SCOPES: ScopeDefinition[] = [
   {
     key: 'company:read',
-    title: 'Ver os dados do condomínio',
-    description: 'Nome, CNPJ e logótipo do condomínio, para os associar aos contratos.',
+    title: 'Condomínio',
+    description:
+      'Ver nome, CNPJ e logótipo. Criar o registo do condomínio como empresa no Agree e manter o nome e o CNPJ actualizados.',
     group: 'ler',
-  },
-  {
-    key: 'contracts:read',
-    title: 'Ver os contratos',
-    description: 'Título, estado, valor, datas e cliente de cada contrato do condomínio.',
-    group: 'ler',
-  },
-  {
-    key: 'clients:read',
-    title: 'Ver os clientes',
-    description: 'A lista de fornecedores e prestadores registados no Agree.',
-    group: 'ler',
-  },
-  {
-    key: 'clients:write',
-    title: 'Criar e actualizar clientes',
-    description: 'Criar um cliente no Agree a partir de um fornecedor do NetsulCondo, e manter os dados sincronizados.',
-    group: 'escrever',
+    icon: Building2,
   },
   {
     key: 'company:write',
-    title: 'Criar e actualizar o condomínio',
-    description: 'Criar o registo do condomínio como empresa no Agree, e manter o nome e o CNPJ actualizados.',
+    title: 'Condomínio',
+    description:
+      'Criar e actualizar o registo do condomínio como empresa no Agree, mantendo o nome e o CNPJ sincronizados com o NetsulCondo.',
     group: 'escrever',
+    icon: Building2,
+  },
+  {
+    key: 'contracts:read',
+    title: 'Contratos',
+    description:
+      'Ver título, estado, valor, datas e cliente de cada contrato do condomínio.',
+    group: 'ler',
+    icon: FileText,
+  },
+  {
+    key: 'clients:read',
+    title: 'Clientes',
+    description: 'Ver a lista de fornecedores e prestadores registados no Agree.',
+    group: 'ler',
+    icon: Users,
+  },
+  {
+    key: 'clients:write',
+    title: 'Clientes',
+    description:
+      'Criar um cliente no Agree a partir de um fornecedor do NetsulCondo e manter os dados sincronizados.',
+    group: 'escrever',
+    icon: Users,
   },
 ];
 
-const DEFAULT_SCOPES = SCOPES.filter((s) => s.required).map((s) => s.key);
+const DEFAULT_SCOPES = ['company:read'];
+
+/** Logótipo oficial do Agree, servido localmente. */
+const AGREE_LOGO = '/Logo.png';
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -115,6 +151,7 @@ export default function OAuthAuthorize() {
 
   const [granted, setGranted] = useState<string[]>([]);
   const [remember, setRemember] = useState(true);
+  const [showMeaning, setShowMeaning] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // ── 1. Lê e valida os parâmetros do query string ──────────────────────────
@@ -236,29 +273,28 @@ export default function OAuthAuthorize() {
     })();
   }, [user]);
 
-  // ── 5. Inicializa os scopes marcados ──────────────────────────────────────
+  // ── 5. Fixa os scopes a autorizar ─────────────────────────────────────────
+  //
+  // Só entram scopes que a app está registada para pedir. Um scope pedido mas
+  // não registado é ignorado em silêncio, o que deixaria o ecrã a prometer
+  // mais do que o servidor vai conceder.
 
   useEffect(() => {
-    if (!params) return;
+    if (!params || !client) return;
+
+    const permitted = new Set(client.allowed_scopes);
+    const known = new Set(SCOPES.filter((s) => permitted.has(s.key)).map((s) => s.key));
     const requested = params.scope.split(/[\s+]+/).filter(Boolean);
-    const valid = requested.filter((s) => SCOPES.some((d) => d.key === s));
-    setGranted(valid.length > 0 ? valid : DEFAULT_SCOPES);
-  }, [params]);
+    const valid = requested.filter((s) => known.has(s));
 
-  const readScopes = useMemo(
-    () => granted.filter((g) => SCOPES.find((s) => s.key === g)?.group === 'ler'),
-    [granted],
-  );
-  const writeScopes = useMemo(
-    () => granted.filter((g) => SCOPES.find((s) => s.key === g)?.group === 'escrever'),
-    [granted],
-  );
+    setGranted(valid.length > 0 ? valid : DEFAULT_SCOPES.filter((s) => known.has(s)));
+  }, [params, client]);
 
-  const toggleScope = (key: string) => {
-    setGranted((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
-    );
-  };
+  /** Scopes que se vão mostrar, por ordem do catálogo. */
+  const visibleScopes = useMemo(() => {
+    const permitted = new Set(client?.allowed_scopes ?? []);
+    return SCOPES.filter((s) => granted.includes(s.key) && permitted.has(s.key));
+  }, [client, granted]);
 
   // ── 6. Recusa → devolve o browser com error=access_denied ─────────────────
 
@@ -344,452 +380,259 @@ export default function OAuthAuthorize() {
 
   if (paramError) {
     return (
-      <div style={styles.page}>
-        <div style={styles.card}>
-          <div style={{ ...styles.iconCircle, background: '#fee2e2' }}>
-            <AlertTriangle size={26} color="#dc2626" />
-          </div>
-          <h1 style={styles.cardTitle}>Pedido inválido</h1>
-          <p style={styles.cardText}>{paramError}</p>
-          <button style={styles.secondaryButton} onClick={() => navigate('/', { replace: true })}>
-            Voltar ao início
-          </button>
-        </div>
-      </div>
+      <ProblemScreen
+        title="Pedido inválido"
+        message={paramError}
+        onBack={() => navigate('/', { replace: true })}
+      />
     );
   }
 
   if (clientError || !client) {
     return (
-      <div style={styles.page}>
-        <div style={styles.card}>
-          <div style={{ ...styles.iconCircle, background: '#fee2e2' }}>
-            <AlertTriangle size={26} color="#dc2626" />
-          </div>
-          <h1 style={styles.cardTitle}>Aplicação desconhecida</h1>
-          <p style={styles.cardText}>
-            {clientError ?? 'Esta aplicação não está registada no Agree.'}
-          </p>
-          <button style={styles.secondaryButton} onClick={() => navigate('/', { replace: true })}>
-            Voltar ao início
-          </button>
-        </div>
-      </div>
+      <ProblemScreen
+        title="Aplicação desconhecida"
+        message={clientError ?? 'Esta aplicação não está registada no Agree.'}
+        onBack={() => navigate('/', { replace: true })}
+      />
     );
   }
 
   // ── Ecrã de consentimento ─────────────────────────────────────────────────
 
   return (
-    <div style={styles.page}>
-      <div style={styles.card}>
-        {/* Cabeçalho: a app que pede acesso */}
-        <div style={styles.header}>
-          <div style={styles.logo}>
-            {client.logo_url ? (
-              <img src={client.logo_url} alt="" style={styles.logoImg} />
-            ) : (
-              <span style={styles.logoFallback}>
-                {client.name.charAt(0).toUpperCase()}
-              </span>
-            )}
-          </div>
-          <div style={styles.headerText}>
-            <h1 style={styles.title}>
-              Ligar <strong>{client.name}</strong> ao Agree
-            </h1>
-            {client.description && <p style={styles.subtitle}>{client.description}</p>}
-          </div>
+    <main className="mx-auto w-full max-w-2xl px-4 py-8 pb-12">
+      {/* Quem pede, e a quem pertence a conta */}
+      <div className="mb-7 flex items-center justify-center" aria-hidden="true">
+        <div className="flex size-20 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border">
+          {client.logo_url ? (
+            <img src={client.logo_url} alt="" className="size-full object-contain" />
+          ) : (
+            <span className="bg-primary text-[38px] font-extrabold leading-none text-primary-foreground">
+              {client.name.charAt(0).toUpperCase()}
+            </span>
+          )}
         </div>
 
-        {/* Com quem vai ser partilhado */}
-        <div style={styles.identityBox}>
-          <div style={styles.identityRow}>
-            <ShieldCheck size={16} color="#0d1117" />
-            <span style={styles.identityLabel}>A conta que vai ser partilhada</span>
-          </div>
-          <p style={styles.identityValue}>{user?.email}</p>
+        <div className="flex min-w-12 max-w-[150px] flex-1 items-center">
+          <Separator className="flex-1 border-t-2 border-dashed" />
+          <Link2 className="mx-2.5 size-5 shrink-0 text-muted-foreground" />
+          <Separator className="flex-1 border-t-2 border-dashed" />
         </div>
 
-        {/* Selector de condomínio */}
+        <div className="flex size-20 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#3b5bdb]">
+          <img src={AGREE_LOGO} alt="" className="size-full object-contain" />
+        </div>
+      </div>
+
+      <h1 className="mb-1 text-center text-[28px] font-normal">
+        <b className="font-semibold">{client.name}</b> by Netsul
+      </h1>
+      <p className="mb-8 text-center text-muted-foreground">
+        quer aceder à sua conta Agree
+      </p>
+
+      <div className="rounded-lg border border-border bg-card px-8 py-6 max-sm:px-5">
+        {/* A conta em causa */}
+        <div className="mb-5 rounded-md border border-border bg-muted px-3.5 py-2.5 text-sm">
+          <span className="block text-xs text-muted-foreground">
+            A conta que vai ser partilhada
+          </span>
+          {user?.email}
+        </div>
+
+        {/* Condomínio de origem */}
         {companies.length > 0 && (
-          <div style={styles.field}>
-            <label htmlFor="oauth-company" style={styles.fieldLabel}>
-              Condomínio
-            </label>
-            <select
-              id="oauth-company"
+          <Field className="mb-5">
+            <FieldLabel htmlFor="oauth-company">Condomínio</FieldLabel>
+            <Select
               value={selectedCompany}
-              onChange={(e) => setSelectedCompany(e.target.value)}
-              style={styles.select}
+              // O Radix pode passar null quando o valor é limpo; o estado é
+              // uma string, por isso traduzimos antes de guardar.
+              onValueChange={(v) => setSelectedCompany(v ?? '')}
             >
-              {companies.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-            <p style={styles.fieldHint}>
+              <SelectTrigger id="oauth-company" className="w-full">
+                <SelectValue placeholder="Escolhe o condomínio" />
+              </SelectTrigger>
+              <SelectContent>
+                {companies.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FieldDescription>
               Os contratos e clientes partilhados serão os deste condomínio.
-            </p>
-          </div>
+            </FieldDescription>
+          </Field>
         )}
 
-        {/* Permissões: leitura */}
-        <PermissionGroup
-          title="Vai poder consultar"
-          subtitle="Dados só de leitura — nada é alterado no Agree."
-          scopes={SCOPES.filter((s) => s.group === 'ler')}
-          granted={readScopes}
-          onToggle={toggleScope}
-        />
+        <h2 className="mb-4 text-lg font-semibold">Ao autorizar, esta app poderá</h2>
+        <ul className="m-0 list-none space-y-2 p-0">
+          <li className="flex items-baseline gap-3">
+            <Check className="mt-0.5 size-4 shrink-0 translate-y-0.5 text-emerald-600 dark:text-emerald-500" />
+            <span>Verificar a sua identidade no Agree ({user?.email})</span>
+          </li>
+          <li className="flex items-baseline gap-3">
+            <Check className="mt-0.5 size-4 shrink-0 translate-y-0.5 text-emerald-600 dark:text-emerald-500" />
+            <span>Saber a que recursos tem acesso</span>
+          </li>
+          <li className="flex items-baseline gap-3">
+            <Check className="mt-0.5 size-4 shrink-0 translate-y-0.5 text-emerald-600 dark:text-emerald-500" />
+            <span>
+              Agir em seu nome{' '}
+              <Button
+                variant="link"
+                size="sm"
+                className="h-auto p-0 align-baseline"
+                onClick={() => setShowMeaning((v) => !v)}
+              >
+                O que significa?
+              </Button>
+            </span>
+          </li>
+        </ul>
 
-        {/* Permissões: escrita */}
-        <PermissionGroup
-          title="Vai poder criar e alterar"
-          subtitle="Estas permissões alteram dados no Agree."
-          scopes={SCOPES.filter((s) => s.group === 'escrever')}
-          granted={writeScopes}
-          onToggle={toggleScope}
-        />
-
-        {/* Lembrar autorização */}
-        <label style={styles.rememberRow}>
-          <input
-            type="checkbox"
-            checked={remember}
-            onChange={(e) => setRemember(e.target.checked)}
-            style={styles.checkbox}
-          />
-          <span style={styles.rememberText}>
-            Não mostrar este ecrã novamente para {client.name}
-          </span>
-        </label>
-
-        {/* Acções */}
-        <div style={styles.actions}>
-          <button
-            style={styles.cancelButton}
-            onClick={cancel}
-            disabled={submitting}
-          >
-            <X size={16} />
-            Cancelar
-          </button>
-          <button
-            style={styles.authorizeButton}
-            onClick={authorize}
-            disabled={submitting || granted.length === 0}
-          >
-            {submitting ? 'A autorizar...' : `Autorizar ${client.name}`}
-          </button>
-        </div>
-
-        {granted.length === 0 && (
-          <p style={styles.warning}>
-            <AlertTriangle size={14} />
-            Tem de autorizar pelo menos uma permissão.
+        {showMeaning && (
+          <p className="mt-3 rounded-md border border-border bg-muted p-3 text-sm text-muted-foreground">
+            A app passa a poder ler e alterar os recursos indicados em seu nome,
+            sem lhe pedir a password. Pode retirar esse acesso a qualquer momento.
           </p>
         )}
 
-        <p style={styles.footnote}>
-          Pode revogar esta ligação a qualquer momento em{' '}
-          <button
-            type="button"
-            onClick={() => navigate('/profile')}
-            style={styles.linkButton}
-          >
-            {user?.email}
-          </button>
-          {' '}ou do lado do {client.name}.
-          <br />
-          <a
-            href="/termos"
-            target="_blank"
-            rel="noreferrer"
-            style={styles.linkButton}
-          >
-            Termos de Serviço <ExternalLink size={11} />
-          </a>
-        </p>
+        <Separator className="my-5" />
+
+        {/* Recursos concretos */}
+        <div>
+          <h3 className="mb-2 border-b border-border pb-2 text-base font-semibold">
+            Recursos na sua conta
+          </h3>
+
+          {visibleScopes.map((s) => {
+            const Icon = s.icon;
+            return (
+              <div key={s.key} className="flex gap-3.5 py-2.5">
+                <Icon className="mt-0.5 size-7 shrink-0 text-muted-foreground" />
+                <div>
+                  <b className="font-semibold">{s.title}</b>{' '}
+                  <span className="text-muted-foreground">
+                    ({s.group === 'ler' ? 'leitura' : 'leitura e escrita'})
+                  </span>
+                  <p className="m-0 text-sm text-muted-foreground">{s.description}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <ul className="mt-[18px] list-none space-y-1.5 text-sm text-muted-foreground">
+          <li className="flex items-center gap-2.5">
+            <ShieldCheck className="size-4 shrink-0" />
+            <span>
+              <b className="font-semibold text-foreground">{client.name}</b> não é
+              propriedade nem é operado pelo Agree
+            </span>
+          </li>
+          <li className="flex items-center gap-2.5">
+            <Link2 className="size-4 shrink-0" />
+            <span>Ligação nova — ainda sem histórico</span>
+          </li>
+        </ul>
+
+        <label className="mt-[18px] flex cursor-pointer items-center gap-2 text-sm">
+          <Checkbox
+            id="oauth-remember"
+            checked={remember}
+            onCheckedChange={(v) => setRemember(v === true)}
+          />
+          <label htmlFor="oauth-remember" className="cursor-pointer">
+            Não mostrar este ecrã novamente para {client.name}
+          </label>
+        </label>
       </div>
-    </div>
+
+      <div className="mt-6 grid gap-2.5">
+        <Button
+          className="h-10 w-full"
+          onClick={authorize}
+          disabled={submitting || granted.length === 0}
+        >
+          {submitting ? 'A autorizar…' : `Autorizar ${client.name}`}
+        </Button>
+        <Button
+          variant="outline"
+          className="h-10 w-full"
+          onClick={cancel}
+          disabled={submitting}
+        >
+          Cancelar
+        </Button>
+      </div>
+
+      {granted.length === 0 && (
+        <p className="mt-3 flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-500">
+          <AlertTriangle className="size-3.5 shrink-0" />
+          Esta aplicação não tem permissões disponíveis para autorizar.
+        </p>
+      )}
+
+      <p className="mt-5 text-center text-xs text-muted-foreground">
+        A autorizar irá ser redireccionado para
+        <br />
+        <b className="break-all">{params.redirect_uri}</b>
+        <br />
+        <span>
+          Pode revogar em qualquer momento em{' '}
+          <Button
+            variant="link"
+            size="sm"
+            className="h-auto p-0 align-baseline text-xs"
+            onClick={() => navigate('/profile')}
+          >
+            Definições › Ligações
+          </Button>
+          .
+        </span>
+      </p>
+
+      <p className="mt-4 text-center text-xs text-muted-foreground">
+        <a
+          href="/termos"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
+        >
+          Termos de Serviço <ExternalLink className="size-2.5" />
+        </a>
+      </p>
+    </main>
   );
 }
 
-// ─── Grupo de permissões ─────────────────────────────────────────────────────
+// ─── Ecrã de problema ────────────────────────────────────────────────────────
 
-function PermissionGroup({
+function ProblemScreen({
   title,
-  subtitle,
-  scopes,
-  granted,
-  onToggle,
+  message,
+  onBack,
 }: {
   title: string;
-  subtitle: string;
-  scopes: ScopeDefinition[];
-  granted: string[];
-  onToggle: (key: string) => void;
+  message: string;
+  onBack: () => void;
 }) {
-  if (scopes.length === 0) return null;
-
   return (
-    <div style={styles.group}>
-      <h2 style={styles.groupTitle}>{title}</h2>
-      <p style={styles.groupSubtitle}>{subtitle}</p>
-      <div style={styles.groupList}>
-        {scopes.map((s) => {
-          const active = granted.includes(s.key);
-          return (
-            <button
-              key={s.key}
-              type="button"
-              onClick={() => onToggle(s.key)}
-              style={styles.permissionRow}
-              aria-pressed={active}
-            >
-              <span
-                style={{
-                  ...styles.checkboxBox,
-                  ...(active ? styles.checkboxBoxOn : {}),
-                }}
-              >
-                {active && <Check size={12} color="#fff" strokeWidth={3} />}
-              </span>
-              <span style={styles.permissionText}>
-                <span style={styles.permissionTitle}>{s.title}</span>
-                <span style={styles.permissionDesc}>{s.description}</span>
-              </span>
-            </button>
-          );
-        })}
+    <main className="mx-auto flex min-h-screen w-full max-w-lg items-center justify-center px-4 py-10">
+      <div className="w-full rounded-lg border border-border bg-card px-8 py-10 text-center">
+        <div className="mx-auto mb-5 flex size-14 items-center justify-center rounded-full bg-destructive/10">
+          <AlertTriangle className="size-6 text-destructive" />
+        </div>
+        <h1 className="mb-2 text-lg font-semibold">{title}</h1>
+        <p className="mb-6 text-sm leading-relaxed text-muted-foreground">{message}</p>
+        <Button className="h-10 w-full" onClick={onBack}>
+          Voltar ao início
+        </Button>
       </div>
-    </div>
+    </main>
   );
 }
-
-// ─── Estilos ─────────────────────────────────────────────────────────────────
-// Paleta e escala iguais ao resto do Agree (Termos.tsx, AuthenticationScreen).
-
-const styles: Record<string, React.CSSProperties> = {
-  page: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    background: '#f5f7f9',
-    padding: '40px 20px',
-    fontFamily: "'Poppins', sans-serif",
-  },
-  card: {
-    background: '#fff',
-    borderRadius: 20,
-    boxShadow: '0 50px 100px -50px rgba(0,0,0,0.45)',
-    maxWidth: 560,
-    width: '100%',
-    padding: '40px 36px',
-  },
-  header: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 16,
-    marginBottom: 28,
-  },
-  logo: {
-    width: 52,
-    height: 52,
-    borderRadius: 12,
-    border: '1px solid #e2e5e9',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-    overflow: 'hidden',
-  },
-  logoImg: { width: '100%', height: '100%', objectFit: 'contain' },
-  logoFallback: {
-    fontSize: 22,
-    fontWeight: 800,
-    color: '#0d1117',
-  },
-  headerText: { flex: 1 },
-  title: { fontSize: 20, fontWeight: 800, color: '#0d1117', margin: 0, lineHeight: 1.3 },
-  subtitle: { fontSize: 13, color: '#6b7280', margin: '4px 0 0' },
-
-  identityBox: {
-    background: '#f9fafb',
-    border: '1px solid #e2e5e9',
-    borderRadius: 12,
-    padding: '14px 16px',
-    marginBottom: 24,
-  },
-  identityRow: { display: 'flex', alignItems: 'center', gap: 8 },
-  identityLabel: { fontSize: 12, color: '#6b7280', fontWeight: 500 },
-  identityValue: {
-    fontSize: 14,
-    fontWeight: 600,
-    color: '#0d1117',
-    margin: '4px 0 0',
-  },
-
-  field: { marginBottom: 24 },
-  fieldLabel: {
-    display: 'block',
-    fontSize: 12,
-    fontWeight: 600,
-    color: '#374151',
-    marginBottom: 6,
-  },
-  select: {
-    width: '100%',
-    padding: '10px 12px',
-    fontSize: 14,
-    fontFamily: "'Poppins', sans-serif",
-    color: '#0d1117',
-    background: '#fff',
-    border: '1px solid #e2e5e9',
-    borderRadius: 10,
-    cursor: 'pointer',
-  },
-  fieldHint: { fontSize: 12, color: '#9ca3af', margin: '6px 0 0' },
-
-  group: { marginBottom: 24 },
-  groupTitle: { fontSize: 14, fontWeight: 700, color: '#0d1117', margin: 0 },
-  groupSubtitle: { fontSize: 12, color: '#9ca3af', margin: '2px 0 10px' },
-  groupList: { display: 'flex', flexDirection: 'column', gap: 8 },
-  permissionRow: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: 12,
-    padding: '12px 14px',
-    border: '1px solid #e2e5e9',
-    borderRadius: 12,
-    background: '#fff',
-    cursor: 'pointer',
-    textAlign: 'left',
-    fontFamily: "'Poppins', sans-serif",
-    width: '100%',
-  },
-  checkboxBox: {
-    width: 18,
-    height: 18,
-    borderRadius: 5,
-    border: '1.5px solid #d1d5db',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-    marginTop: 1,
-  },
-  checkboxBoxOn: { background: '#0d1117', borderColor: '#0d1117' },
-  permissionText: { display: 'flex', flexDirection: 'column', gap: 2 },
-  permissionTitle: { fontSize: 13, fontWeight: 600, color: '#0d1117' },
-  permissionDesc: { fontSize: 12, color: '#6b7280', lineHeight: 1.5 },
-
-  rememberRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 10,
-    padding: '12px 0',
-    marginBottom: 8,
-    cursor: 'pointer',
-  },
-  checkbox: { width: 16, height: 16, accentColor: '#0d1117', cursor: 'pointer' },
-  rememberText: { fontSize: 13, color: '#374151' },
-
-  actions: { display: 'flex', gap: 10, marginTop: 20 },
-  cancelButton: {
-    flex: 1,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    padding: '12px 16px',
-    fontSize: 14,
-    fontWeight: 600,
-    fontFamily: "'Poppins', sans-serif",
-    background: '#fff',
-    color: '#374151',
-    border: '1px solid #e2e5e9',
-    borderRadius: 12,
-    cursor: 'pointer',
-  },
-  authorizeButton: {
-    flex: 2,
-    padding: '12px 16px',
-    fontSize: 14,
-    fontWeight: 700,
-    fontFamily: "'Poppins', sans-serif",
-    background: '#0d1117',
-    color: '#fff',
-    border: 'none',
-    borderRadius: 12,
-    cursor: 'pointer',
-  },
-  warning: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-    fontSize: 12,
-    color: '#b45309',
-    margin: '12px 0 0',
-  },
-
-  footnote: {
-    fontSize: 11,
-    color: '#9ca3af',
-    textAlign: 'center',
-    margin: '24px 0 0',
-    lineHeight: 1.7,
-  },
-  linkButton: {
-    background: 'none',
-    border: 'none',
-    color: '#6b7280',
-    fontSize: 11,
-    textDecoration: 'underline',
-    cursor: 'pointer',
-    padding: 0,
-    fontFamily: "'Poppins', sans-serif",
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 3,
-  },
-
-  iconCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: '50%',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    margin: '0 auto 20px',
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: 800,
-    color: '#0d1117',
-    textAlign: 'center',
-    margin: '0 0 8px',
-  },
-  cardText: {
-    fontSize: 13,
-    color: '#6b7280',
-    textAlign: 'center',
-    lineHeight: 1.6,
-    margin: '0 0 24px',
-  },
-  secondaryButton: {
-    width: '100%',
-    padding: '12px 16px',
-    fontSize: 14,
-    fontWeight: 600,
-    fontFamily: "'Poppins', sans-serif",
-    background: '#0d1117',
-    color: '#fff',
-    border: 'none',
-    borderRadius: 12,
-    cursor: 'pointer',
-  },
-};

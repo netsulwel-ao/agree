@@ -74,6 +74,9 @@ const { data, error } = await supabase
     name: 'NetsulCondo',
     description:
       'Gestão de condomínios. Sincroniza contratos e fornecedores com o Agree.',
+    // Logótipo oficial do NetsulCondo, servido pelo próprio site. É este que
+    // aparece no ecrã de consentimento do Agree.
+    logo_url: 'https://condo2.vercel.app/simbolo2.svg',
     redirect_uris: redirectUris,
     allowed_scopes: allowedScopes,
     is_active: true,

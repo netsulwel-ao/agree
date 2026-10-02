@@ -1,5 +1,5 @@
 import React, { lazy, Suspense, useEffect } from 'react';
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import Layout from './components/Layout';
 import LoadingScreen from './components/LoadingScreen';
 
@@ -95,6 +95,7 @@ const SuperAdminRoute = ({ children }: { children: React.ReactNode }) => {
 /** Redireciona utilizadores já autenticados para o dashboard (ou rota pendente). */
 function RedirectIfAuthenticated({ children, fallback }: { children: React.ReactNode; fallback?: string }) {
   const { user, isLoading } = useAuth();
+  const [searchParams] = useSearchParams();
 
   if (isLoading) return <LoadingScreen message="A carregar..." />;
   if (user) {
@@ -103,6 +104,13 @@ function RedirectIfAuthenticated({ children, fallback }: { children: React.React
       sessionStorage.removeItem('redirectAfterLogin');
       return <Navigate to={pending} replace />;
     }
+
+    // O ?redirect= tem de ser respeitado mesmo com sessão já iniciada. Sem
+    // isto, voltar ao login por uma janela de autorização já autenticada
+    // mandava o utilizador para o dashboard em vez do ecrã que pediu.
+    const requested = searchParams.get('redirect');
+    if (requested) return <Navigate to={requested} replace />;
+
     return <Navigate to={fallback || '/dashboard'} replace />;
   }
   return <>{children}</>;

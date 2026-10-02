@@ -183,7 +183,11 @@ export default function OAuthAuthorize() {
     });
   }, [searchParams]);
 
-  // ── 2. Se não há sessão, manda para o login e guarda os parâmetros ────────
+  // ── 2. Sem sessão, entra primeiro na conta; só depois mostra o consentimento ──
+  //
+  // A ordem importa: o ecrã de consentimento diz "esta app vai aceder à sua
+  // conta", e sem sessão iniciada essa conta não existe ainda. Por isso
+  // autenticamos primeiro e só depois mostramos o pedido.
 
   useEffect(() => {
     if (authLoading || !params) return;
@@ -208,7 +212,7 @@ export default function OAuthAuthorize() {
   // permitidos). Nada de segredos.
 
   useEffect(() => {
-    if (!params || !user) return;
+    if (!params) return;
 
     let cancelled = false;
 
@@ -246,7 +250,7 @@ export default function OAuthAuthorize() {
     return () => {
       cancelled = true;
     };
-  }, [params, user]);
+  }, [params]);
 
   // ── 4. Carrega as empresas disponíveis e pré-selecciona ───────────────────
 
@@ -374,18 +378,27 @@ export default function OAuthAuthorize() {
 
   // ── Estados intermédios ──────────────────────────────────────────────────
 
-  if (authLoading || !params || clientLoading) {
+  if (!params || paramError) {
+    if (paramError) {
+      return (
+        <ProblemScreen
+          title="Pedido inválido"
+          message={paramError}
+          onBack={() => navigate('/', { replace: true })}
+        />
+      );
+    }
     return <LoadingScreen message="A validar o pedido de acesso..." />;
   }
 
-  if (paramError) {
-    return (
-      <ProblemScreen
-        title="Pedido inválido"
-        message={paramError}
-        onBack={() => navigate('/', { replace: true })}
-      />
-    );
+  // Sem sessão, o efeito 2 leva ao login. Enquanto isso, dizemos ao
+  // utilizador o que está a acontecer em vez de um "a validar" eterno.
+  if (authLoading || !user) {
+    return <LoadingScreen message="A entrar na sua conta Agree…" />;
+  }
+
+  if (clientLoading) {
+    return <LoadingScreen message="A identificar a aplicação que pediu acesso..." />;
   }
 
   if (clientError || !client) {

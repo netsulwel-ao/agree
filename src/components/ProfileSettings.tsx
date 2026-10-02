@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { Mail, Lock, Shield, RotateCw, CheckCircle, Sparkles } from 'lucide-react';
 import NotificationPreferences from './NotificationPreferences';
+import ConnectedApps from './ConnectedApps';
 import ApiDocs from './ApiDocs';
 import { checkPlan } from '../lib/plans';
 
@@ -293,6 +294,8 @@ export default function ProfileSettings() {
           </div>
           )}
         </motion.div>
+
+        <ConnectedApps />
 
         {checkPlan(plan, 'pro', false, trialEndsAt) && (
           <div style={{ gridColumn: '1 / -1', marginTop: 24 }}>

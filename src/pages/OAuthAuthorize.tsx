@@ -455,7 +455,18 @@ export default function OAuthAuthorize() {
         </div>
 
         {/* Condomínio de origem */}
-        {companies.length > 0 && (
+        {companies.length === 0 ? (
+          // Sem empresas visíveis não há nada para partilhar. Antes o
+          // selector desaparecia em silêncio e o utilizador só descobria o
+          // problema no NetsulCondo, com um erro que não explicava a causa.
+          <div className="mb-5 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+            <b className="font-semibold">Não há nenhuma empresa para partilhar.</b>{' '}
+            A sua conta no Agree ainda não tem nenhuma empresa associada, por isso
+            {client.name} não tem contratos para mostrar. Crie uma empresa no
+            Agree ou peça a um administrador que associe a sua conta a uma, e
+            depois tente outra vez.
+          </div>
+        ) : (
           <Field className="mb-5">
             <FieldLabel htmlFor="oauth-company">Condomínio</FieldLabel>
             <Select
@@ -569,7 +580,7 @@ export default function OAuthAuthorize() {
         <Button
           className="h-10 w-full"
           onClick={authorize}
-          disabled={submitting || granted.length === 0}
+          disabled={submitting || granted.length === 0 || !selectedCompany}
         >
           {submitting ? 'A autorizar…' : `Autorizar ${client.name}`}
         </Button>

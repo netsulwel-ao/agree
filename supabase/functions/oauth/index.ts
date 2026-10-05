@@ -983,9 +983,16 @@ async function handleUpsertClient(req: Request): Promise<Response> {
     phone: body.phone ?? null,
     category: body.category ?? null,
     status: 'active',
+    // O token sabe qual é a empresa, e o cliente nasce ligado a ela. Sem isto
+    // o cliente ficava com company_id NULL e desaparecia da lista assim que o
+    // dono filtrasse por condomínio.
+    company_id: companyId,
     custom_fields: {
       netsulcondo_fornecedor_id: body.external_id,
-      netsulcondo_condominio_id: companyId,
+      // Guarda o id do CONDOMÍNIO no NetsulCondo, que é o que a outra app
+      // reconhece. A empresa (companyId) já está na coluna própria; pôr aqui
+      // os dois ids era enganador — um era lido como se fosse o outro.
+      netsulcondo_empresa_id: companyId,
     },
     updated_at: new Date().toISOString(),
   };

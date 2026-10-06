@@ -159,10 +159,24 @@ export default function PublicSign() {
   // ── Poll para imagem vinda do telemóvel (via CaptureSignature) ─────────────
   const pollForSignature = useCallback(() => {
     let retries = 0;
-    const MAX = 60; // 2 minutos
+    const MAX = 90; // 3 minutos
 
     const check = async () => {
       try {
+        // Tenta primeiro via URL pública directa (sem autenticação)
+        const publicUrl = `https://iocpbnawjkjauvewijkh.supabase.co/storage/v1/object/public/signatures/sessions/${token}.png`;
+        const resp = await fetch(publicUrl, { method: 'HEAD' });
+        if (resp.ok) {
+          // Ficheiro existe — descarrega e submete
+          const blob = await fetch(publicUrl).then(r => r.blob());
+          streamRef.current?.getTracks().forEach(t => t.stop());
+          await submitSignatureBlob(blob);
+          return;
+        }
+      } catch {}
+
+      try {
+        // Fallback: via SDK Supabase
         const { data, error } = await supabase.storage
           .from('signatures')
           .download(`sessions/${token}.png`);
@@ -172,11 +186,12 @@ export default function PublicSign() {
           return;
         }
       } catch {}
+
       if (++retries < MAX) setTimeout(check, 2000);
-      else { setStep('error'); setErrorMsg('Tempo esgotado. Tenta de novo.'); }
+      else { setStep('error'); setErrorMsg('Tempo esgotado. Tenta de novo ou usa outro método.'); }
     };
     check();
-  }, [token]);
+  }, [token, submitSignatureBlob]);
 
   // ── Captura do webcam ──────────────────────────────────────────────────────
   const captureFromCamera = useCallback(() => {
@@ -227,7 +242,9 @@ export default function PublicSign() {
   // ── Upload de ficheiro ─────────────────────────────────────────────────────
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) submitSignatureBlob(file);
+    if (!file) return;
+    setStep('submitting');
+    submitSignatureBlob(file);
   }, [submitSignatureBlob]);
 
   // ─── Ecrãs ─────────────────────────────────────────────────────────────────

@@ -87,130 +87,26 @@ export default function PublicSign() {
   const downloadPdf = useCallback(async () => {
     if (!request?.contract?.content) return;
     const { default: html2pdf } = await import('html2pdf.js');
-
-    // Cria um iframe isolado para evitar que os estilos Tailwind/oklch
-    // da página principal entrem no PDF e causem erros de parsing
     const iframe = document.createElement('iframe');
     iframe.style.cssText = 'position:fixed;left:-9999px;width:794px;height:1123px;border:none;';
     document.body.appendChild(iframe);
-
     const doc = iframe.contentDocument!;
     doc.open();
-    doc.write(`<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8"/>
-<style>
-  * { box-sizing: border-box; }
-  body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.8; color: #222; padding: 32px; margin: 0; background: #fff; }
-  h1,h2,h3 { color: #111; margin-bottom: 8px; }
-  p { margin: 0 0 10px; }
-  table { width: 100%; border-collapse: collapse; }
-  td, th { border: 1px solid #ccc; padding: 6px 10px; }
-</style>
-</head>
-<body>${request.contract.content}</body>
-</html>`);
+    doc.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/>
+<style>*{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:13px;line-height:1.8;color:#222;padding:32px;margin:0;background:#fff}h1,h2,h3{color:#111;margin-bottom:8px}p{margin:0 0 10px}table{width:100%;border-collapse:collapse}td,th{border:1px solid #ccc;padding:6px 10px}</style>
+</head><body>${request.contract.content}</body></html>`);
     doc.close();
-
-    // Aguarda o iframe renderizar
     await new Promise(r => setTimeout(r, 300));
-
     await html2pdf().set({
       margin: 12,
       filename: `${request.contract.title}.pdf`,
       html2canvas: { scale: 2, useCORS: true, logging: false },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
     }).from(doc.body).save();
-
     document.body.removeChild(iframe);
   }, [request]);
 
-  // ── Inicia captura ─────────────────────────────────────────────────────────
-  const startCapture = useCallback(async (method: 'qr' | 'camera' | 'upload') => {
-    setCaptureMethod(method);
-    setStep('capture');
-
-    if (method === 'qr') {
-      // Gera QR code com link para CaptureSignature usando o token como sessionId
-      const captureUrl = `${APP_URL}/capture-signature/${token}`;
-      const dataUrl = await QRCode.toDataURL(captureUrl, {
-        width: 260, margin: 2,
-        color: { dark: '#0d1117', light: '#ffffff' },
-      });
-      setQrDataUrl(dataUrl);
-      setStep('waiting');
-      pollForSignature();
-    } else if (method === 'camera') {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
-        });
-        streamRef.current = stream;
-        if (videoRef.current) videoRef.current.srcObject = stream;
-      } catch {
-        setErrorMsg('Não foi possível aceder à câmara.');
-        setStep('error');
-      }
-    }
-    // upload: fileInput click é feito no JSX
-  }, [token]);
-
-  // ── Poll para imagem vinda do telemóvel (via CaptureSignature) ─────────────
-  const pollForSignature = useCallback(() => {
-    let retries = 0;
-    const MAX = 90; // 3 minutos
-
-    const check = async () => {
-      try {
-        // Tenta primeiro via URL pública directa (sem autenticação)
-        const publicUrl = `https://iocpbnawjkjauvewijkh.supabase.co/storage/v1/object/public/signatures/sessions/${token}.png`;
-        const resp = await fetch(publicUrl, { method: 'HEAD' });
-        if (resp.ok) {
-          // Ficheiro existe — descarrega e submete
-          const blob = await fetch(publicUrl).then(r => r.blob());
-          streamRef.current?.getTracks().forEach(t => t.stop());
-          await submitSignatureBlob(blob);
-          return;
-        }
-      } catch {}
-
-      try {
-        // Fallback: via SDK Supabase
-        const { data, error } = await supabase.storage
-          .from('signatures')
-          .download(`sessions/${token}.png`);
-        if (!error && data) {
-          streamRef.current?.getTracks().forEach(t => t.stop());
-          await submitSignatureBlob(data);
-          return;
-        }
-      } catch {}
-
-      if (++retries < MAX) setTimeout(check, 2000);
-      else { setStep('error'); setErrorMsg('Tempo esgotado. Tenta de novo ou usa outro método.'); }
-    };
-    check();
-  }, [token, submitSignatureBlob]);
-
-  // ── Captura do webcam ──────────────────────────────────────────────────────
-  const captureFromCamera = useCallback(() => {
-    const video  = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas) return;
-
-    const GX = 0.15, GY = 0.35, GW = 0.70, GH = 0.30;
-    const sx = Math.round(video.videoWidth  * GX);
-    const sy = Math.round(video.videoHeight * GY);
-    const sw = Math.round(video.videoWidth  * GW);
-    const sh = Math.round(video.videoHeight * GH);
-    canvas.width  = sw; canvas.height = sh;
-    canvas.getContext('2d')!.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
-    canvas.toBlob(b => { if (b) submitSignatureBlob(b); }, 'image/png');
-    streamRef.current?.getTracks().forEach(t => t.stop());
-  }, []);
-
-  // ── Submete a assinatura ao servidor ──────────────────────────────────────
+  // ── Submete a assinatura ao servidor (declarado antes dos que o chamam) ────
   const submitSignatureBlob = useCallback(async (blob: Blob) => {
     setStep('submitting');
     try {
@@ -220,15 +116,10 @@ export default function PublicSign() {
         reader.onerror   = rej;
         reader.readAsDataURL(blob);
       });
-
       const resp = await fetch(`/api/sign/${token}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          signatureDataUrl: dataUrl,
-          acceptedTerms: true,
-          signerAgent: navigator.userAgent,
-        }),
+        body: JSON.stringify({ signatureDataUrl: dataUrl, acceptedTerms: true, signerAgent: navigator.userAgent }),
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'Erro ao submeter.');
@@ -243,9 +134,78 @@ export default function PublicSign() {
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setStep('submitting');
     submitSignatureBlob(file);
   }, [submitSignatureBlob]);
+
+  // ── Poll para imagem vinda do telemóvel ────────────────────────────────────
+  const pollForSignature = useCallback(() => {
+    let retries = 0;
+    const MAX = 90;
+    const check = async () => {
+      try {
+        const publicUrl = `https://iocpbnawjkjauvewijkh.supabase.co/storage/v1/object/public/signatures/sessions/${token}.png`;
+        const resp = await fetch(publicUrl, { method: 'HEAD' });
+        if (resp.ok) {
+          const blob = await fetch(publicUrl).then(r => r.blob());
+          streamRef.current?.getTracks().forEach(t => t.stop());
+          await submitSignatureBlob(blob);
+          return;
+        }
+      } catch {}
+      try {
+        const { data, error } = await supabase.storage.from('signatures').download(`sessions/${token}.png`);
+        if (!error && data) {
+          streamRef.current?.getTracks().forEach(t => t.stop());
+          await submitSignatureBlob(data);
+          return;
+        }
+      } catch {}
+      if (++retries < MAX) setTimeout(check, 2000);
+      else { setStep('error'); setErrorMsg('Tempo esgotado. Tenta de novo ou usa outro método.'); }
+    };
+    check();
+  }, [token, submitSignatureBlob]);
+
+  // ── Captura do webcam ──────────────────────────────────────────────────────
+  const captureFromCamera = useCallback(() => {
+    const video  = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+    const GX = 0.15, GY = 0.35, GW = 0.70, GH = 0.30;
+    const sx = Math.round(video.videoWidth  * GX);
+    const sy = Math.round(video.videoHeight * GY);
+    const sw = Math.round(video.videoWidth  * GW);
+    const sh = Math.round(video.videoHeight * GH);
+    canvas.width  = sw; canvas.height = sh;
+    canvas.getContext('2d')!.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+    canvas.toBlob(b => { if (b) submitSignatureBlob(b); }, 'image/png');
+    streamRef.current?.getTracks().forEach(t => t.stop());
+  }, [submitSignatureBlob]);
+
+  // ── Inicia captura ─────────────────────────────────────────────────────────
+  const startCapture = useCallback(async (method: 'qr' | 'camera' | 'upload') => {
+    setCaptureMethod(method);
+    if (method === 'qr') {
+      const captureUrl = `${APP_URL}/capture-signature/${token}`;
+      const dataUrl = await QRCode.toDataURL(captureUrl, { width: 260, margin: 2, color: { dark: '#0d1117', light: '#ffffff' } });
+      setQrDataUrl(dataUrl);
+      setStep('waiting');
+      pollForSignature();
+    } else if (method === 'camera') {
+      setStep('capture');
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } });
+        streamRef.current = stream;
+        if (videoRef.current) videoRef.current.srcObject = stream;
+      } catch {
+        setErrorMsg('Não foi possível aceder à câmara.');
+        setStep('error');
+      }
+    } else {
+      // upload — abre file input imediatamente
+      fileInputRef.current?.click();
+    }
+  }, [token, pollForSignature]);
 
   // ─── Ecrãs ─────────────────────────────────────────────────────────────────
 
@@ -344,7 +304,7 @@ export default function PublicSign() {
           <MethodCard icon={<Smartphone size={28} />} label="QR Code" desc="Usa o telemóvel" onClick={() => startCapture('qr')} />
           <MethodCard icon={<Camera size={28} />}    label="Câmara"   desc="Usa esta câmara"  onClick={() => startCapture('camera')} />
           <MethodCard icon={<Upload size={28} />}    label="Upload"   desc="Envia uma foto"
-            onClick={() => { setCaptureMethod('upload'); fileInputRef.current?.click(); }} />
+            onClick={() => startCapture('upload')} />
         </div>
         <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} style={{ display: 'none' }} />
         <div style={{ padding: '0 32px 24px' }}>

@@ -15,6 +15,7 @@ const AuthenticationScreen = lazy(() => import('./components/AuthenticationScree
 const RegisterSignature = lazy(() => import('./components/RegisterSignature'));
 const SignatureList = lazy(() => import('./components/SignatureList'));
 const CaptureSignature = lazy(() => import('./components/CaptureSignature'));
+const PublicSign = lazy(() => import('./components/PublicSign'));
 const EmailConfirmed = lazy(() => import('./components/EmailConfirmed'));
 const AdminUsers = lazy(() => import('./components/AdminUsers'));
 const AdminPayments = lazy(() => import('./components/AdminPayments'));
@@ -205,6 +206,9 @@ function AppRoutes() {
 
       {/* Captura de assinatura via QR — standalone, sem layout */}
       <Route path="/capture-signature/:sessionId" element={<Lazy><CaptureSignature /></Lazy>} />
+
+      {/* Assinatura pública — sem login */}
+      <Route path="/sign/:token" element={<Lazy><PublicSign /></Lazy>} />
 
       {/* Confirmação de email / recuperação de password — standalone */}
       <Route path="/confirmado" element={<Lazy><EmailConfirmed /></Lazy>} />

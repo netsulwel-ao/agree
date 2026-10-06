@@ -161,16 +161,32 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
       setNewName('');
       setNewEmail('');
       setAddingSignatory(false);
-      toast.success(`${newSig.name} adicionado como signatário`);
 
-      // Enviar email de notificação
-      const sent = await sendNotificationEmail(
-        newSig.email, newSig.name, contract.title,
-        user.user_metadata?.name || user.email || 'Owner',
-        'invite', contract
-      );
-      if (!sent) {
-        toast.warning('Signatário adicionado, mas não foi possível enviar o email (SMTP não configurado)');
+      // Usa o novo endpoint que gera token único e envia email com link público
+      const { data: { session } } = await supabase.auth.getSession();
+      const inviteRes = await fetch('/api/sign/invite', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({
+          contractId:   contract.id,
+          signerName:   newSig.name,
+          signerEmail:  newSig.email,
+        }),
+      });
+
+      const inviteData = await inviteRes.json();
+
+      if (inviteData.success) {
+        toast.success(`Convite enviado para ${newSig.email}`);
+      } else if (inviteData.signLink) {
+        // Email não enviado mas token criado — mostra o link
+        toast.warning(`Signatário adicionado. Partilha este link manualmente: ${inviteData.signLink}`);
+        console.info('Link de assinatura:', inviteData.signLink);
+      } else {
+        toast.warning('Signatário adicionado, mas não foi possível enviar o email.');
       }
 
       onUpdate();

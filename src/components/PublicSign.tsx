@@ -1,11 +1,34 @@
+/**
+ * /sign/:token — Página pública de assinatura de contrato
+ *
+ * Fluxo:
+ *  1. Carrega o contrato via token (sem login)
+ *  2. Mostra o contrato em HTML + botão de download PDF
+ *  3. Dois checkboxes: "li e aceito" + "confirmo identidade"
+ *  4. Botão "Aceito — Assinar Contrato" só activo depois dos dois checks
+ *  5. Abre o ecrã CaptureSignature (QR code + câmara + upload)
+ *     que já existe e funciona — o token serve de sessionId
+ *  6. Quando a foto chegar ao Storage, submete e sela o contrato
+ */
+
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { CheckCircle2, Loader2, AlertCircle, PenLine, Upload, RotateCcw } from 'lucide-react';
-import SignaturePad from './SignaturePad';
+import {
+  CheckCircle2, Loader2, AlertCircle, Download,
+  Camera, Upload, Smartphone, RotateCcw, Zap, FlipHorizontal
+} from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import QRCode from 'qrcode';
 
-// ─── Tipos ───────────────────────────────────────────────────────────────────
+// ─── Tipos ────────────────────────────────────────────────────────────────────
 
-type Step = 'loading' | 'error' | 'view' | 'sign' | 'submitting' | 'done' | 'expired' | 'already_signed';
+type Step =
+  | 'loading' | 'error' | 'expired' | 'already_signed'
+  | 'view'        // lê o contrato
+  | 'capture'     // ecrã de captura da assinatura
+  | 'waiting'     // à espera que a foto chegue do telemóvel
+  | 'submitting'  // a processar
+  | 'done';
 
 interface SigningRequest {
   id: string;
@@ -30,125 +53,212 @@ const APP_URL = import.meta.env.VITE_APP_URL || window.location.origin;
 
 export default function PublicSign() {
   const { token } = useParams<{ token: string }>();
-  const [step, setStep] = useState<Step>('loading');
-  const [request, setRequest] = useState<SigningRequest | null>(null);
+
+  const [step, setStep]         = useState<Step>('loading');
+  const [request, setRequest]   = useState<SigningRequest | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [accepted, setAccepted] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
-  const [signMethod, setSignMethod] = useState<'draw' | 'upload' | null>(null);
-  const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [captureMethod, setCaptureMethod] = useState<'qr' | 'camera' | 'upload' | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState('');
 
-  // Carrega o pedido de assinatura
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef     = useRef<HTMLVideoElement>(null);
+  const canvasRef    = useRef<HTMLCanvasElement>(null);
+  const streamRef    = useRef<MediaStream | null>(null);
+
+  // ── 1. Carrega pedido ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!token) { setStep('error'); setErrorMsg('Link inválido.'); return; }
 
     fetch(`/api/sign/${token}`)
       .then(async (res) => {
         const data = await res.json();
-        if (res.status === 410) { setStep('expired'); return; }
-        if (!res.ok) { setStep('error'); setErrorMsg(data.error || 'Erro ao carregar o contrato.'); return; }
-        if (data.alreadySigned) { setStep('already_signed'); return; }
+        if (res.status === 410)  { setStep('expired'); return; }
+        if (!res.ok)             { setStep('error'); setErrorMsg(data.error || 'Erro ao carregar.'); return; }
+        if (data.alreadySigned)  { setStep('already_signed'); return; }
         setRequest(data);
         setStep('view');
       })
       .catch(() => { setStep('error'); setErrorMsg('Não foi possível carregar o contrato.'); });
   }, [token]);
 
-  // Submete a assinatura
-  const handleSubmit = useCallback(async () => {
-    if (!signatureDataUrl || !accepted || !confirmed) return;
-    setSubmitting(true);
-    setStep('submitting');
+  // ── Download PDF ───────────────────────────────────────────────────────────
+  const downloadPdf = useCallback(async () => {
+    if (!request?.contract?.content) return;
+    const { default: html2pdf } = await import('html2pdf.js');
+    const el = document.createElement('div');
+    el.innerHTML = request.contract.content;
+    el.style.padding = '24px';
+    el.style.fontFamily = 'sans-serif';
+    el.style.fontSize = '13px';
+    document.body.appendChild(el);
+    await html2pdf().set({
+      margin: 12,
+      filename: `${request.contract.title}.pdf`,
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    }).from(el).save();
+    document.body.removeChild(el);
+  }, [request]);
 
+  // ── Inicia captura ─────────────────────────────────────────────────────────
+  const startCapture = useCallback(async (method: 'qr' | 'camera' | 'upload') => {
+    setCaptureMethod(method);
+    setStep('capture');
+
+    if (method === 'qr') {
+      // Gera QR code com link para CaptureSignature usando o token como sessionId
+      const captureUrl = `${APP_URL}/capture-signature/${token}`;
+      const dataUrl = await QRCode.toDataURL(captureUrl, {
+        width: 260, margin: 2,
+        color: { dark: '#0d1117', light: '#ffffff' },
+      });
+      setQrDataUrl(dataUrl);
+      setStep('waiting');
+      pollForSignature();
+    } else if (method === 'camera') {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+        });
+        streamRef.current = stream;
+        if (videoRef.current) videoRef.current.srcObject = stream;
+      } catch {
+        setErrorMsg('Não foi possível aceder à câmara.');
+        setStep('error');
+      }
+    }
+    // upload: fileInput click é feito no JSX
+  }, [token]);
+
+  // ── Poll para imagem vinda do telemóvel (via CaptureSignature) ─────────────
+  const pollForSignature = useCallback(() => {
+    let retries = 0;
+    const MAX = 60; // 2 minutos
+
+    const check = async () => {
+      try {
+        const { data, error } = await supabase.storage
+          .from('signatures')
+          .download(`sessions/${token}.png`);
+        if (!error && data) {
+          streamRef.current?.getTracks().forEach(t => t.stop());
+          await submitSignatureBlob(data);
+          return;
+        }
+      } catch {}
+      if (++retries < MAX) setTimeout(check, 2000);
+      else { setStep('error'); setErrorMsg('Tempo esgotado. Tenta de novo.'); }
+    };
+    check();
+  }, [token]);
+
+  // ── Captura do webcam ──────────────────────────────────────────────────────
+  const captureFromCamera = useCallback(() => {
+    const video  = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+
+    const GX = 0.15, GY = 0.35, GW = 0.70, GH = 0.30;
+    const sx = Math.round(video.videoWidth  * GX);
+    const sy = Math.round(video.videoHeight * GY);
+    const sw = Math.round(video.videoWidth  * GW);
+    const sh = Math.round(video.videoHeight * GH);
+    canvas.width  = sw; canvas.height = sh;
+    canvas.getContext('2d')!.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+    canvas.toBlob(b => { if (b) submitSignatureBlob(b); }, 'image/png');
+    streamRef.current?.getTracks().forEach(t => t.stop());
+  }, []);
+
+  // ── Submete a assinatura ao servidor ──────────────────────────────────────
+  const submitSignatureBlob = useCallback(async (blob: Blob) => {
+    setStep('submitting');
     try {
-      const res = await fetch(`/api/sign/${token}/submit`, {
+      const reader = new FileReader();
+      const dataUrl: string = await new Promise((res, rej) => {
+        reader.onloadend = () => res(reader.result as string);
+        reader.onerror   = rej;
+        reader.readAsDataURL(blob);
+      });
+
+      const resp = await fetch(`/api/sign/${token}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          signatureDataUrl,
+          signatureDataUrl: dataUrl,
           acceptedTerms: true,
           signerAgent: navigator.userAgent,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Erro ao submeter assinatura.');
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Erro ao submeter.');
       setStep('done');
     } catch (e: any) {
       setStep('error');
       setErrorMsg(e.message);
-    } finally {
-      setSubmitting(false);
     }
-  }, [signatureDataUrl, accepted, confirmed, token]);
+  }, [token]);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // ── Upload de ficheiro ─────────────────────────────────────────────────────
+  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setSignatureDataUrl(ev.target?.result as string);
-      setSignMethod('upload');
-    };
-    reader.readAsDataURL(file);
-  };
+    if (file) submitSignatureBlob(file);
+  }, [submitSignatureBlob]);
 
-  // ─── Ecrãs ────────────────────────────────────────────────────────────────
+  // ─── Ecrãs ─────────────────────────────────────────────────────────────────
 
-  if (step === 'loading') return <CenteredBox><Loader2 size={36} className="animate-spin" color="#0d1117" /><p style={grey}>A carregar o contrato…</p></CenteredBox>;
+  if (step === 'loading')
+    return <Center><Loader2 size={36} className="animate-spin" color="#0d1117" /><p style={s.grey}>A carregar o contrato…</p></Center>;
 
-  if (step === 'expired') return (
-    <CenteredBox>
-      <AlertCircle size={48} color="#ef4444" />
-      <h2 style={title}>Link expirado</h2>
-      <p style={grey}>Este link de assinatura já não é válido. Pede ao remetente que envie um novo.</p>
-    </CenteredBox>
-  );
+  if (step === 'expired')
+    return <Center><AlertCircle size={48} color="#ef4444" /><h2 style={s.h2}>Link expirado</h2><p style={s.grey}>Este link já não é válido. Pede ao remetente que envie um novo.</p></Center>;
 
-  if (step === 'already_signed') return (
-    <CenteredBox>
-      <CheckCircle2 size={48} color="#16a34a" />
-      <h2 style={title}>Já assinaste este contrato</h2>
-      <p style={grey}>A tua assinatura foi registada com sucesso.</p>
-    </CenteredBox>
-  );
+  if (step === 'already_signed')
+    return <Center><CheckCircle2 size={48} color="#16a34a" /><h2 style={s.h2}>Já assinaste este contrato</h2><p style={s.grey}>A tua assinatura foi registada com sucesso anteriormente.</p></Center>;
 
-  if (step === 'done') return (
-    <CenteredBox>
-      <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(22,163,74,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <CheckCircle2 size={44} color="#16a34a" />
-      </div>
-      <h2 style={title}>Contrato assinado!</h2>
-      <p style={grey}>A tua assinatura foi aplicada e registada com segurança. Receberás uma cópia por email.</p>
-    </CenteredBox>
-  );
+  if (step === 'done')
+    return (
+      <Center>
+        <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(22,163,74,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <CheckCircle2 size={44} color="#16a34a" />
+        </div>
+        <h2 style={s.h2}>Contrato assinado!</h2>
+        <p style={s.grey}>A tua assinatura foi aplicada e registada com segurança. O hash do documento foi selado como prova de integridade.</p>
+      </Center>
+    );
 
-  if (step === 'error') return (
-    <CenteredBox>
-      <AlertCircle size={48} color="#ef4444" />
-      <h2 style={title}>Algo correu mal</h2>
-      <p style={grey}>{errorMsg}</p>
-    </CenteredBox>
-  );
+  if (step === 'error')
+    return <Center><AlertCircle size={48} color="#ef4444" /><h2 style={s.h2}>Algo correu mal</h2><p style={s.grey}>{errorMsg}</p><button onClick={() => window.location.reload()} style={s.btnPrimary}>Tentar novamente</button></Center>;
 
-  if (step === 'submitting') return <CenteredBox><Loader2 size={36} className="animate-spin" color="#0d1117" /><p style={grey}>A registar a tua assinatura…</p></CenteredBox>;
+  if (step === 'submitting')
+    return <Center><Loader2 size={36} className="animate-spin" color="#0d1117" /><p style={s.grey}>A registar e selar a tua assinatura…</p></Center>;
 
   if (!request) return null;
 
-  // ─── Ecrã de visualização do contrato ─────────────────────────────────────
+  // ─── Ecrã de visualização ──────────────────────────────────────────────────
   if (step === 'view') return (
-    <div style={pageWrap}>
-      <div style={card}>
+    <div style={s.page}>
+      <div style={s.card}>
+
         {/* Header */}
-        <div style={{ padding: '28px 32px', borderBottom: '1px solid #e4e4e7' }}>
-          <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#a1a1aa', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Contrato para assinar</p>
+        <div style={s.cardHeader}>
+          <p style={s.label}>Contrato para assinar</p>
           <h1 style={{ margin: '6px 0 0', fontSize: 22, fontWeight: 800, color: '#09090b' }}>{request.contract.title}</h1>
-          <p style={{ margin: '6px 0 0', fontSize: 14, color: '#71717a' }}>Olá <strong>{request.signer_name.split(' ')[0]}</strong>, por favor lê o contrato abaixo antes de assinar.</p>
+          <p style={{ margin: '6px 0 0', fontSize: 14, color: '#71717a' }}>
+            Olá <strong>{request.signer_name.split(' ')[0]}</strong>, lê o contrato abaixo antes de assinar.
+          </p>
+        </div>
+
+        {/* Download PDF */}
+        <div style={{ padding: '12px 32px', borderBottom: '1px solid #f4f4f5' }}>
+          <button onClick={downloadPdf} style={{ ...s.btnSecondary, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <Download size={14} /> Descarregar PDF
+          </button>
         </div>
 
         {/* Conteúdo do contrato */}
-        <div style={{ padding: '24px 32px', maxHeight: 480, overflowY: 'auto', borderBottom: '1px solid #e4e4e7' }}>
+        <div style={{ padding: '24px 32px', maxHeight: 420, overflowY: 'auto', borderBottom: '1px solid #e4e4e7' }}>
           {request.contract.content
             ? <div dangerouslySetInnerHTML={{ __html: request.contract.content }} style={{ fontSize: 14, lineHeight: 1.8, color: '#374151' }} />
             : <p style={{ color: '#9ca3af', fontSize: 14 }}>Conteúdo do contrato não disponível.</p>
@@ -156,167 +266,161 @@ export default function PublicSign() {
         </div>
 
         {/* Aceitar termos */}
-        <div style={{ padding: '24px 32px', borderBottom: '1px solid #e4e4e7', display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer' }}>
-            <input type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)}
-              style={{ width: 18, height: 18, marginTop: 2, cursor: 'pointer', accentColor: '#0d1117', flexShrink: 0 }} />
-            <span style={{ fontSize: 14, color: '#374151', lineHeight: 1.5 }}>
-              Li e compreendi o conteúdo deste contrato e concordo com os seus termos e condições.
-            </span>
-          </label>
-          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer' }}>
-            <input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)}
-              style={{ width: 18, height: 18, marginTop: 2, cursor: 'pointer', accentColor: '#0d1117', flexShrink: 0 }} />
-            <span style={{ fontSize: 14, color: '#374151', lineHeight: 1.5 }}>
-              Confirmo que sou <strong>{request.signer_name}</strong> ({request.signer_email}) e que estou autorizado(a) a assinar este contrato.
-            </span>
-          </label>
+        <div style={{ padding: '20px 32px', borderBottom: '1px solid #e4e4e7', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <CheckItem checked={accepted} onChange={setAccepted}>
+            Li e compreendi o conteúdo deste contrato e concordo com todos os seus termos e condições.
+          </CheckItem>
+          <CheckItem checked={confirmed} onChange={setConfirmed}>
+            Confirmo que sou <strong>{request.signer_name}</strong> ({request.signer_email}) e estou autorizado(a) a assinar este documento.
+          </CheckItem>
         </div>
 
-        {/* Botão continuar */}
+        {/* CTA */}
         <div style={{ padding: '24px 32px' }}>
           <button
             disabled={!accepted || !confirmed}
-            onClick={() => setStep('sign')}
-            style={{
-              width: '100%', padding: '16px', fontSize: 16, fontWeight: 700,
-              background: accepted && confirmed ? '#0d1117' : '#e4e4e7',
-              color: accepted && confirmed ? '#fff' : '#a1a1aa',
-              border: 'none', borderRadius: 10, cursor: accepted && confirmed ? 'pointer' : 'not-allowed',
-              transition: 'all .2s', fontFamily: 'inherit',
-            }}
+            onClick={() => setStep('capture')}
+            style={{ ...s.btnPrimary, width: '100%', opacity: accepted && confirmed ? 1 : 0.4, cursor: accepted && confirmed ? 'pointer' : 'not-allowed' }}
           >
-            {accepted && confirmed ? 'Continuar para assinar →' : 'Aceita os termos para continuar'}
+            {accepted && confirmed ? '✅ Aceito — Assinar Contrato' : 'Aceita os termos para continuar'}
           </button>
         </div>
       </div>
     </div>
   );
 
-  // ─── Ecrã de assinatura ───────────────────────────────────────────────────
-  return (
-    <div style={pageWrap}>
-      <div style={card}>
-        <div style={{ padding: '28px 32px', borderBottom: '1px solid #e4e4e7' }}>
+  // ─── Ecrã de escolha de método de captura ─────────────────────────────────
+  if (step === 'capture' && !captureMethod) return (
+    <div style={s.page}>
+      <div style={s.card}>
+        <div style={s.cardHeader}>
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#09090b' }}>Assinar contrato</h2>
-          <p style={{ margin: '6px 0 0', fontSize: 14, color: '#71717a' }}>{request.contract.title}</p>
+          <p style={{ margin: '6px 0 0', fontSize: 14, color: '#71717a' }}>
+            Escolhe como queres submeter a tua assinatura. Escreve num papel branco e fotografa.
+          </p>
         </div>
-
-        <div style={{ padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-          {/* Método de assinatura */}
-          {!signMethod && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#374151' }}>Como queres assinar?</p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <button onClick={() => setSignMethod('draw')} style={methodBtn}>
-                  <PenLine size={24} color="#0d1117" />
-                  <span style={{ fontSize: 14, fontWeight: 600, color: '#0d1117' }}>Desenhar</span>
-                  <span style={{ fontSize: 12, color: '#71717a' }}>Com o rato ou dedo</span>
-                </button>
-                <button onClick={() => fileInputRef.current?.click()} style={methodBtn}>
-                  <Upload size={24} color="#0d1117" />
-                  <span style={{ fontSize: 14, fontWeight: 600, color: '#0d1117' }}>Enviar foto</span>
-                  <span style={{ fontSize: 12, color: '#71717a' }}>Imagem da assinatura</span>
-                </button>
-                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} style={{ display: 'none' }} />
-              </div>
-            </div>
-          )}
-
-          {/* Pad de desenho */}
-          {signMethod === 'draw' && !signatureDataUrl && (
-            <div>
-              <p style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: '#374151' }}>Desenha a tua assinatura:</p>
-              <SignaturePad
-                onSave={(dataUrl) => setSignatureDataUrl(dataUrl)}
-                onCancel={() => setSignMethod(null)}
-                width={460}
-                height={180}
-              />
-            </div>
-          )}
-
-          {/* Preview da assinatura */}
-          {signatureDataUrl && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#374151' }}>A tua assinatura:</p>
-              <div style={{ border: '2px dashed #e4e4e7', borderRadius: 10, padding: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafafa' }}>
-                <img src={signatureDataUrl} alt="Assinatura" style={{ maxHeight: 100, maxWidth: '100%', objectFit: 'contain' }} />
-              </div>
-              <button onClick={() => { setSignatureDataUrl(null); setSignMethod(null); }}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>
-                <RotateCcw size={14} /> Refazer assinatura
-              </button>
-            </div>
-          )}
-
-          {/* Botão submeter */}
-          {signatureDataUrl && (
-            <button
-              onClick={handleSubmit}
-              disabled={submitting}
-              style={{
-                width: '100%', padding: '16px', fontSize: 16, fontWeight: 700,
-                background: '#0d1117', color: '#fff',
-                border: 'none', borderRadius: 10, cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                fontFamily: 'inherit',
-              }}
-            >
-              {submitting ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle2 size={18} />}
-              {submitting ? 'A registar…' : 'Confirmar e Assinar'}
-            </button>
-          )}
+        <div style={{ padding: '24px 32px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+          <MethodCard icon={<Smartphone size={28} />} label="QR Code" desc="Usa o telemóvel" onClick={() => startCapture('qr')} />
+          <MethodCard icon={<Camera size={28} />}    label="Câmara"   desc="Usa esta câmara"  onClick={() => startCapture('camera')} />
+          <MethodCard icon={<Upload size={28} />}    label="Upload"   desc="Envia uma foto"
+            onClick={() => { setCaptureMethod('upload'); fileInputRef.current?.click(); }} />
         </div>
-
-        {/* Rodapé de segurança */}
-        <div style={{ padding: '16px 32px', borderTop: '1px solid #f4f4f5', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 11, color: '#a1a1aa' }}>🔒 Assinatura processada com segurança pela plataforma Agree. O documento é selado com hash SHA-256.</span>
+        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} style={{ display: 'none' }} />
+        <div style={{ padding: '0 32px 24px' }}>
+          <button onClick={() => setStep('view')} style={{ ...s.btnSecondary, fontSize: 13 }}>← Voltar ao contrato</button>
         </div>
       </div>
+    </div>
+  );
+
+  // ─── Ecrã QR + espera ─────────────────────────────────────────────────────
+  if (step === 'waiting') return (
+    <div style={s.page}>
+      <div style={s.card}>
+        <div style={s.cardHeader}>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#09090b' }}>Escaneia o QR Code</h2>
+          <p style={{ margin: '8px 0 0', fontSize: 14, color: '#71717a' }}>
+            Abre a câmara do telemóvel, aponta para o código abaixo e segue as instruções.<br/>
+            Escreve a tua assinatura num papel branco e fotografa.
+          </p>
+        </div>
+        <div style={{ padding: '24px 32px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
+          {qrDataUrl && <img src={qrDataUrl} alt="QR Code" style={{ width: 240, height: 240 }} />}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Loader2 size={16} className="animate-spin" color="#71717a" />
+            <p style={{ margin: 0, fontSize: 13, color: '#71717a' }}>À espera da foto…</p>
+          </div>
+          <div style={{ borderTop: '1px solid #f4f4f5', width: '100%', paddingTop: 16, textAlign: 'center' }}>
+            <p style={{ margin: '0 0 10px', fontSize: 13, color: '#71717a' }}>Preferes usar outra forma?</p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <button onClick={() => { setCaptureMethod(null); setStep('capture'); }} style={s.btnSecondary}>Câmara ou Upload</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ─── Ecrã câmara ──────────────────────────────────────────────────────────
+  if (step === 'capture' && captureMethod === 'camera') return (
+    <div style={s.page}>
+      <div style={s.card}>
+        <div style={s.cardHeader}>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#09090b' }}>Fotografar assinatura</h2>
+          <p style={{ margin: '6px 0 0', fontSize: 14, color: '#71717a' }}>Coloca a assinatura dentro das guias e captura.</p>
+        </div>
+        <div style={{ padding: '16px 32px 24px', display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center' }}>
+          <div style={{ position: 'relative', width: '100%', borderRadius: 12, overflow: 'hidden', background: '#000' }}>
+            <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', display: 'block' }} />
+            <canvas ref={canvasRef} style={{ display: 'none' }} />
+            <svg viewBox="0 0 100 100" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
+              <defs>
+                <mask id="m"><rect x="0" y="0" width="100" height="100" fill="white" /><rect x="15" y="32" width="70" height="36" fill="black" rx="2" /></mask>
+              </defs>
+              <rect x="0" y="0" width="100" height="100" fill="rgba(0,0,0,0.4)" mask="url(#m)" />
+              <rect x="15" y="32" width="70" height="36" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="0.8" rx="2" />
+            </svg>
+          </div>
+          <button onClick={captureFromCamera} style={{ ...s.btnPrimary, display: 'inline-flex', alignItems: 'center', gap: 8, borderRadius: 40 }}>
+            <Camera size={18} /> Capturar e Assinar
+          </button>
+          <button onClick={() => { streamRef.current?.getTracks().forEach(t => t.stop()); setCaptureMethod(null); setStep('capture'); }} style={{ ...s.btnSecondary, fontSize: 13 }}>
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  return null;
+}
+
+// ─── Sub-componentes ──────────────────────────────────────────────────────────
+
+function CheckItem({ checked, onChange, children }: { checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode }) {
+  return (
+    <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer' }}>
+      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)}
+        style={{ width: 18, height: 18, marginTop: 2, cursor: 'pointer', accentColor: '#0d1117', flexShrink: 0 }} />
+      <span style={{ fontSize: 14, color: '#374151', lineHeight: 1.5 }}>{children}</span>
+    </label>
+  );
+}
+
+function MethodCard({ icon, label, desc, onClick }: { icon: React.ReactNode; label: string; desc: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+      padding: '20px 12px', background: '#fafafa', border: '1.5px solid #e4e4e7',
+      borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s',
+    }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = '#0d1117'; e.currentTarget.style.background = '#f0f0f0'; }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = '#e4e4e7'; e.currentTarget.style.background = '#fafafa'; }}
+    >
+      {icon}
+      <span style={{ fontSize: 13, fontWeight: 700, color: '#09090b' }}>{label}</span>
+      <span style={{ fontSize: 11, color: '#71717a' }}>{desc}</span>
+    </button>
+  );
+}
+
+function Center({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ minHeight: '100vh', background: '#f4f4f5', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 40, fontFamily: "system-ui,sans-serif" }}>
+      {children}
     </div>
   );
 }
 
 // ─── Estilos ──────────────────────────────────────────────────────────────────
 
-const pageWrap: React.CSSProperties = {
-  minHeight: '100vh', background: '#f4f4f5', display: 'flex',
-  alignItems: 'flex-start', justifyContent: 'center',
-  padding: '40px 16px', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
+const s = {
+  page: { minHeight: '100vh', background: '#f4f4f5', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '40px 16px', fontFamily: 'system-ui,sans-serif' } as React.CSSProperties,
+  card: { width: '100%', maxWidth: 600, background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.08)' } as React.CSSProperties,
+  cardHeader: { padding: '28px 32px', borderBottom: '1px solid #e4e4e7' } as React.CSSProperties,
+  label: { margin: 0, fontSize: 11, fontWeight: 700, color: '#a1a1aa', textTransform: 'uppercase' as const, letterSpacing: '0.08em' },
+  h2: { margin: '16px 0 0', fontSize: 22, fontWeight: 800, color: '#09090b', fontFamily: 'system-ui,sans-serif' } as React.CSSProperties,
+  grey: { margin: '8px 0 0', fontSize: 14, color: '#71717a', textAlign: 'center' as const, maxWidth: 380, fontFamily: 'system-ui,sans-serif' } as React.CSSProperties,
+  btnPrimary: { padding: '14px 28px', fontSize: 15, fontWeight: 700, background: '#0d1117', color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: 'system-ui,sans-serif' } as React.CSSProperties,
+  btnSecondary: { padding: '10px 20px', fontSize: 14, fontWeight: 600, background: '#fff', color: '#374151', border: '1.5px solid #e4e4e7', borderRadius: 10, cursor: 'pointer', fontFamily: 'system-ui,sans-serif' } as React.CSSProperties,
 };
-
-const card: React.CSSProperties = {
-  width: '100%', maxWidth: 600, background: '#fff',
-  borderRadius: 16, overflow: 'hidden',
-  boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-};
-
-const title: React.CSSProperties = {
-  margin: '16px 0 0', fontSize: 22, fontWeight: 800, color: '#09090b',
-  fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
-};
-
-const grey: React.CSSProperties = {
-  margin: '8px 0 0', fontSize: 14, color: '#71717a', textAlign: 'center', maxWidth: 380,
-  fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
-};
-
-const methodBtn: React.CSSProperties = {
-  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-  padding: '24px 16px', background: '#fafafa', border: '1.5px solid #e4e4e7',
-  borderRadius: 12, cursor: 'pointer', transition: 'all .2s', fontFamily: 'inherit',
-};
-
-function CenteredBox({ children }: { children: React.ReactNode }) {
-  return (
-    <div style={{
-      minHeight: '100vh', background: '#f4f4f5', display: 'flex',
-      flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      gap: 12, padding: 40, fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
-    }}>
-      {children}
-    </div>
-  );
-}

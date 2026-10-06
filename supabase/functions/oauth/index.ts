@@ -1041,6 +1041,174 @@ async function handleClientInfo(req: Request): Promise<Response> {
   return json(data);
 }
 
+// ─── POST /contracts ─────────────────────────────────────────────────────────
+
+/**
+ * Cria um contrato com contexto de condomínio.
+ * Usado pelo NetsulCondo para criar contratos já com os campos condo preenchidos.
+ */
+async function handleCreateContract(req: Request): Promise<Response> {
+  const auth = await requireAccessToken(req, 'contracts:write');
+  if ('error' in auth) return json(auth, auth.status);
+
+  let body: {
+    title?: string;
+    description?: string;
+    content?: string;
+    value?: number;
+    currency?: string;
+    start_date?: string;
+    end_date?: string;
+    client_id?: string;
+    tags?: string[];
+    // Condo-mode fields
+    condominio_id?: string;
+    condominio_name?: string;
+    unit_label?: string;
+    party_type?: 'morador' | 'fornecedor';
+  };
+
+  try {
+    body = await req.json();
+  } catch {
+    return json({ error: 'Corpo JSON inválido.' }, 400);
+  }
+
+  if (!body.title) {
+    return json({ error: 'title é obrigatório.' }, 400);
+  }
+
+  const ownerId = auth.token.user_id;
+  const companyId = auth.token.company_id;
+
+  // Valida party_type se fornecido
+  if (body.party_type && !['morador', 'fornecedor'].includes(body.party_type)) {
+    return json({ error: 'party_type deve ser "morador" ou "fornecedor".' }, 400);
+  }
+
+  const contractData = {
+    title: body.title,
+    description: body.description ?? null,
+    content: body.content ?? null,
+    value: body.value ?? null,
+    currency: body.currency ?? 'AOA',
+    start_date: body.start_date ?? null,
+    end_date: body.end_date ?? null,
+    client_id: body.client_id ?? null,
+    tags: body.tags ?? [],
+    status: 'draft',
+    risk_level: 'low',
+    version: 1,
+    auto_renew: false,
+    renewal_count: 0,
+    notification_days: 30,
+    owner_id: ownerId,
+    // Condo-mode fields (só preenchidos se vieram no request)
+    condominio_id: body.condominio_id ?? null,
+    condominio_name: body.condominio_name ?? null,
+    unit_label: body.unit_label ?? null,
+    party_type: body.party_type ?? null,
+    netsulcondo_company_id: companyId,
+  };
+
+  const { data: contract, error } = await service
+    .from('contracts')
+    .insert(contractData)
+    .select('*')
+    .single();
+
+  if (error) return json({ error: error.message }, 502);
+
+  // Cria a primeira versão
+  await service.from('contract_versions').insert({
+    contract_id: contract.id,
+    content: contractData.content ?? '',
+    version_number: 1,
+    created_by: ownerId,
+  });
+
+  return json({ data: contract }, 201);
+}
+
+// ─── POST /webhook/register ──────────────────────────────────────────────────
+
+/**
+ * Regista uma subscrição de webhook para receber notificações de contratos.
+ * Usado pelo NetsulCondo para ser notificado quando contratos mudam de status.
+ */
+async function handleRegisterWebhook(req: Request): Promise<Response> {
+  const auth = await requireAccessToken(req, 'webhooks:write');
+  if ('error' in auth) return json(auth, auth.status);
+
+  let body: {
+    webhook_url?: string;
+    events?: string[];
+    webhook_secret?: string;
+  };
+
+  try {
+    body = await req.json();
+  } catch {
+    return json({ error: 'Corpo JSON inválido.' }, 400);
+  }
+
+  if (!body.webhook_url || !body.events || !body.webhook_secret) {
+    return json({ 
+      error: 'webhook_url, events e webhook_secret são obrigatórios.' 
+    }, 400);
+  }
+
+  // Valida a URL
+  try {
+    new URL(body.webhook_url);
+  } catch {
+    return json({ error: 'webhook_url inválido.' }, 400);
+  }
+
+  const validEvents = [
+    'contract.created',
+    'contract.sent', 
+    'contract.viewed',
+    'contract.signed',
+    'contract.expired',
+    'contract.rejected'
+  ];
+
+  const invalidEvents = body.events.filter(e => !validEvents.includes(e));
+  if (invalidEvents.length > 0) {
+    return json({ 
+      error: `Eventos inválidos: ${invalidEvents.join(', ')}`,
+      valid_events: validEvents 
+    }, 400);
+  }
+
+  // Remove subscrição existente e cria uma nova
+  await service
+    .from('webhook_subscriptions')
+    .delete()
+    .eq('client_id', auth.token.client_id);
+
+  const { data, error } = await service
+    .from('webhook_subscriptions')
+    .insert({
+      client_id: auth.token.client_id,
+      webhook_url: body.webhook_url,
+      events: body.events,
+      webhook_secret: body.webhook_secret,
+      is_active: true,
+    })
+    .select('id')
+    .single();
+
+  if (error) return json({ error: error.message }, 502);
+
+  return json({ 
+    message: 'Webhook registado com sucesso.',
+    subscription_id: data.id,
+    events: body.events 
+  }, 201);
+}
+
 // ─── GET /connections ────────────────────────────────────────────────────────
 
 /** Lista as aplicações externas a que o utilizador deu autorização. */
@@ -1092,7 +1260,9 @@ serve(async (req) => {
     if (path === '/company' && req.method === 'GET') return handleGetCompany(req);
     if (path === '/company' && req.method === 'POST') return handleUpsertCompany(req);
     if (path === '/contracts' && req.method === 'GET') return handleListContracts(req);
+    if (path === '/contracts' && req.method === 'POST') return handleCreateContract(req);
     if (path === '/clients' && req.method === 'POST') return handleUpsertClient(req);
+    if (path === '/webhook/register' && req.method === 'POST') return handleRegisterWebhook(req);
     if (path === '/connections' && req.method === 'GET') return handleConnections(req);
 
     return json({ error: 'Rota não encontrada.' }, 404);

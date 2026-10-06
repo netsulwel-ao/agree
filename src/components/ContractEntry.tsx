@@ -16,6 +16,13 @@ export default function ContractEntry() {
 
   if (mode) return <ContractForm />;
 
+  // Preserva condo_id, condo_name e outros params ao mudar de modo
+  const navigateWithParams = (newMode: string) => {
+    const params = new URLSearchParams(searchParams);
+    params.set('mode', newMode);
+    navigate(`/contracts/new?${params.toString()}`);
+  };
+
   const options = [
     {
       id: 'document',
@@ -28,7 +35,7 @@ export default function ContractEntry() {
       cta: 'Importar documento',
       onClick: () => {
         if (!canUseAI) { openCheckout('pro'); return; }
-        navigate('/contracts/new?mode=document');
+        navigateWithParams('document');
       },
     },
     {
@@ -40,7 +47,7 @@ export default function ContractEntry() {
       description: 'Escolhe um modelo profissional ou deixa a IA gerar o contrato completo a partir de umas perguntas.',
       features: ['Modelos profissionais', 'Geração com IA (Pro)', 'Contrato completo em HTML'],
       cta: 'Criar contrato',
-      onClick: () => navigate('/contracts/new?mode=template'),
+      onClick: () => navigateWithParams('template'),
     },
     {
       id: 'draft',
@@ -51,7 +58,7 @@ export default function ContractEntry() {
       description: 'Começa aos poucos, sem pressa. Guarda como rascunho e continua a editar quando quiseres.',
       features: ['Totalmente gratuito', 'Guarda e retoma depois', 'Sem limite de tempo'],
       cta: 'Começar rascunho',
-      onClick: () => navigate('/contracts/new?mode=draft'),
+      onClick: () => navigateWithParams('draft'),
     },
   ];
 
@@ -65,6 +72,28 @@ export default function ContractEntry() {
           Escolhe a forma como queres começar. Podes voltar atrás e mudar de opção a qualquer momento.
         </p>
       </div>
+
+      {/* Banner NetsulCondo */}
+      {searchParams.get('condo_id') && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '12px 20px',
+          background: 'linear-gradient(135deg, rgba(249,115,22,0.08), rgba(234,88,12,0.05))',
+          border: '1px solid rgba(249,115,22,0.25)',
+          borderRadius: 12,
+        }}>
+          <span style={{ fontSize: 20 }}>🏢</span>
+          <div>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#9a3412' }}>
+              Contrato via NetsulCondo — {searchParams.get('condo_name')}
+            </p>
+            <p style={{ margin: 0, fontSize: 12, color: '#c2410c' }}>
+              {searchParams.get('unit_label') ? `Unidade: ${searchParams.get('unit_label')} · ` : ''}
+              Os dados do condomínio são guardados automaticamente no contrato.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
         {options.map(opt => (

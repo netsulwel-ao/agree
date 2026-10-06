@@ -44,6 +44,12 @@ export default function ContractForm() {
   const isEditing = !!editId;
   const mode = isEditing ? null : (searchParams.get('mode') || null);
   const templateParam = isEditing ? null : searchParams.get('template');
+
+  // Contexto de condomínio — vem do NetsulCondo via query params
+  const condoId   = searchParams.get('condo_id');
+  const condoName = searchParams.get('condo_name');
+  const unitLabel = searchParams.get('unit_label');
+  const partyType = searchParams.get('party_type') as 'morador' | 'fornecedor' | null;
   const canUseAI = checkPlan(plan, 'pro', isAdmin, trialEndsAt);
   const { openCheckout } = useCheckoutModal();
   const [analyzing, setAnalyzing] = useState(false);
@@ -361,6 +367,13 @@ export default function ContractForm() {
             auto_renew: formData.autoRenew,
             renewal_period: formData.renewalPeriod || null,
             notification_days: formData.notificationDays,
+            // Contexto NetsulCondo — só preenchido se veio do condo
+            ...(condoId ? {
+              condominio_id: condoId,
+              condominio_name: condoName ?? null,
+              unit_label: unitLabel ?? null,
+              party_type: partyType ?? null,
+            } : {}),
           })
           .select()
           .single();
@@ -512,6 +525,42 @@ export default function ContractForm() {
       margin: '0 auto',
       fontFamily: "'Poppins', sans-serif"
     }}>
+
+      {/* Banner de contexto NetsulCondo */}
+      {condoId && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '12px 20px', marginBottom: 16,
+          background: 'linear-gradient(135deg, rgba(249,115,22,0.08), rgba(234,88,12,0.05))',
+          border: '1px solid rgba(249,115,22,0.25)',
+          borderRadius: 12,
+        }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+            background: 'rgba(249,115,22,0.15)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 16,
+          }}>🏢</div>
+          <div style={{ flex: 1 }}>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#9a3412' }}>
+              Contrato via NetsulCondo — {condoName}
+            </p>
+            <p style={{ margin: 0, fontSize: 12, color: '#c2410c' }}>
+              {unitLabel ? `Unidade: ${unitLabel}` : ''}
+              {unitLabel && partyType ? ' · ' : ''}
+              {partyType === 'morador' ? 'Parte: Morador/Inquilino' : partyType === 'fornecedor' ? 'Parte: Fornecedor' : ''}
+            </p>
+          </div>
+          <span style={{
+            fontSize: 11, fontWeight: 700, padding: '3px 10px',
+            background: 'rgba(249,115,22,0.15)', color: '#c2410c',
+            borderRadius: 20, border: '1px solid rgba(249,115,22,0.3)',
+          }}>
+            CONDO
+          </span>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit}>
         <div style={{
           background: 'rgba(255, 255, 255, 0.45)',

@@ -1,15 +1,15 @@
-/**
+﻿/**
  * apply-migration.mjs
  *
- * Executa a migração 20261002000000_clients_company_scope.sql na base de dados
- * real. O `supabase db push` não serve aqui: o IP desta máquina não está no
- * allow_list do pooler. Passamos por uma Edge Function, que já corre com service
- * role e therefore chega ao Postgres sem essa restrição.
+ * Executa uma migração na base de dados real. O `supabase db push` não serve:
+ * o IP desta máquina não está no allow_list do pooler. Passamos por uma Edge
+ * Function temporária (migrate_tmp), que corre com service role e chega ao
+ * Postgres sem essa restrição.
  *
- * A Edge Function é descartável — está em supabase/functions/_migrate e deve ser
- * removida depois de aplicada a migração.
+ *   node scripts/apply-migration.mjs <caminho/da/migracao.sql>
  *
- *   node scripts/apply-migration.mjs
+ * A Edge Function e os ficheiros .bak são temporários e devem ser removidos
+ * depois de aplicada a migração.
  */
 
 import { readFile } from 'node:fs/promises';
@@ -18,7 +18,8 @@ import { config } from 'dotenv';
 
 config();
 
-const MIGRATION = 'supabase/migrations/20261002000000_clients_company_scope.sql';
+const MIGRATION =
+  process.argv[2] ?? 'supabase/migrations/20261002000000_clients_company_scope.sql';
 
 const sql = await readFile(new URL(`../${MIGRATION}`, import.meta.url), 'utf8');
 
@@ -39,8 +40,9 @@ if (probeErr) {
   process.exit(1);
 }
 console.log(`ligado a ${new URL(url).host}, clientes legiveis`);
+console.log(`a aplicar ${MIGRATION}\n`);
 
-const res = await fetch(`${url.replace('.supabase.co', '.functions.supabase.co')}/functions/v1/_migrate`, {
+const res = await fetch(`${url.replace('.supabase.co', '.functions.supabase.co')}/functions/v1/migrate_tmp`, {
   method: 'POST',
   headers: {
     apikey: fnKey,
@@ -50,7 +52,5 @@ const res = await fetch(`${url.replace('.supabase.co', '.functions.supabase.co')
   body: JSON.stringify({ sql }),
 });
 
-const body = await res.text();
-
 console.log(`\nHTTP ${res.status}`);
-console.log(body);
+console.log(await res.text());

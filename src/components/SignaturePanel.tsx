@@ -68,9 +68,13 @@ async function sendNotificationEmail(to: string, name: string, contractTitle: st
   `;
 
   try {
+    const { data: { session } } = await supabase.auth.getSession();
     const res = await fetch('/api/send-email', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
+      },
       body: JSON.stringify({ to, subject, html }),
     });
     if (!res.ok) throw new Error(await res.text());
@@ -105,7 +109,9 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
           .select('id, image_url, name')
           .eq('user_id', user.id)
           .eq('is_active', true)
-          .single();
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
         
         if (error) {
           console.warn('No active signature found or error fetching:', error.message);

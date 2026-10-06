@@ -87,19 +87,43 @@ export default function PublicSign() {
   const downloadPdf = useCallback(async () => {
     if (!request?.contract?.content) return;
     const { default: html2pdf } = await import('html2pdf.js');
-    const el = document.createElement('div');
-    el.innerHTML = request.contract.content;
-    el.style.padding = '24px';
-    el.style.fontFamily = 'sans-serif';
-    el.style.fontSize = '13px';
-    document.body.appendChild(el);
+
+    // Cria um iframe isolado para evitar que os estilos Tailwind/oklch
+    // da página principal entrem no PDF e causem erros de parsing
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;left:-9999px;width:794px;height:1123px;border:none;';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentDocument!;
+    doc.open();
+    doc.write(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.8; color: #222; padding: 32px; margin: 0; background: #fff; }
+  h1,h2,h3 { color: #111; margin-bottom: 8px; }
+  p { margin: 0 0 10px; }
+  table { width: 100%; border-collapse: collapse; }
+  td, th { border: 1px solid #ccc; padding: 6px 10px; }
+</style>
+</head>
+<body>${request.contract.content}</body>
+</html>`);
+    doc.close();
+
+    // Aguarda o iframe renderizar
+    await new Promise(r => setTimeout(r, 300));
+
     await html2pdf().set({
       margin: 12,
       filename: `${request.contract.title}.pdf`,
-      html2canvas: { scale: 2 },
+      html2canvas: { scale: 2, useCORS: true, logging: false },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-    }).from(el).save();
-    document.body.removeChild(el);
+    }).from(doc.body).save();
+
+    document.body.removeChild(iframe);
   }, [request]);
 
   // ── Inicia captura ─────────────────────────────────────────────────────────

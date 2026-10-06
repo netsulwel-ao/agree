@@ -115,7 +115,24 @@ BEGIN
       'condominio_id', COALESCE(NEW.condominio_id, OLD.condominio_id),
       'condominio_name', COALESCE(NEW.condominio_name, OLD.condominio_name),
       'unit_label', COALESCE(NEW.unit_label, OLD.unit_label),
-      'party_type', COALESCE(NEW.party_type, OLD.party_type)
+      'party_type', COALESCE(NEW.party_type, OLD.party_type),
+      -- Signatário que assinou: pega no primeiro com signed=true no JSONB
+      'signer_name', (
+        SELECT s->>'name'
+        FROM jsonb_array_elements(
+          COALESCE(NEW.signatures, OLD.signatures, '[]'::jsonb)
+        ) AS s
+        WHERE (s->>'signed')::boolean = true
+        LIMIT 1
+      ),
+      'signer_email', (
+        SELECT s->>'email'
+        FROM jsonb_array_elements(
+          COALESCE(NEW.signatures, OLD.signatures, '[]'::jsonb)
+        ) AS s
+        WHERE (s->>'signed')::boolean = true
+        LIMIT 1
+      )
     ),
     'company_id', COALESCE(NEW.netsulcondo_company_id, OLD.netsulcondo_company_id),
     'timestamp', NOW()

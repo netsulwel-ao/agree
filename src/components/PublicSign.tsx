@@ -195,16 +195,35 @@ export default function PublicSign() {
   const submitSignatureBlob = useCallback(async (blob: Blob) => {
     setStep('submitting');
     try {
-      const reader = new FileReader();
-      const dataUrl: string = await new Promise((res, rej) => {
-        reader.onloadend = () => res(reader.result as string);
-        reader.onerror   = rej;
-        reader.readAsDataURL(blob);
+      // Comprime a imagem para max 800×600 e qualidade 0.7 antes de enviar.
+      // Fotos de telemóvel podem ter vários MB; o servidor aceita até 10MB mas
+      // quanto menor melhor para velocidade em ligações móveis.
+      const compressedDataUrl = await new Promise<string>((resolve, reject) => {
+        const img = new Image();
+        const objectUrl = URL.createObjectURL(blob);
+        img.onload = () => {
+          URL.revokeObjectURL(objectUrl);
+          const MAX = 1200;
+          let { width, height } = img;
+          if (width > MAX || height > MAX) {
+            const scale = Math.min(MAX / width, MAX / height);
+            width  = Math.round(width  * scale);
+            height = Math.round(height * scale);
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width  = width;
+          canvas.height = height;
+          canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', 0.82));
+        };
+        img.onerror = reject;
+        img.src = objectUrl;
       });
+
       const resp = await fetch(`/api/sign/${token}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ signatureDataUrl: dataUrl, acceptedTerms: true, signerAgent: navigator.userAgent }),
+        body: JSON.stringify({ signatureDataUrl: compressedDataUrl, acceptedTerms: true, signerAgent: navigator.userAgent }),
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'Erro ao submeter.');

@@ -203,7 +203,7 @@ app.get('/api/sign/:token', async (req, res) => {
 
   const { data: request, error } = await supabase
     .from('signing_requests')
-    .select('id, signer_name, signer_email, status, expires_at, viewed_at, signed_at, contract:contracts(id, title, content, value, currency, start_date, end_date)')
+    .select('id, signer_name, signer_email, status, expires_at, viewed_at, signed_at, contract:contracts(id, title, content, value, currency, start_date, end_date, signatures)')
     .eq('token', token)
     .maybeSingle();
 

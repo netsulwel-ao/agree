@@ -47,6 +47,7 @@ import { checkPlan } from '../lib/plans';
 import { formatCurrency } from '../services/currency';
 import { ReminderForm, ReminderList } from './ReminderForm';
 import { getRenewalHistory, renewContract, RenewalHistory } from '../services/reminders';
+import { buildSignatureBlock } from '../lib/signatureBlock';
 
 export default function ContractDetail() {
   const { user, plan, isAdmin, trialEndsAt } = useAuth();
@@ -919,6 +920,13 @@ export default function ContractDetail() {
                   }}
                     dangerouslySetInnerHTML={{ __html: contract.content }}
                   />
+                  {/* Bloco de assinaturas no final do corpo do contrato */}
+                  {Array.isArray(contract.signatures) && contract.signatures.length > 0 && (
+                    <div
+                      dangerouslySetInnerHTML={{ __html: buildSignatureBlock(contract.signatures) }}
+                      style={{ padding: '0 0 16px' }}
+                    />
+                  )}
                   <div style={{
                     position: 'absolute',
                     bottom: 8,

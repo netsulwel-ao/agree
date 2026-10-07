@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import QRCode from 'qrcode';
+import { buildSignatureBlock } from '../lib/signatureBlock';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -43,6 +44,11 @@ interface SigningRequest {
     currency?: string;
     start_date?: string | null;
     end_date?: string | null;
+    signatures?: Array<{
+      id: string; name: string; email: string;
+      signed: boolean; signedAt?: string;
+      signatureUrl?: string; hash?: string;
+    }>;
   };
 }
 
@@ -88,51 +94,99 @@ export default function PublicSign() {
   const downloadPdf = useCallback(async () => {
     if (!request?.contract?.content) return;
     setPdfLoading(true);
-    const iframe = document.createElement('iframe');
-    iframe.style.cssText = 'position:fixed;left:-9999px;width:794px;height:1123px;border:none;';
-    document.body.appendChild(iframe);
     try {
-      const { default: html2pdf } = await import('html2pdf.js');
-      const doc = iframe.contentDocument!;
-      doc.open();
-      // O override de cores garante compatibilidade com html2canvas que não
-      // suporta funções CSS modernas como oklch (geradas pelo Tailwind v4).
-      // Todos os elementos recebem color e background explícitos em rgb.
-      doc.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/>
+      // Usamos jsPDF + html2canvas via blob URL isolado.
+      // html2pdf.js falha com oklch (Tailwind v4) porque herda getComputedStyle
+      // do documento pai mesmo dentro de um iframe com doc.write().
+      // O blob URL cria um contexto completamente separado sem herança de CSS.
+      const { jsPDF } = await import('jspdf');
+      const { default: html2canvas } = await import('html2canvas');
+
+      const sigBlock = buildSignatureBlock(
+        request.contract.signatures ?? []
+      );
+
+      const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
 <style>
-*{box-sizing:border-box;color:inherit!important;background-color:transparent!important}
-html,body{background:#fff!important;color:#222!important}
-body{font-family:Arial,sans-serif;font-size:13px;line-height:1.8;padding:32px;margin:0}
-h1,h2,h3{color:#111!important;margin-bottom:8px}
-p{margin:0 0 10px}
-table{width:100%;border-collapse:collapse}
-td,th{border:1px solid #ccc!important;padding:6px 10px}
-a{color:#0d1117!important}
-strong,b{color:inherit!important}
-/* Neutraliza qualquer variável CSS oklch que possa vir do conteúdo */
-:root{
-  --color-primary:#0d1117;
-  --color-secondary:#374151;
-  --foreground:#222;
-  --background:#fff;
-  --border:#e5e7eb;
-}
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { background: #ffffff; }
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 13px;
+    line-height: 1.8;
+    color: #222222;
+    background: #ffffff;
+    padding: 48px 56px;
+    width: 794px;
+  }
+  h1 { font-size: 22px; font-weight: 700; color: #111111; margin: 0 0 16px; }
+  h2 { font-size: 18px; font-weight: 700; color: #111111; margin: 20px 0 10px; }
+  h3 { font-size: 15px; font-weight: 700; color: #111111; margin: 16px 0 8px; }
+  p  { margin: 0 0 10px; color: #222222; }
+  strong, b { color: #111111; }
+  a { color: #0d1117; text-decoration: underline; }
+  ul, ol { margin: 0 0 10px 24px; }
+  li { margin-bottom: 4px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  th, td { border: 1px solid #cccccc; padding: 6px 10px; text-align: left; font-size: 12px; }
+  th { background: #f5f5f5; font-weight: 700; }
+  hr { border: none; border-top: 1px solid #e0e0e0; margin: 16px 0; }
 </style>
-</head><body>${request.contract.content}</body></html>`);
-      doc.close();
+</head>
+<body>${request.contract.content}${sigBlock}</body>
+</html>`;
+
+      const blob = new Blob([htmlContent], { type: 'text/html; charset=utf-8' });
+      const blobUrl = URL.createObjectURL(blob);
+
+      const iframe = document.createElement('iframe');
+      iframe.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:794px;height:2000px;border:none;visibility:hidden;';
+      document.body.appendChild(iframe);
+      iframe.src = blobUrl;
+
+      await new Promise<void>((resolve) => {
+        iframe.onload = () => resolve();
+        setTimeout(resolve, 3000);
+      });
       await new Promise(r => setTimeout(r, 300));
-      await html2pdf().set({
-        margin: 12,
-        filename: `${request.contract.title}.pdf`,
-        html2canvas: { scale: 2, useCORS: true, logging: false },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      }).from(doc.body).save();
+
+      const iframeBody = iframe.contentDocument!.body;
+      const canvas = await html2canvas(iframeBody, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        width: 794,
+        windowWidth: 794,
+      });
+
+      const pdf    = new jsPDF({ unit: 'px', format: 'a4', orientation: 'portrait' });
+      const pageW  = pdf.internal.pageSize.getWidth();
+      const pageH  = pdf.internal.pageSize.getHeight();
+      const imgW   = pageW;
+      const imgH   = (canvas.height * pageW) / canvas.width;
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+
+      let y = 0;
+      while (y < imgH) {
+        if (y > 0) pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, -y, imgW, imgH);
+        y += pageH;
+      }
+
+      pdf.save(`${request.contract.title}.pdf`);
+
+      document.body.removeChild(iframe);
+      URL.revokeObjectURL(blobUrl);
+
     } catch (e: any) {
       console.error('Erro ao gerar PDF:', e);
-      setErrorMsg('Não foi possível gerar o PDF. Tenta novamente.');
       setStep('error');
+      setErrorMsg('Não foi possível gerar o PDF. Tenta novamente.');
     } finally {
-      document.body.removeChild(iframe);
       setPdfLoading(false);
     }
   }, [request]);
@@ -328,7 +382,12 @@ strong,b{color:inherit!important}
           {/* Conteúdo do contrato */}
           <div style={{ padding: '24px 32px', maxHeight: 420, overflowY: 'auto', borderBottom: '1px solid #e4e4e7' }}>
             {request.contract.content
-              ? <div dangerouslySetInnerHTML={{ __html: request.contract.content }} style={{ fontSize: 14, lineHeight: 1.8, color: '#374151' }} />
+              ? <>
+                  <div dangerouslySetInnerHTML={{ __html: request.contract.content }} style={{ fontSize: 14, lineHeight: 1.8, color: '#374151' }} />
+                  {(request.contract.signatures?.length ?? 0) > 0 && (
+                    <div dangerouslySetInnerHTML={{ __html: buildSignatureBlock(request.contract.signatures!) }} />
+                  )}
+                </>
               : <p style={{ color: '#9ca3af', fontSize: 14 }}>Conteúdo do contrato não disponível.</p>
             }
           </div>

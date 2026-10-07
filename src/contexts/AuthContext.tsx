@@ -233,19 +233,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [fetchProfile]);
 
   useEffect(() => {
-    // Security: Clear sensitive data on new tab detection
-    const tabId = sessionStorage.getItem('auth_tab_id');
-    if (!tabId) {
-      // New tab detected - clear sensitive data
+    // Regista um ID de aba para uso futuro (sem limpar tokens — isso
+    // quebrava rotas públicas abertas em novas abas a partir de emails)
+    if (!sessionStorage.getItem('auth_tab_id')) {
       sessionStorage.setItem('auth_tab_id', Date.now().toString());
-      localStorage.removeItem('sb-auth-token');
-      localStorage.removeItem('sb-refresh-token');
-      // Clear all profile caches
-      Object.keys(localStorage).forEach(key => {
-        if (key.startsWith('profile_')) localStorage.removeItem(key);
-      });
     }
-    
+
     let cancelled = false;
     // Carrega a sessão inicial e aguarda o perfil antes de marcar isLoading=false
     supabase.auth.getSession().then(async ({ data: { session } }) => {

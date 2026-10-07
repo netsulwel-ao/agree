@@ -95,8 +95,29 @@ export default function PublicSign() {
       const { default: html2pdf } = await import('html2pdf.js');
       const doc = iframe.contentDocument!;
       doc.open();
+      // O override de cores garante compatibilidade com html2canvas que não
+      // suporta funções CSS modernas como oklch (geradas pelo Tailwind v4).
+      // Todos os elementos recebem color e background explícitos em rgb.
       doc.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/>
-<style>*{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:13px;line-height:1.8;color:#222;padding:32px;margin:0;background:#fff}h1,h2,h3{color:#111;margin-bottom:8px}p{margin:0 0 10px}table{width:100%;border-collapse:collapse}td,th{border:1px solid #ccc;padding:6px 10px}</style>
+<style>
+*{box-sizing:border-box;color:inherit!important;background-color:transparent!important}
+html,body{background:#fff!important;color:#222!important}
+body{font-family:Arial,sans-serif;font-size:13px;line-height:1.8;padding:32px;margin:0}
+h1,h2,h3{color:#111!important;margin-bottom:8px}
+p{margin:0 0 10px}
+table{width:100%;border-collapse:collapse}
+td,th{border:1px solid #ccc!important;padding:6px 10px}
+a{color:#0d1117!important}
+strong,b{color:inherit!important}
+/* Neutraliza qualquer variável CSS oklch que possa vir do conteúdo */
+:root{
+  --color-primary:#0d1117;
+  --color-secondary:#374151;
+  --foreground:#222;
+  --background:#fff;
+  --border:#e5e7eb;
+}
+</style>
 </head><body>${request.contract.content}</body></html>`);
       doc.close();
       await new Promise(r => setTimeout(r, 300));

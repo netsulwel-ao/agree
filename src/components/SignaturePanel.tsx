@@ -92,6 +92,25 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
   useEffect(() => {
     setSignatures(contract.signatures || []);
   }, [contract.signatures]);
+
+  // Realtime: escuta mudanças no contrato e atualiza assinaturas automaticamente.
+  // Quando um signatário externo assina via link público, o dono vê sem recarregar.
+  useEffect(() => {
+    const channel = supabase
+      .channel(`contract-signatures-${contract.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'contracts', filter: `id=eq.${contract.id}` },
+        (payload) => {
+          const updated = (payload.new as any)?.signatures;
+          if (updated) setSignatures(updated);
+          onUpdate();
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [contract.id, onUpdate]);
   const [addingSignatory, setAddingSignatory] = useState(false);
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');

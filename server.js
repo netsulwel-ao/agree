@@ -270,10 +270,10 @@ app.post('/api/sign/:token/submit', async (req, res) => {
     })
     .eq('token', token);
 
-  // Atualiza as assinaturas no contrato
+  // Atualiza as assinaturas no contrato e injeta a imagem no HTML
   const { data: contract } = await supabase
     .from('contracts')
-    .select('signatures')
+    .select('signatures, content')
     .eq('id', request.contract_id)
     .single();
 
@@ -283,6 +283,33 @@ app.post('/api/sign/:token/submit', async (req, res) => {
       : s
   );
 
+  // Injeta a imagem da assinatura no HTML do contrato.
+  // Os templates usam: <div style="height:52px;border-bottom:1px solid #ccc;..."></div>
+  // seguido do nome do signatário. Substituímos a 1ª div vazia encontrada perto do nome.
+  let updatedContent = contract?.content || '';
+  if (updatedContent && publicUrl) {
+    const signerName = request.signer_name || '';
+    const imgTag = `<img src="${publicUrl}" alt="Assinatura de ${signerName}" style="max-height:48px;max-width:180px;object-fit:contain;display:block;margin-bottom:4px;" />`;
+
+    // Estratégia: encontrar divs de altura 52px (linha de assinatura) vazias
+    // que estejam antes do nome do signatário, e injetar a imagem dentro delas.
+    // Padrão: <div style="...height:52px;border-bottom:..."></div> seguido do nome
+    const signerNameEscaped = signerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(
+      `(<div[^>]*height:52px[^>]*border-bottom[^>]*>)(\\s*</div>)(?=[\\s\\S]{0,300}${signerNameEscaped})`,
+      'i'
+    );
+    if (pattern.test(updatedContent)) {
+      updatedContent = updatedContent.replace(pattern, `$1${imgTag}$2`);
+    } else {
+      // Fallback: injetar na 1ª linha de assinatura vazia encontrada
+      const fallback = /(<div[^>]*height:52px[^>]*border-bottom[^>]*>)(\s*<\/div>)/i;
+      if (fallback.test(updatedContent)) {
+        updatedContent = updatedContent.replace(fallback, `$1${imgTag}$2`);
+      }
+    }
+  }
+
   // Verifica se todos assinaram
   const allSigned = signatures.length > 0 && signatures.every((s) => s.signed);
 
@@ -290,6 +317,7 @@ app.post('/api/sign/:token/submit', async (req, res) => {
     .from('contracts')
     .update({
       signatures,
+      content:    updatedContent,
       status:     allSigned ? 'approved' : 'pending',
       updated_at: new Date().toISOString(),
     })

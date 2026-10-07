@@ -242,33 +242,63 @@ app.post('/api/sign/:token/submit', async (req, res) => {
 
   if (error || !request) return res.status(404).json({ error: 'Link inválido.' });
   if (new Date(request.expires_at) < new Date()) return res.status(410).json({ error: 'Link expirado.' });
-  if (request.status === 'signed') return res.status(409).json({ error: 'Já assinaste este contrato.' });
+  
+  // Se já foi assinado numa tentativa anterior, verifica se o contrato foi
+  // atualizado — se não foi (bug anterior), re-processa sem re-fazer o upload.
+  if (request.status === 'signed') {
+    // Verifica se a assinatura já foi aplicada no contrato
+    const { data: existingContract } = await supabase
+      .from('contracts')
+      .select('signatures')
+      .eq('id', request.contract_id)
+      .single();
+    
+    const alreadyInContract = (existingContract?.signatures || [])
+      .some(s => s.email === request.signer_email && s.signed === true);
+    
+    if (alreadyInContract) {
+      return res.status(409).json({ error: 'Já assinaste este contrato.' });
+    }
+    // Não está no contrato — re-processa usando a signature_url já guardada
+    console.log(`[submit] Re-processando assinatura já existente para ${request.signer_email}`);
+  }
 
   // Upload da imagem da assinatura para o Storage
-  const base64Data = signatureDataUrl.replace(/^data:image\/\w+;base64,/, '');
-  const buffer = Buffer.from(base64Data, 'base64');
-  const filePath = `public/signatures/${request.contract_id}/${request.id}.png`;
+  // Se já foi assinado antes mas o contrato não foi atualizado, reutiliza a URL existente
+  let publicUrl = request.signature_url || null;
 
-  const { error: uploadErr } = await supabase.storage
-    .from('signatures')
-    .upload(filePath, buffer, { contentType: 'image/png', upsert: true });
+  if (!publicUrl || request.status !== 'signed') {
+    const base64Data = signatureDataUrl.replace(/^data:image\/\w+;base64,/, '');
+    const buffer = Buffer.from(base64Data, 'base64');
+    const filePath = `public/signatures/${request.contract_id}/${request.id}.png`;
 
-  if (uploadErr) return res.status(500).json({ error: 'Erro ao guardar assinatura: ' + uploadErr.message });
+    const { error: uploadErr } = await supabase.storage
+      .from('signatures')
+      .upload(filePath, buffer, { contentType: 'image/png', upsert: true });
 
-  const { data: { publicUrl } } = supabase.storage.from('signatures').getPublicUrl(filePath);
+    if (uploadErr) {
+      console.error('[submit] Erro no upload:', uploadErr.message);
+      return res.status(500).json({ error: 'Erro ao guardar assinatura: ' + uploadErr.message });
+    }
 
-  // Atualiza o signing_request
-  await supabase
-    .from('signing_requests')
-    .update({
-      status:        'signed',
-      signed_at:     new Date().toISOString(),
-      signature_url: publicUrl,
-      signer_ip:     signerIp || req.headers['x-forwarded-for'] || req.socket.remoteAddress,
-      signer_agent:  signerAgent || req.headers['user-agent'],
-      updated_at:    new Date().toISOString(),
-    })
-    .eq('token', token);
+    const { data: { publicUrl: uploadedUrl } } = supabase.storage.from('signatures').getPublicUrl(filePath);
+    publicUrl = uploadedUrl;
+
+    // Atualiza o signing_request
+    await supabase
+      .from('signing_requests')
+      .update({
+        status:        'signed',
+        signed_at:     new Date().toISOString(),
+        signature_url: publicUrl,
+        signer_ip:     signerIp || req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+        signer_agent:  signerAgent || req.headers['user-agent'],
+        updated_at:    new Date().toISOString(),
+      })
+      .eq('token', token);
+  }
+
+  console.log(`[submit] signature URL: ${publicUrl}`);
 
   // Atualiza as assinaturas no contrato e injeta a imagem no HTML
   const { data: contract } = await supabase
@@ -313,7 +343,7 @@ app.post('/api/sign/:token/submit', async (req, res) => {
   // Verifica se todos assinaram
   const allSigned = signatures.length > 0 && signatures.every((s) => s.signed);
 
-  await supabase
+  const { error: contractUpdateErr } = await supabase
     .from('contracts')
     .update({
       signatures,
@@ -322,6 +352,13 @@ app.post('/api/sign/:token/submit', async (req, res) => {
       updated_at: new Date().toISOString(),
     })
     .eq('id', request.contract_id);
+
+  if (contractUpdateErr) {
+    console.error('[submit] Erro ao atualizar contrato:', contractUpdateErr.message);
+    return res.status(500).json({ error: 'Assinatura guardada mas erro ao atualizar contrato: ' + contractUpdateErr.message });
+  }
+
+  console.log(`[submit] Contrato ${request.contract_id} atualizado. allSigned=${allSigned}`);
 
   res.json({ success: true, signatureUrl: publicUrl, allSigned });
 });

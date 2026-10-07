@@ -98,12 +98,15 @@ app.post('/api/sign/invite', requireAuth, async (req, res) => {
   const contentHash = createHash('sha256').update(contract.content || '').digest('hex');
 
   // Cria ou reutiliza pedido de assinatura para este email+contrato
+  // Reutiliza se estiver pending OU viewed (aberto mas não assinado)
   const { data: existing } = await supabase
     .from('signing_requests')
     .select('id, token, status')
     .eq('contract_id', contractId)
     .eq('signer_email', signerEmail.toLowerCase().trim())
-    .eq('status', 'pending')
+    .in('status', ['pending', 'viewed'])
+    .order('created_at', { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   let token;
@@ -301,22 +304,55 @@ app.post('/api/sign/:token/submit', async (req, res) => {
   console.log(`[submit] signature URL: ${publicUrl}`);
 
   // Atualiza as assinaturas no contrato e injeta a imagem no HTML
-  const { data: contract } = await supabase
+  const { data: contract, error: contractFetchErr } = await supabase
     .from('contracts')
     .select('signatures, content')
     .eq('id', request.contract_id)
     .single();
 
-  const signatures = (contract?.signatures || []).map((s) =>
-    s.email === request.signer_email
-      ? { ...s, signed: true, signedAt: new Date().toISOString(), signatureUrl: publicUrl, hash: request.content_hash }
-      : s
+  if (contractFetchErr || !contract) {
+    console.error('[submit] Erro ao buscar contrato:', contractFetchErr?.message);
+    return res.status(500).json({ error: 'Erro ao buscar contrato.' });
+  }
+
+  console.log(`[submit] contrato ${request.contract_id} — signatures atual:`, JSON.stringify(contract.signatures));
+
+  // Atualiza o array de assinaturas.
+  // Se o signatário já existe no array, atualiza. Se não existe, adiciona.
+  const existingSignatures = Array.isArray(contract.signatures) ? contract.signatures : [];
+  const signerEmailNorm = request.signer_email.toLowerCase().trim();
+
+  const alreadyInArray = existingSignatures.some(
+    s => (s.email || '').toLowerCase().trim() === signerEmailNorm
   );
 
+  let signatures;
+  if (alreadyInArray) {
+    signatures = existingSignatures.map((s) =>
+      (s.email || '').toLowerCase().trim() === signerEmailNorm
+        ? { ...s, signed: true, signedAt: new Date().toISOString(), signatureUrl: publicUrl, hash: request.content_hash }
+        : s
+    );
+  } else {
+    // Signatário não estava no array — adiciona (pode acontecer se foi adicionado via invite direto)
+    signatures = [
+      ...existingSignatures,
+      {
+        id: request.id,
+        name: request.signer_name,
+        email: request.signer_email,
+        signed: true,
+        signedAt: new Date().toISOString(),
+        signatureUrl: publicUrl,
+        hash: request.content_hash,
+      }
+    ];
+  }
+
+  console.log(`[submit] signatures após update:`, JSON.stringify(signatures));
+
   // Injeta a imagem da assinatura no HTML do contrato.
-  // Os templates usam: <div style="height:52px;border-bottom:1px solid #ccc;..."></div>
-  // seguido do nome do signatário. Substituímos a 1ª div vazia encontrada perto do nome.
-  let updatedContent = contract?.content || '';
+  let updatedContent = contract.content || '';
   if (updatedContent && publicUrl) {
     const signerName = request.signer_name || '';
     const imgTag = `<img src="${publicUrl}" alt="Assinatura de ${signerName}" style="max-height:48px;max-width:180px;object-fit:contain;display:block;margin-bottom:4px;" />`;

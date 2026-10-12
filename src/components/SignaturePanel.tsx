@@ -159,8 +159,12 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
 
   const isOwner = contract.owner_id === user.id;
   const currentUserSignature = signatures.find(s => s.email === user.email);
-  const allSigned = signatures.length > 0 && signatures.every(s => s.signed);
+  // "totalmente assinado" só é verdade se todos os slots do contrato estão preenchidos
+  const allSigned = signatures.length > 0 && signatures.every(s => s.signed) &&
+    (slots.length === 0 || signatures.length >= slots.length);
   const signedCount = signatures.filter(s => s.signed).length;
+  // Ainda há slots livres no contrato que podem ser preenchidos
+  const hasOpenSlots = slots.length > 0 && signatures.length < slots.length;
 
   const handleAddSignatory = async () => {
     if (!newName.trim() || !newEmail.trim()) {
@@ -476,6 +480,8 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
               ? 'Contrato totalmente assinado'
               : signatures.length === 0
               ? 'Sem signatários definidos'
+              : hasOpenSlots
+              ? `${signedCount} de ${slots.length} assinatura${slots.length > 1 ? 's' : ''}`
               : `${signedCount} de ${signatures.length} assinatura${signatures.length > 1 ? 's' : ''}`
             }
           </p>
@@ -484,23 +490,26 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
               ? 'Todas as partes assinaram este contrato'
               : signatures.length === 0
               ? 'Adiciona os signatários para iniciar o processo'
+              : hasOpenSlots
+              ? `Faltam ${slots.length - signedCount} assinatura(s) — adiciona os restantes signatários`
               : 'A aguardar assinaturas pendentes'
             }
           </p>
         </div>
         {/* Barra de progresso */}
-        {signatures.length > 0 && (
+        {(signatures.length > 0 || hasOpenSlots) && (
           <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
             <p style={{ fontSize: 20, fontWeight: 800, color: allSigned ? '#0d1117' : '#f59e0b', fontFamily: "'Poppins',sans-serif" }}>
-              {Math.round((signedCount / signatures.length) * 100)}%
+              {slots.length > 0
+                ? Math.round((signedCount / slots.length) * 100)
+                : Math.round((signedCount / Math.max(signatures.length, 1)) * 100)
+              }%
             </p>
             <div style={{ width: 80, height: 4, background: '#e2e5e9', borderRadius: 4, marginTop: 4 }}>
               <div style={{
-                width: `${(signedCount / signatures.length) * 100}%`,
-                height: '100%',
-                background: allSigned ? '#0d1117' : '#f59e0b',
-                borderRadius: 4,
-                transition: 'width .4s ease'
+                width: `${slots.length > 0 ? (signedCount / slots.length) * 100 : (signedCount / Math.max(signatures.length, 1)) * 100}%`,
+                height: '100%', background: allSigned ? '#0d1117' : '#f59e0b',
+                borderRadius: 4, transition: 'width .4s ease'
               }} />
             </div>
           </div>
@@ -508,7 +517,7 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
       </div>
 
       {/* Botão assinar para o DONO quando não está no array de signatários */}
-      {isOwner && !currentUserSignature && !allSigned && userSignature && (
+      {isOwner && !currentUserSignature && (hasOpenSlots || slots.length === 0) && userSignature && (
         <div style={{ background: 'linear-gradient(135deg, #0d1117, #262626)', borderRadius: 16, padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div>
             <p style={{ fontSize: 14, fontWeight: 700, color: '#fff', fontFamily: "'Poppins',sans-serif", marginBottom: 4 }}>
@@ -642,7 +651,7 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
           <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0d1117', fontFamily: "'Poppins',sans-serif" }}>
             Signatários ({signatures.length})
           </h3>
-          {isOwner && !allSigned && (
+          {isOwner && (!allSigned || hasOpenSlots) && (
             <button
               onClick={() => setAddingSignatory(true)}
               style={{

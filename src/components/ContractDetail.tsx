@@ -48,6 +48,7 @@ import { formatCurrency } from '../services/currency';
 import { ReminderForm, ReminderList } from './ReminderForm';
 import { getRenewalHistory, renewContract, RenewalHistory } from '../services/reminders';
 import { buildSignatureBlock } from '../lib/signatureBlock';
+import { extractSignatureSlots, type SignatureSlot } from '../lib/signatureSlots';
 
 export default function ContractDetail() {
   const { user, plan, isAdmin, trialEndsAt } = useAuth();

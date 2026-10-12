@@ -2,7 +2,7 @@
 import { supabase } from '../lib/supabase';
 import {
   PenLine, CheckCircle2, Clock, Plus, Trash2,
-  Mail, Shield, AlertCircle, Loader2, Image as ImageIcon, ArrowUpRight, Pencil, X
+  Mail, Shield, AlertCircle, Loader2, Image as ImageIcon, ArrowUpRight, Pencil, X, ChevronDown
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -14,6 +14,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCheckoutModal } from '../contexts/CheckoutModalContext';
 import { checkPlan, getLimits, canUpgrade } from '../lib/plans';
 import SignaturePad from './SignaturePad';
+import { extractSignatureSlots, type SignatureSlot } from '../lib/signatureSlots';
 
 interface Signature {
   id: string;
@@ -23,6 +24,8 @@ interface Signature {
   signedAt?: string;
   hash?: string;
   signatureUrl?: string;
+  slotIndex?: number;   // índice da div de assinatura no HTML do contrato
+  slotLabel?: string;   // label da posição (ex: "Vendedor", "Comprador")
 }
 
 interface SignaturePanelProps {
@@ -114,8 +117,18 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
   const [addingSignatory, setAddingSignatory] = useState(false);
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
+  const [newSlotIndex, setNewSlotIndex] = useState<number>(-1);  // slot escolhido ao adicionar
+  const [mySlotIndex, setMySlotIndex] = useState<number>(-1);    // slot escolhido ao assinar
+  const [showSlotPicker, setShowSlotPicker] = useState(false);   // modal de seleção de slot
   const [signing, setSigning] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Slots de assinatura extraídos do HTML do contrato
+  const slots: SignatureSlot[] = extractSignatureSlots(contract.content || '');
+  // Slots ainda livres (sem signatário atribuído)
+  const freeSlots = slots.filter(slot =>
+    !signatures.some(s => s.slotIndex === slot.index)
+  );
   const [showDrawPad, setShowDrawPad] = useState(false);
   const [drawingUpload, setDrawingUpload] = useState(false);
   const [userSignature, setUserSignature] = useState<{ id: string; image_url: string; name: string } | null>(null);
@@ -158,14 +171,21 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
       toast.error('Este email já foi adicionado');
       return;
     }
+    // Se o contrato tem slots definidos e nenhum foi selecionado, pedir
+    if (slots.length > 0 && newSlotIndex === -1) {
+      toast.error('Seleciona a posição de assinatura no contrato');
+      return;
+    }
 
     setSaving(true);
     try {
+      const slotLabel = slots.find(s => s.index === newSlotIndex)?.label;
       const newSig: Signature = {
         id: crypto.randomUUID(),
         name: newName.trim(),
         email: newEmail.trim().toLowerCase(),
         signed: false,
+        ...(newSlotIndex >= 0 ? { slotIndex: newSlotIndex, slotLabel } : {}),
       };
 
       const updated = [...signatures, newSig];
@@ -179,9 +199,9 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
       setSignatures(updated);
       setNewName('');
       setNewEmail('');
+      setNewSlotIndex(-1);
       setAddingSignatory(false);
 
-      // Usa o novo endpoint que gera token único e envia email com link público
       const { data: { session } } = await supabase.auth.getSession();
       const inviteRes = await fetch('/api/sign/invite', {
         method: 'POST',
@@ -190,9 +210,11 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
           ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
         },
         body: JSON.stringify({
-          contractId:   contract.id,
-          signerName:   newSig.name,
-          signerEmail:  newSig.email,
+          contractId:  contract.id,
+          signerName:  newSig.name,
+          signerEmail: newSig.email,
+          slotIndex:   newSig.slotIndex,
+          slotLabel:   newSig.slotLabel,
         }),
       });
 
@@ -201,9 +223,7 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
       if (inviteData.success) {
         toast.success(`Convite enviado para ${newSig.email}`);
       } else if (inviteData.signLink) {
-        // Email não enviado mas token criado — mostra o link
         toast.warning(`Signatário adicionado. Partilha este link manualmente: ${inviteData.signLink}`);
-        console.info('Link de assinatura:', inviteData.signLink);
       } else {
         toast.warning('Signatário adicionado, mas não foi possível enviar o email.');
       }
@@ -273,7 +293,7 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
     }
   };
 
-  const handleSign = async () => {
+  const handleSign = async (slotIdx?: number) => {
     if (!currentUserSignature) {
       toast.error('O teu email não está na lista de signatários');
       return;
@@ -282,36 +302,52 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
       toast.error('Já assinaste este contrato');
       return;
     }
+    // Se o contrato tem slots e o signatário não tem slot atribuído, pede para escolher
+    if (slots.length > 0 && currentUserSignature.slotIndex === undefined && slotIdx === undefined) {
+      setShowSlotPicker(true);
+      return;
+    }
 
     setSigning(true);
     try {
+      const resolvedSlot = slotIdx ?? currentUserSignature.slotIndex;
+      const slotLabel = slots.find(s => s.index === resolvedSlot)?.label;
       const hash = simpleHash(`${contract.id}|${contract.content || ''}|${user.email}|${Date.now()}`);
       const updated = signatures.map(s =>
         s.email === user.email
-          ? { ...s, signed: true, signedAt: new Date().toISOString(), hash, signatureUrl: userSignature?.image_url || undefined }
+          ? { ...s, signed: true, signedAt: new Date().toISOString(), hash,
+              signatureUrl: userSignature?.image_url || undefined,
+              ...(resolvedSlot !== undefined ? { slotIndex: resolvedSlot, slotLabel } : {}) }
           : s
       );
 
-      const allNowSigned = updated.every(s => s.signed);
-      const newStatus = allNowSigned ? 'approved' : (contract.status === 'approved' ? 'approved' : contract.status);
       const { error } = await supabase
         .from('contracts')
-        .update({
-          signatures: updated,
-          status: newStatus,
-          updated_at: new Date().toISOString()
-        })
+        .update({ signatures: updated, updated_at: new Date().toISOString() })
         .eq('id', contract.id);
 
       if (error) throw error;
-
       setSignatures(updated);
+      setShowSlotPicker(false);
 
-      if (allNowSigned) {
-        toast.success('Contrato totalmente assinado e aprovado!');
-      } else {
-        toast.success('Assinatura registada com sucesso!');
+      // Injetar a imagem no HTML do contrato via servidor
+      if (userSignature?.image_url && resolvedSlot !== undefined) {
+        const { data: { session } } = await supabase.auth.getSession();
+        await fetch('/api/sign/inject-owner', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
+          },
+          body: JSON.stringify({
+            contractId: contract.id,
+            signatureUrl: userSignature.image_url,
+            slotIndex: resolvedSlot,
+          }),
+        });
       }
+
+      toast.success(updated.every(s => s.signed) ? 'Contrato totalmente assinado e aprovado!' : 'Assinatura registada com sucesso!');
       onUpdate();
     } catch (e) {
       toast.error('Erro ao registar assinatura');
@@ -536,71 +572,61 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
 
         {/* Form para adicionar signatário */}
         {addingSignatory && (
-          <div style={{
-            padding: '16px 24px', borderBottom: '1px solid #e2e5e9',
-            background: 'rgba(13,17,23,0.04)'
-          }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 12, alignItems: 'end' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 6, letterSpacing: 0.5, fontFamily: "'Poppins',sans-serif" }}>
-                  NOME
-                </label>
-                <input
-                  type="text"
-                  value={newName}
-                  onChange={e => setNewName(e.target.value)}
-                  placeholder="Nome completo"
-                  style={{
-                    width: '100%', padding: '10px 14px', fontSize: 13,
-                    background: '#fff', border: '1.5px solid #e2e5e9',
-                    outline: 'none', fontFamily: "'Poppins',sans-serif",
-                    transition: 'border-color .2s'
-                  }}
-                  onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
-                  onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
-                />
+          <div style={{ padding: '16px 24px', borderBottom: '1px solid #e2e5e9', background: 'rgba(13,17,23,0.04)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 6, letterSpacing: 0.5, fontFamily: "'Poppins',sans-serif" }}>NOME</label>
+                  <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Nome completo"
+                    style={{ width: '100%', padding: '10px 14px', fontSize: 13, background: '#fff', border: '1.5px solid #e2e5e9', outline: 'none', fontFamily: "'Poppins',sans-serif", borderRadius: 8, transition: 'border-color .2s' }}
+                    onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
+                    onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 6, letterSpacing: 0.5, fontFamily: "'Poppins',sans-serif" }}>EMAIL</label>
+                  <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="email@exemplo.com"
+                    style={{ width: '100%', padding: '10px 14px', fontSize: 13, background: '#fff', border: '1.5px solid #e2e5e9', outline: 'none', fontFamily: "'Poppins',sans-serif", borderRadius: 8, transition: 'border-color .2s' }}
+                    onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
+                    onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
+                    onKeyDown={e => e.key === 'Enter' && handleAddSignatory()}
+                  />
+                </div>
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 6, letterSpacing: 0.5, fontFamily: "'Poppins',sans-serif" }}>
-                  EMAIL
-                </label>
-                <input
-                  type="email"
-                  value={newEmail}
-                  onChange={e => setNewEmail(e.target.value)}
-                  placeholder="email@exemplo.com"
-                  style={{
-                    width: '100%', padding: '10px 14px', fontSize: 13,
-                    background: '#fff', border: '1.5px solid #e2e5e9',
-                    outline: 'none', fontFamily: "'Poppins',sans-serif",
-                    transition: 'border-color .2s'
-                  }}
-                  onFocus={e => e.currentTarget.style.borderColor = '#0d1117'}
-                  onBlur={e => e.currentTarget.style.borderColor = '#e2e5e9'}
-                  onKeyDown={e => e.key === 'Enter' && handleAddSignatory()}
-                />
-              </div>
+
+              {/* Seletor de posição no contrato */}
+              {slots.length > 0 && (
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 8, letterSpacing: 0.5, fontFamily: "'Poppins',sans-serif" }}>
+                    POSIÇÃO NO CONTRATO
+                  </label>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {slots.map(slot => {
+                      const taken = signatures.some(s => s.slotIndex === slot.index);
+                      const selected = newSlotIndex === slot.index;
+                      return (
+                        <button key={slot.index} type="button" disabled={taken} onClick={() => setNewSlotIndex(slot.index)}
+                          style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, borderRadius: 8, cursor: taken ? 'not-allowed' : 'pointer', border: `2px solid ${selected ? '#0d1117' : '#e2e5e9'}`, background: selected ? '#0d1117' : taken ? '#f7f9fb' : '#fff', color: selected ? '#fff' : taken ? '#9ca3af' : '#374151', fontFamily: "'Poppins',sans-serif", transition: 'all .15s' }}>
+                          {slot.label}{taken ? ' (ocupado)' : ''}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {newSlotIndex === -1 && (
+                    <p style={{ fontSize: 11, color: '#f59e0b', marginTop: 6, fontFamily: "'Poppins',sans-serif" }}>
+                      ⚠ Seleciona a posição que este signatário ocupa no contrato
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  onClick={handleAddSignatory}
-                  disabled={saving}
-                  style={{
-                    padding: '10px 16px', fontSize: 13, fontWeight: 600,
-                    background: '#0d1117', border: 'none', color: '#fff',
-                    cursor: saving ? 'not-allowed' : 'pointer', borderRadius: 8,
-                    fontFamily: "'Poppins',sans-serif", opacity: saving ? 0.7 : 1
-                  }}
-                >
-                  {saving ? <Loader2 size={14} className="animate-spin" /> : 'Adicionar'}
+                <button onClick={handleAddSignatory} disabled={saving}
+                  style={{ padding: '10px 20px', fontSize: 13, fontWeight: 600, background: '#0d1117', border: 'none', color: '#fff', cursor: saving ? 'not-allowed' : 'pointer', borderRadius: 8, fontFamily: "'Poppins',sans-serif", opacity: saving ? 0.7 : 1 }}>
+                  {saving ? <Loader2 size={14} className="animate-spin" /> : 'Adicionar e Convidar'}
                 </button>
-                <button
-                  onClick={() => { setAddingSignatory(false); setNewName(''); setNewEmail(''); }}
-                  style={{
-                    padding: '10px 12px', fontSize: 13, fontWeight: 600,
-                    background: '#fff', border: '1px solid #e2e5e9', color: '#6b7280',
-                    cursor: 'pointer', borderRadius: 8, fontFamily: "'Poppins',sans-serif"
-                  }}
-                >
+                <button onClick={() => { setAddingSignatory(false); setNewName(''); setNewEmail(''); setNewSlotIndex(-1); }}
+                  style={{ padding: '10px 14px', fontSize: 13, fontWeight: 600, background: '#fff', border: '1px solid #e2e5e9', color: '#6b7280', cursor: 'pointer', borderRadius: 8, fontFamily: "'Poppins',sans-serif" }}>
                   Cancelar
                 </button>
               </div>
@@ -665,6 +691,11 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
                       <Mail size={11} />
                       {sig.email}
                     </span>
+                    {sig.slotLabel && (
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', background: 'rgba(13,17,23,0.07)', color: '#374151', borderRadius: 20, fontFamily: "'Poppins',sans-serif" }}>
+                        {sig.slotLabel}
+                      </span>
+                    )}
                     {sig.signed && sig.signedAt && (
                       <span style={{ fontSize: 11, color: '#0d1117', fontFamily: "'Poppins',sans-serif", display: 'flex', alignItems: 'center', gap: 4 }}>
                         <CheckCircle2 size={11} />
@@ -788,6 +819,42 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
                 <span style={{ fontSize: 12, color: '#6b7280' }}>A processar assinatura...</span>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal de seleção de posição para o dono assinar */}
+      {showSlotPicker && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1001, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', padding: 20 }}>
+          <div style={{ background: '#fff', borderRadius: 20, padding: 28, maxWidth: 480, width: '100%', boxShadow: '0 24px 64px rgba(0,0,0,0.24)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <div>
+                <h3 style={{ fontSize: 18, fontWeight: 800, color: '#0d1117', margin: 0, fontFamily: "'Poppins',sans-serif" }}>Qual é a tua posição?</h3>
+                <p style={{ fontSize: 13, color: '#6b7280', margin: '4px 0 0', fontFamily: "'Poppins',sans-serif" }}>
+                  Seleciona a posição que assinas neste contrato
+                </p>
+              </div>
+              <button onClick={() => setShowSlotPicker(false)}
+                style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f7f9fb', border: 'none', cursor: 'pointer', borderRadius: 10, color: '#6b7280' }}>
+                <X size={18} />
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {freeSlots.map(slot => (
+                <button key={slot.index} onClick={() => { setShowSlotPicker(false); handleSign(slot.index); }}
+                  style={{ padding: '14px 20px', fontSize: 14, fontWeight: 700, borderRadius: 12, cursor: 'pointer', border: '2px solid #e2e5e9', background: '#fff', color: '#0d1117', fontFamily: "'Poppins',sans-serif", textAlign: 'left', transition: 'all .15s' }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#0d1117'; e.currentTarget.style.background = '#f7f9fb'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e5e9'; e.currentTarget.style.background = '#fff'; }}
+                >
+                  {slot.label}
+                </button>
+              ))}
+              {freeSlots.length === 0 && (
+                <p style={{ fontSize: 13, color: '#9ca3af', fontFamily: "'Poppins',sans-serif" }}>
+                  Todos os espaços de assinatura estão ocupados.
+                </p>
+              )}
+            </div>
           </div>
         </div>
       )}

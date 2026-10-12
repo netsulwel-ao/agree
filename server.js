@@ -74,7 +74,7 @@ async function requireAuth(req, res, next) {
 // --- POST /api/sign/invite ---
 // Cria um signing_request e envia email ao signatário com link único
 app.post('/api/sign/invite', requireAuth, async (req, res) => {
-  const { contractId, signerName, signerEmail } = req.body;
+  const { contractId, signerName, signerEmail, slotIndex, slotLabel } = req.body;
   if (!contractId || !signerName || !signerEmail) {
     return res.status(400).json({ error: 'contractId, signerName e signerEmail são obrigatórios' });
   }
@@ -121,6 +121,7 @@ app.post('/api/sign/invite', requireAuth, async (req, res) => {
         signer_email: signerEmail.toLowerCase().trim(),
         content_hash: contentHash,
         status:       'pending',
+        ...(slotIndex !== undefined && slotIndex !== null ? { slot_index: Number(slotIndex) } : {}),
       })
       .select('token')
       .single();
@@ -242,7 +243,6 @@ app.post('/api/sign/:token/submit', async (req, res) => {
     .select('*')
     .eq('token', token)
     .maybeSingle();
-
   if (error || !request) return res.status(404).json({ error: 'Link inválido.' });
   if (new Date(request.expires_at) < new Date()) return res.status(410).json({ error: 'Link expirado.' });
   
@@ -352,27 +352,41 @@ app.post('/api/sign/:token/submit', async (req, res) => {
   console.log(`[submit] signatures após update:`, JSON.stringify(signatures));
 
   // Injeta a imagem da assinatura no HTML do contrato.
+  // Usa slotIndex do signing_request (definido ao criar o convite) para saber
+  // exatamente qual div de assinatura preencher.
   let updatedContent = contract.content || '';
   if (updatedContent && publicUrl) {
-    const signerName = request.signer_name || '';
-    const imgTag = `<img src="${publicUrl}" alt="Assinatura de ${signerName}" style="max-height:48px;max-width:180px;object-fit:contain;display:block;margin-bottom:4px;" />`;
-
-    // Estratégia: encontrar divs de altura 52px (linha de assinatura) vazias
-    // que estejam antes do nome do signatário, e injetar a imagem dentro delas.
-    // Padrão: <div style="...height:52px;border-bottom:..."></div> seguido do nome
-    const signerNameEscaped = signerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const pattern = new RegExp(
-      `(<div[^>]*height:52px[^>]*border-bottom[^>]*>)(\\s*</div>)(?=[\\s\\S]{0,300}${signerNameEscaped})`,
-      'i'
+    // slotIndex pode vir do signing_request (guardado no invite) ou do array signatures
+    const sigEntry = signatures.find(
+      s => (s.email || '').toLowerCase().trim() === request.signer_email.toLowerCase().trim()
     );
-    if (pattern.test(updatedContent)) {
-      updatedContent = updatedContent.replace(pattern, `$1${imgTag}$2`);
+    const slotIndex = request.slot_index ?? sigEntry?.slotIndex;
+
+    const imgTag = `<img src="${publicUrl}" alt="Assinatura" style="max-height:48px;max-width:180px;object-fit:contain;display:block;margin-bottom:4px;" />`;
+    const divPattern = /(<div[^>]*height:52px[^>]*border-bottom[^>]*>)(\s*<\/div>)/gi;
+
+    if (slotIndex !== undefined && slotIndex !== null) {
+      // Injetar na posição exata
+      let matchIndex = 0;
+      updatedContent = updatedContent.replace(divPattern, (match, open, close) => {
+        if (matchIndex === slotIndex) { matchIndex++; return `${open}${imgTag}${close}`; }
+        matchIndex++;
+        return match;
+      });
     } else {
-      // Fallback: injetar na 1ª linha de assinatura vazia encontrada
-      const fallback = /(<div[^>]*height:52px[^>]*border-bottom[^>]*>)(\s*<\/div>)/i;
-      if (fallback.test(updatedContent)) {
-        updatedContent = updatedContent.replace(fallback, `$1${imgTag}$2`);
-      }
+      // Fallback: primeira div vazia
+      updatedContent = updatedContent.replace(divPattern, (match, open, close) => {
+        if (match.includes('<img')) return match; // já tem imagem
+        divPattern.lastIndex = 0;
+        const result = `${open}${imgTag}${close}`;
+        divPattern.lastIndex = updatedContent.length; // parar após primeira substituição
+        return result;
+      });
+      // Regex stateful — usar replace com flag sem 'g' para só substituir uma vez
+      updatedContent = contract.content.replace(
+        /(<div[^>]*height:52px[^>]*border-bottom[^>]*>)(\s*<\/div>)/i,
+        (m, open, close) => `${open}${imgTag}${close}`
+      );
     }
   }
 
@@ -409,6 +423,42 @@ app.post('/api/sign/:token/submit', async (req, res) => {
   console.log(`[submit] Contrato ${request.contract_id} atualizado. allSigned=${allSigned}`);
 
   res.json({ success: true, signatureUrl: publicUrl, allSigned });
+});
+
+// --- POST /api/sign/inject-owner --- (injetar assinatura do dono no HTML do contrato)
+app.post('/api/sign/inject-owner', requireAuth, async (req, res) => {
+  const { contractId, signatureUrl, slotIndex } = req.body;
+  if (!contractId || !signatureUrl || slotIndex === undefined) {
+    return res.status(400).json({ error: 'contractId, signatureUrl e slotIndex são obrigatórios' });
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return res.status(503).json({ error: 'Serviço não configurado' });
+
+  const { data: contract, error } = await supabase
+    .from('contracts')
+    .select('content')
+    .eq('id', contractId)
+    .single();
+
+  if (error || !contract) return res.status(404).json({ error: 'Contrato não encontrado' });
+
+  const imgTag = `<img src="${signatureUrl}" alt="Assinatura" style="max-height:48px;max-width:180px;object-fit:contain;display:block;margin-bottom:4px;" />`;
+  const divPattern = /(<div[^>]*height:52px[^>]*border-bottom[^>]*>)(\s*<\/div>)/gi;
+  let matchIndex = 0;
+  const updatedContent = contract.content.replace(divPattern, (match, open, close) => {
+    if (matchIndex === slotIndex) { matchIndex++; return `${open}${imgTag}${close}`; }
+    matchIndex++;
+    return match;
+  });
+
+  const { error: updateErr } = await supabase
+    .from('contracts')
+    .update({ content: updatedContent, updated_at: new Date().toISOString() })
+    .eq('id', contractId);
+
+  if (updateErr) return res.status(500).json({ error: updateErr.message });
+  res.json({ success: true });
 });
 
 app.post('/api/invite-user', requireAuth, async (req, res) => {

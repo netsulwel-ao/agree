@@ -352,40 +352,41 @@ app.post('/api/sign/:token/submit', async (req, res) => {
   console.log(`[submit] signatures após update:`, JSON.stringify(signatures));
 
   // Injeta a imagem da assinatura no HTML do contrato.
-  // Usa slotIndex do signing_request (definido ao criar o convite) para saber
-  // exatamente qual div de assinatura preencher.
   let updatedContent = contract.content || '';
   if (updatedContent && publicUrl) {
-    // slotIndex pode vir do signing_request (guardado no invite) ou do array signatures
     const sigEntry = signatures.find(
       s => (s.email || '').toLowerCase().trim() === request.signer_email.toLowerCase().trim()
     );
-    const slotIndex = request.slot_index ?? sigEntry?.slotIndex;
+    // Usar slotIndex do signing_request, ou do array signatures, ou encontrar a próxima div vazia
+    const slotIndex = (request.slot_index !== undefined && request.slot_index !== null)
+      ? request.slot_index
+      : sigEntry?.slotIndex;
 
     const imgTag = `<img src="${publicUrl}" alt="Assinatura" style="max-height:48px;max-width:180px;object-fit:contain;display:block;margin-bottom:4px;" />`;
-    const divPattern = /(<div[^>]*height:52px[^>]*border-bottom[^>]*>)(\s*<\/div>)/gi;
 
     if (slotIndex !== undefined && slotIndex !== null) {
-      // Injetar na posição exata
+      // Injetar na posição exata do slot
       let matchIndex = 0;
-      updatedContent = updatedContent.replace(divPattern, (match, open, close) => {
-        if (matchIndex === slotIndex) { matchIndex++; return `${open}${imgTag}${close}`; }
-        matchIndex++;
-        return match;
-      });
+      updatedContent = updatedContent.replace(
+        /(<div[^>]*height:52px[^>]*border-bottom[^>]*>)(\s*<\/div>)/gi,
+        (match, open, close) => {
+          const result = matchIndex === slotIndex ? `${open}${imgTag}${close}` : match;
+          matchIndex++;
+          return result;
+        }
+      );
     } else {
-      // Fallback: primeira div vazia
-      updatedContent = updatedContent.replace(divPattern, (match, open, close) => {
-        if (match.includes('<img')) return match; // já tem imagem
-        divPattern.lastIndex = 0;
-        const result = `${open}${imgTag}${close}`;
-        divPattern.lastIndex = updatedContent.length; // parar após primeira substituição
-        return result;
-      });
-      // Regex stateful — usar replace com flag sem 'g' para só substituir uma vez
-      updatedContent = contract.content.replace(
-        /(<div[^>]*height:52px[^>]*border-bottom[^>]*>)(\s*<\/div>)/i,
-        (m, open, close) => `${open}${imgTag}${close}`
+      // Fallback: injetar na primeira div que NÃO tem imagem ainda
+      let injected = false;
+      updatedContent = updatedContent.replace(
+        /(<div[^>]*height:52px[^>]*border-bottom[^>]*>)([\s\S]*?)(<\/div>)/gi,
+        (match, open, inner, close) => {
+          if (!injected && !inner.includes('<img')) {
+            injected = true;
+            return `${open}${imgTag}${close}`;
+          }
+          return match;
+        }
       );
     }
   }
@@ -447,13 +448,15 @@ app.post('/api/sign/inject-owner', requireAuth, async (req, res) => {
   if (error || !contract) return res.status(404).json({ error: 'Contrato não encontrado' });
 
   const imgTag = `<img src="${signatureUrl}" alt="Assinatura" style="max-height:48px;max-width:180px;object-fit:contain;display:block;margin-bottom:4px;" />`;
-  const divPattern = /(<div[^>]*height:52px[^>]*border-bottom[^>]*>)(\s*<\/div>)/gi;
   let matchIndex = 0;
-  const updatedContent = contract.content.replace(divPattern, (match, open, close) => {
-    if (matchIndex === slotIndex) { matchIndex++; return `${open}${imgTag}${close}`; }
-    matchIndex++;
-    return match;
-  });
+  const updatedContent = contract.content.replace(
+    /(<div[^>]*height:52px[^>]*border-bottom[^>]*>)([\s\S]*?)(<\/div>)/gi,
+    (match, open, inner, close) => {
+      const result = matchIndex === slotIndex ? `${open}${imgTag}${close}` : match;
+      matchIndex++;
+      return result;
+    }
+  );
 
   const { error: updateErr } = await supabase
     .from('contracts')

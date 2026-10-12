@@ -452,7 +452,7 @@ app.post('/api/sign/inject-owner', requireAuth, async (req, res) => {
 
   const makeImgDiv = (url) =>
     `<div style="position:relative;height:52px;border-bottom:1px solid #ccc;margin-bottom:10px;">` +
-    `<img src="${url}" alt="Assinatura" style="position:absolute;bottom:4px;left:0;max-height:44px;max-width:180px;object-fit:contain;" />` +
+    `<img src="${url}" alt="Assinatura" style="position:absolute;bottom:0;left:0;max-height:50px;max-width:200px;object-fit:contain;" />` +
     `</div>`;
 
   let matchIndex = 0;

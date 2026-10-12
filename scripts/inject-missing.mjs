@@ -9,7 +9,7 @@ const sb = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERV
 // Gera a div com a assinatura posicionada sobre a linha
 const makeImgDiv = (url) =>
   `<div style="position:relative;height:52px;border-bottom:1px solid #ccc;margin-bottom:10px;">` +
-  `<img src="${url}" alt="Assinatura" style="position:absolute;bottom:4px;left:0;max-height:44px;max-width:180px;object-fit:contain;" />` +
+  `<img src="${url}" alt="Assinatura" style="position:absolute;bottom:0;left:0;max-height:50px;max-width:200px;object-fit:contain;" />` +
   `</div>`;
 
 const { data: contracts } = await sb.from('contracts').select('id, title, content, signatures');
@@ -24,14 +24,19 @@ for (const c of contracts || []) {
   const signed = c.signatures.filter(s => s.signed && s.signatureUrl);
   for (const sig of signed) {
     if (content.includes(sig.signatureUrl)) {
-      // Já está no HTML — mas pode estar mal posicionada (dentro da div em vez de substituir)
-      // Verificar se está envolvida na estrutura correta (position:relative)
-      if (content.includes(`position:relative;height:52px`) && content.includes(sig.signatureUrl)) {
-        console.log(`  — Já correto: ${sig.email} em "${c.title}"`);
-        continue;
-      }
-      // Está mal posicionada — remover e reinjetar
-      content = content.replace(new RegExp(`<img[^>]*${sig.signatureUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^>]*/>`, 'g'), '');
+      // Reinjetar sempre para garantir posicionamento correto
+      content = content.replace(
+        new RegExp(`<div[^>]*position:relative[^>]*height:52px[^>]*>[^<]*<img[^>]*${sig.signatureUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^>]*/>[^<]*</div>`, 'g'),
+        makeImgDiv(sig.signatureUrl)
+      );
+      // Também remover img solto dentro de div de altura
+      content = content.replace(
+        new RegExp(`(<div[^>]*height:52px[^>]*border-bottom[^>]*>)[^<]*<img[^>]*${sig.signatureUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^>]*/>[^<]*(</div>)`, 'g'),
+        makeImgDiv(sig.signatureUrl)
+      );
+      console.log(`  ~ Re-posicionado: ${sig.email} em "${c.title}"`);
+      changed = true;
+      continue;
     }
 
     const slotIndex = sig.slotIndex;

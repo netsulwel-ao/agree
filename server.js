@@ -410,14 +410,17 @@ app.post('/api/sign/:token/submit', async (req, res) => {
     return res.status(500).json({ error: 'Assinatura guardada mas erro ao atualizar contrato: ' + contractUpdateErr.message });
   }
 
-  // Atualizar status separadamente (sem disparar o trigger problemático se allSigned)
-  // Só muda para 'approved' se todos assinaram — usa update condicional
+  // Atualizar status para 'approved' se todos assinaram
+  // Feito num update separado para isolar o trigger trg_notify_contract_status
+  // que pode falhar se não houver sessão — nesse caso ignoramos silenciosamente
   if (allSigned) {
-    const { error: statusErr } = await supabase.rpc('mark_contract_approved', {
-      contract_id: request.contract_id
-    }).catch(() => ({ error: null }));
-    // Se a RPC não existir, ignora — o dono pode ver que está tudo assinado pelo array
-    if (statusErr) console.warn('[submit] Não foi possível marcar como aprovado:', statusErr.message);
+    const { error: statusErr } = await supabase
+      .from('contracts')
+      .update({ status: 'approved', updated_at: new Date().toISOString() })
+      .eq('id', request.contract_id);
+    if (statusErr) {
+      console.warn('[submit] Não foi possível marcar contrato como approved:', statusErr.message);
+    }
   }
 
   console.log(`[submit] Contrato ${request.contract_id} atualizado. allSigned=${allSigned}`);

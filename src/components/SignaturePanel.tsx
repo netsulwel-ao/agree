@@ -302,15 +302,19 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
       toast.error('Já assinaste este contrato');
       return;
     }
-    // Se o contrato tem slots e o signatário não tem slot atribuído, pede para escolher
-    if (slots.length > 0 && currentUserSignature.slotIndex === undefined && slotIdx === undefined) {
+
+    // O dono assina sempre no slot já atribuído ao seu signatário,
+    // ou no slot 0 por defeito (é sempre a parte principal do contrato).
+    // Só abre o picker se houver múltiplos slots e nenhum estiver atribuído.
+    const resolvedSlot = slotIdx ?? currentUserSignature.slotIndex ?? (slots.length > 0 ? 0 : undefined);
+
+    if (slots.length > 1 && currentUserSignature.slotIndex === undefined && slotIdx === undefined) {
       setShowSlotPicker(true);
       return;
     }
 
     setSigning(true);
     try {
-      const resolvedSlot = slotIdx ?? currentUserSignature.slotIndex;
       const slotLabel = slots.find(s => s.index === resolvedSlot)?.label;
       const hash = simpleHash(`${contract.id}|${contract.content || ''}|${user.email}|${Date.now()}`);
       const updated = signatures.map(s =>
@@ -347,7 +351,7 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
         });
       }
 
-      toast.success(updated.every(s => s.signed) ? 'Contrato totalmente assinado e aprovado!' : 'Assinatura registada com sucesso!');
+      toast.success(updated.every(s => s.signed) ? 'Contrato totalmente assinado!' : 'Assinatura registada com sucesso!');
       onUpdate();
     } catch (e) {
       toast.error('Erro ao registar assinatura');

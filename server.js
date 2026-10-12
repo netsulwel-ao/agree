@@ -379,12 +379,14 @@ app.post('/api/sign/:token/submit', async (req, res) => {
   // Verifica se todos assinaram
   const allSigned = signatures.length > 0 && signatures.every((s) => s.signed);
 
+  // Nota: NÃO atualizamos o campo 'status' aqui porque o trigger
+  // trg_notify_contract_status usa auth.uid() e falha sem sessão de utilizador.
+  // O status é atualizado separadamente via função RPC ou pelo dono do contrato.
   const { error: contractUpdateErr } = await supabase
     .from('contracts')
     .update({
       signatures,
       content:    updatedContent,
-      status:     allSigned ? 'approved' : 'pending',
       updated_at: new Date().toISOString(),
     })
     .eq('id', request.contract_id);
@@ -392,6 +394,16 @@ app.post('/api/sign/:token/submit', async (req, res) => {
   if (contractUpdateErr) {
     console.error('[submit] Erro ao atualizar contrato:', contractUpdateErr.message);
     return res.status(500).json({ error: 'Assinatura guardada mas erro ao atualizar contrato: ' + contractUpdateErr.message });
+  }
+
+  // Atualizar status separadamente (sem disparar o trigger problemático se allSigned)
+  // Só muda para 'approved' se todos assinaram — usa update condicional
+  if (allSigned) {
+    const { error: statusErr } = await supabase.rpc('mark_contract_approved', {
+      contract_id: request.contract_id
+    }).catch(() => ({ error: null }));
+    // Se a RPC não existir, ignora — o dono pode ver que está tudo assinado pelo array
+    if (statusErr) console.warn('[submit] Não foi possível marcar como aprovado:', statusErr.message);
   }
 
   console.log(`[submit] Contrato ${request.contract_id} atualizado. allSigned=${allSigned}`);

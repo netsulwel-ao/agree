@@ -360,6 +360,55 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
     }
   };
 
+  // Assinar como dono diretamente (sem estar no array de signatários)
+  const handleOwnerSign = async (slotIdx: number) => {
+    if (!userSignature) return;
+    setSigning(true);
+    try {
+      const slotLabel = slots.find(s => s.index === slotIdx)?.label;
+      const hash = simpleHash(`${contract.id}|${contract.content || ''}|${user.email}|${Date.now()}`);
+      const ownerSig = {
+        id: crypto.randomUUID(),
+        name: user.user_metadata?.name || user.email?.split('@')[0] || 'Dono',
+        email: user.email!,
+        signed: true,
+        signedAt: new Date().toISOString(),
+        hash,
+        signatureUrl: userSignature.image_url,
+        slotIndex: slotIdx,
+        slotLabel,
+      };
+
+      const updated = [...signatures, ownerSig];
+      const { error } = await supabase
+        .from('contracts')
+        .update({ signatures: updated, updated_at: new Date().toISOString() })
+        .eq('id', contract.id);
+
+      if (error) throw error;
+      setSignatures(updated);
+      setShowSlotPicker(false);
+
+      // Injetar imagem no HTML
+      const { data: { session } } = await supabase.auth.getSession();
+      await fetch('/api/sign/inject-owner', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({ contractId: contract.id, signatureUrl: userSignature.image_url, slotIndex: slotIdx }),
+      });
+
+      toast.success('Assinatura registada com sucesso!');
+      onUpdate();
+    } catch (e) {
+      toast.error('Erro ao registar assinatura');
+    } finally {
+      setSigning(false);
+    }
+  };
+
   if (!checkPlan(plan, 'pro', isAdmin, trialEndsAt)) {
     return (
       <div style={{
@@ -457,6 +506,44 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
           </div>
         )}
       </div>
+
+      {/* Botão assinar para o DONO quando não está no array de signatários */}
+      {isOwner && !currentUserSignature && !allSigned && userSignature && (
+        <div style={{ background: 'linear-gradient(135deg, #0d1117, #262626)', borderRadius: 16, padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div>
+            <p style={{ fontSize: 14, fontWeight: 700, color: '#fff', fontFamily: "'Poppins',sans-serif", marginBottom: 4 }}>
+              Assinar como dono
+            </p>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', fontFamily: "'Poppins',sans-serif" }}>
+              Usa a tua assinatura registada para assinar este contrato.
+            </p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{ flex: 1, background: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 60, height: 40, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.05)' }}>
+                <img src={userSignature.image_url} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+              </div>
+              <div>
+                <p style={{ fontSize: 12, fontWeight: 600, color: '#fff', margin: 0 }}>{userSignature.name}</p>
+                <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', margin: 0 }}>Assinatura registada</p>
+              </div>
+            </div>
+            {slots.length <= 1 ? (
+              <button onClick={() => handleOwnerSign(0)} disabled={signing}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 24px', fontSize: 14, fontWeight: 700, background: '#fff', border: 'none', color: '#0d1117', cursor: signing ? 'not-allowed' : 'pointer', borderRadius: 12, flexShrink: 0, opacity: signing ? 0.7 : 1, fontFamily: "'Poppins',sans-serif" }}>
+                {signing ? <Loader2 size={16} className="animate-spin" /> : <PenLine size={16} />}
+                {signing ? 'A assinar...' : 'Assinar Contrato'}
+              </button>
+            ) : (
+              <button onClick={() => setShowSlotPicker(true)} disabled={signing}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 24px', fontSize: 14, fontWeight: 700, background: '#fff', border: 'none', color: '#0d1117', cursor: signing ? 'not-allowed' : 'pointer', borderRadius: 12, flexShrink: 0, opacity: signing ? 0.7 : 1, fontFamily: "'Poppins',sans-serif" }}>
+                {signing ? <Loader2 size={16} className="animate-spin" /> : <PenLine size={16} />}
+                {signing ? 'A assinar...' : 'Escolher posição e Assinar'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Botão assinar — para o utilizador atual se for signatário */}
       {currentUserSignature && !currentUserSignature.signed && (
@@ -845,7 +932,12 @@ export default function SignaturePanel({ contract, user, onUpdate }: SignaturePa
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {freeSlots.map(slot => (
-                <button key={slot.index} onClick={() => { setShowSlotPicker(false); handleSign(slot.index); }}
+                <button key={slot.index} onClick={() => {
+                  setShowSlotPicker(false);
+                  // Se o dono não está no array, usa handleOwnerSign; senão handleSign
+                  if (!currentUserSignature) handleOwnerSign(slot.index);
+                  else handleSign(slot.index);
+                }}
                   style={{ padding: '14px 20px', fontSize: 14, fontWeight: 700, borderRadius: 12, cursor: 'pointer', border: '2px solid #e2e5e9', background: '#fff', color: '#0d1117', fontFamily: "'Poppins',sans-serif", textAlign: 'left', transition: 'all .15s' }}
                   onMouseEnter={e => { e.currentTarget.style.borderColor = '#0d1117'; e.currentTarget.style.background = '#f7f9fb'; }}
                   onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e5e9'; e.currentTarget.style.background = '#fff'; }}

@@ -362,28 +362,31 @@ app.post('/api/sign/:token/submit', async (req, res) => {
       ? request.slot_index
       : sigEntry?.slotIndex;
 
-    const imgTag = `<img src="${publicUrl}" alt="Assinatura" style="max-height:48px;max-width:180px;object-fit:contain;display:block;margin-bottom:4px;" />`;
+    // A imagem substitui a div de linha inteira por uma versão com posicionamento relativo
+    // para que a assinatura apareça sobre a linha (bottom:0) como numa assinatura real.
+    const makeImgDiv = (url) =>
+      `<div style="position:relative;height:52px;border-bottom:1px solid #ccc;margin-bottom:10px;">` +
+      `<img src="${url}" alt="Assinatura" style="position:absolute;bottom:4px;left:0;max-height:44px;max-width:180px;object-fit:contain;" />` +
+      `</div>`;
 
     if (slotIndex !== undefined && slotIndex !== null) {
-      // Injetar na posição exata do slot
       let matchIndex = 0;
       updatedContent = updatedContent.replace(
-        /(<div[^>]*height:52px[^>]*border-bottom[^>]*>)(\s*<\/div>)/gi,
-        (match, open, close) => {
-          const result = matchIndex === slotIndex ? `${open}${imgTag}${close}` : match;
+        /(<div[^>]*height:52px[^>]*border-bottom[^>]*>)([\s\S]*?)(<\/div>)/gi,
+        (match, open, inner, close) => {
+          const result = matchIndex === slotIndex ? makeImgDiv(publicUrl) : match;
           matchIndex++;
           return result;
         }
       );
     } else {
-      // Fallback: injetar na primeira div que NÃO tem imagem ainda
       let injected = false;
       updatedContent = updatedContent.replace(
         /(<div[^>]*height:52px[^>]*border-bottom[^>]*>)([\s\S]*?)(<\/div>)/gi,
         (match, open, inner, close) => {
           if (!injected && !inner.includes('<img')) {
             injected = true;
-            return `${open}${imgTag}${close}`;
+            return makeImgDiv(publicUrl);
           }
           return match;
         }
@@ -447,12 +450,16 @@ app.post('/api/sign/inject-owner', requireAuth, async (req, res) => {
 
   if (error || !contract) return res.status(404).json({ error: 'Contrato não encontrado' });
 
-  const imgTag = `<img src="${signatureUrl}" alt="Assinatura" style="max-height:48px;max-width:180px;object-fit:contain;display:block;margin-bottom:4px;" />`;
+  const makeImgDiv = (url) =>
+    `<div style="position:relative;height:52px;border-bottom:1px solid #ccc;margin-bottom:10px;">` +
+    `<img src="${url}" alt="Assinatura" style="position:absolute;bottom:4px;left:0;max-height:44px;max-width:180px;object-fit:contain;" />` +
+    `</div>`;
+
   let matchIndex = 0;
   const updatedContent = contract.content.replace(
     /(<div[^>]*height:52px[^>]*border-bottom[^>]*>)([\s\S]*?)(<\/div>)/gi,
     (match, open, inner, close) => {
-      const result = matchIndex === slotIndex ? `${open}${imgTag}${close}` : match;
+      const result = matchIndex === slotIndex ? makeImgDiv(signatureUrl) : match;
       matchIndex++;
       return result;
     }
